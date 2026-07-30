@@ -8,6 +8,10 @@ import type {
   LaunchBehavior,
   NotificationSettings,
   FortuneSettings,
+  DailyFortune,
+  FortuneAiConnectionTestInput,
+  FortuneAiConnectionTestResponse,
+  FortuneAiResponse,
   ThemeMode,
 } from '@shared'
 
@@ -40,6 +44,8 @@ interface TreasureChestApi {
   setLaunchBehavior: (behavior: LaunchBehavior) => Promise<LaunchBehavior>
   setNotifications: (partial: Partial<NotificationSettings>) => Promise<NotificationSettings>
   setFortuneSettings: (partial: Partial<FortuneSettings>) => Promise<FortuneSettings>
+  generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string) => Promise<FortuneAiResponse>
+  testFortuneAiConnection: (payload: FortuneAiConnectionTestInput) => Promise<FortuneAiConnectionTestResponse>
 }
 
 declare global {

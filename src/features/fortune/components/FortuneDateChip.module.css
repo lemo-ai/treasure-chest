@@ -1,0 +1,170 @@
+.chip {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 11rem;
+  padding: 0.65rem 0.85rem 0.7rem;
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--hero-accent-soft, var(--color-brand-soft)) 55%, var(--color-bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--hero-accent, var(--color-brand)) 24%, var(--color-border));
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  transform-style: preserve-3d;
+  color: var(--color-ink);
+}
+
+.edge {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    120deg,
+    transparent 20%,
+    color-mix(in srgb, var(--hero-accent, var(--color-brand)) 55%, white) 50%,
+    transparent 80%
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.45;
+}
+
+.scan {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 42%,
+    color-mix(in srgb, var(--hero-accent-soft, var(--color-brand-soft)) 80%, transparent) 50%,
+    transparent 58%
+  );
+  transform: translateX(-120%);
+  animation: dateScan 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes dateScan {
+  0%,
+  72%,
+  100% {
+    transform: translateX(-120%);
+  }
+  88% {
+    transform: translateX(120%);
+  }
+}
+
+.top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-tertiary);
+}
+
+.weekday {
+  padding: 0.12rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--hero-accent, var(--color-brand)) 10%, var(--color-bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--hero-accent, var(--color-brand)) 22%, var(--color-border));
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--hero-accent, var(--color-brand));
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dayBlock {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  line-height: 1;
+}
+
+.dayNum {
+  font-family: var(--font-mono-num);
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--color-ink);
+}
+
+.daySlash {
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: var(--color-ink-tertiary);
+  margin: 0 1px;
+}
+
+.monthNum {
+  font-family: var(--font-mono-num);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-ink-secondary);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.monthShort {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--hero-accent, var(--color-brand));
+}
+
+.year {
+  font-family: var(--font-mono-num);
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--color-ink-tertiary);
+  letter-spacing: 0.06em;
+}
+
+.ticks {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transform: translateY(-50%);
+  opacity: 0.3;
+}
+
+.ticks span {
+  display: block;
+  width: calc(4px + (var(--ti) % 3) * 2px);
+  height: 1px;
+  background: var(--hero-accent, var(--color-brand));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan {
+    animation: none;
+    display: none;
+  }
+}

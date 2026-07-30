@@ -6,6 +6,7 @@ import type {
   FortuneLevel,
   FortuneSettings,
   HexagramSchool,
+  HexagramTendency,
 } from '@shared'
 import { DEFAULT_FORTUNE_SETTINGS } from '@shared'
 import { Solar } from 'lunar-javascript'
@@ -157,6 +158,114 @@ function overallBlurb(level: FortuneLevel, locale: string): string {
   return locale.startsWith('en') ? en[level] : zh[level]
 }
 
+function tendencyLabel(tendency: HexagramTendency, locale: string): string {
+  if (locale.startsWith('en')) {
+    return tendency === 'favorable' ? 'favorable' : tendency
+  }
+  const map: Record<HexagramTendency, string> = {
+    favorable: '吉',
+    neutral: '平',
+    caution: '慎',
+  }
+  return map[tendency] ?? '平'
+}
+
+function levelLabel(level: FortuneLevel, locale: string): string {
+  if (locale.startsWith('en')) {
+    return level === 'excellent' ? 'Excellent' : level
+  }
+  const map: Record<FortuneLevel, string> = {
+    excellent: '优',
+    good: '良',
+    fair: '平',
+    caution: '慎',
+  }
+  return map[level] ?? '平'
+}
+
+function buildAiAnalysis(input: {
+  locale: string
+  bazi: { dayMaster: string; element: string; hourKnown: boolean }
+  hexagram: { id: number; nameFull: string; nameEn: string; tendency: HexagramTendency }
+  overall: { level: FortuneLevel; score: number; blurb: string }
+  aspects: Record<FortuneAspectKey, FortuneAspect>
+  lucky: { colors: string[]; directions: string[]; numbers: number[] }
+}): string {
+  const { locale, bazi, hexagram, overall, aspects, lucky } = input
+
+  const entries = Object.entries(aspects) as Array<[FortuneAspectKey, FortuneAspect]>
+  entries.sort((a, b) => b[1].score - a[1].score)
+  const top = entries.slice(0, 2)
+
+  const hexName = locale.startsWith('en') ? hexagram.nameEn : hexagram.nameFull
+  const tendency = tendencyLabel(hexagram.tendency, locale)
+  const lvl = levelLabel(overall.level, locale)
+  const hourLine = bazi.hourKnown
+    ? locale.startsWith('en')
+      ? 'Hour pillar is included.'
+      : '已纳入时柱。'
+    : locale.startsWith('en')
+      ? 'Hour pillar is not used.'
+      : '未使用时柱。'
+
+  const aspectNameZh: Record<FortuneAspectKey, string> = {
+    career: '事业 / 学业',
+    wealth: '财运',
+    relationship: '感情 / 人际',
+    health: '健康',
+    mood: '情绪',
+  }
+  const aspectNameEn: Record<FortuneAspectKey, string> = {
+    career: 'Career / study',
+    wealth: 'Wealth',
+    relationship: 'Relationships',
+    health: 'Health',
+    mood: 'Mood',
+  }
+  const aspectName = locale.startsWith('en') ? aspectNameEn : aspectNameZh
+
+  const topLine = top
+    .map(([k, a]) => {
+      const prefix = locale.startsWith('en') ? `${aspectName[k]} (${a.score})` : `${aspectName[k]}：${a.score}`
+      return `${prefix} — ${a.blurb}`
+    })
+    .join(locale.startsWith('en') ? '\n' : '\n')
+
+  const luckyLine = locale.startsWith('en')
+    ? `Lucky colors: ${lucky.colors.join(', ')}\nLucky direction: ${lucky.directions.join(', ')}\nLucky numbers: ${lucky.numbers.join(' / ')}`
+    : `幸运色：${lucky.colors.join('、')}\n方位：${lucky.directions.join('、')}\n数字：${lucky.numbers.join(' / ')}`
+
+  if (locale.startsWith('en')) {
+    return [
+      'AI analysis result (local polish)',
+      `Overall: ${lvl} (${overall.score}) — ${overall.blurb}`,
+      `Day master: ${bazi.dayMaster} (Element: ${bazi.element})`,
+      `Hexagram: ${hexName} (#${hexagram.id}), tendency: ${tendency}`,
+      hourLine,
+      '',
+      'Top aspects (by score):',
+      topLine,
+      '',
+      'Open-journey hints:',
+      luckyLine,
+    ].join('\n')
+  }
+
+  return [
+    'AI分析结果（本地润色补写）',
+    `总评：${lvl}（${overall.score}）——${overall.blurb}`,
+    `日主：${bazi.dayMaster}，五行：${bazi.element}`,
+    `卦象：${hexagram.nameFull}（#${hexagram.id}），偏向：${tendency}`,
+    hourLine,
+    '',
+    '重点分项（按分数高低）：',
+    topLine,
+    '',
+    '开运提示：',
+    luckyLine,
+  ].join('\n')
+}
+
 function todayGanZhi(date: Date): string {
   const solar = Solar.fromYmd(date.getFullYear(), date.getMonth() + 1, date.getDate())
   const lunar = solar.getLunar()
@@ -221,6 +330,18 @@ export function computeDailyFortune(
   const directions = [DIRECTIONS[luckySeed % DIRECTIONS.length]!]
   const numbers = [(luckySeed % 9) + 1, ((luckySeed >> 4) % 9) + 1]
 
+  const aspectsOut = aspects
+  const aiAnalysis = settings.aiPolish
+    ? buildAiAnalysis({
+        locale,
+        bazi: { dayMaster: bazi.dayMaster, element: bazi.element, hourKnown: bazi.hourKnown },
+        hexagram: { id: hexId, nameFull: hex.nameFull, nameEn: hex.nameEn, tendency: hex.tendency },
+        overall: { level: overallLevel, score: overallScore, blurb: overallBlurb(overallLevel, locale) },
+        aspects: aspectsOut,
+        lucky: { colors, directions, numbers },
+      })
+    : undefined
+
   return {
     date: dateStr,
     profileId: profile.id,
@@ -231,12 +352,13 @@ export function computeDailyFortune(
       level: overallLevel,
       blurb: overallBlurb(overallLevel, locale),
     },
-    aspects,
+    aspects: aspectsOut,
     lucky: { colors, directions, numbers },
     disclaimer: locale.startsWith('en')
       ? 'For cultural entertainment only; not professional advice.'
       : '仅供传统文化娱乐参考，不构成任何现实决策建议。',
     source: { engine: `local-v1/${settings.hexagramSchool}`, aiPolished: settings.aiPolish },
+    aiAnalysis,
   }
 }
 

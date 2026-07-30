@@ -12,6 +12,7 @@ import type {
   NotificationSettings,
   ThemeMode,
   FortuneSettings,
+  FortuneAiProviderConfig,
   HexagramSchool,
 } from '@shared'
 import {
@@ -74,9 +75,76 @@ function parseHexagramSchool(value: unknown): HexagramSchool {
 
 function parseFortuneSettings(raw: unknown): FortuneSettings {
   const src = (raw ?? {}) as Partial<FortuneSettings>
+  const parsedModels = Array.isArray(src.aiModels)
+    ? src.aiModels.filter((m): m is string => typeof m === 'string').map((m) => m.trim()).filter(Boolean)
+    : []
+  const fallbackModel = typeof src.aiModel === 'string' && src.aiModel.trim()
+    ? src.aiModel.trim()
+    : DEFAULT_FORTUNE_SETTINGS.aiModel
+  const modelList = parsedModels.length > 0
+    ? Array.from(new Set(parsedModels))
+    : [fallbackModel]
+  const selectedModel = modelList.includes(fallbackModel) ? fallbackModel : modelList[0]!
+  const providersRaw = Array.isArray(src.aiProviders) ? src.aiProviders : []
+  const parsedProviders: FortuneAiProviderConfig[] = providersRaw
+    .map((item, idx) => {
+      const r = item as Partial<FortuneAiProviderConfig>
+      const id = typeof r.id === 'string' && r.id.trim() ? r.id.trim() : `provider-${idx + 1}`
+      const name = typeof r.name === 'string' && r.name.trim() ? r.name.trim() : `Provider ${idx + 1}`
+      const baseUrl =
+        typeof r.baseUrl === 'string' && r.baseUrl.trim()
+          ? r.baseUrl.trim()
+          : DEFAULT_FORTUNE_SETTINGS.aiBaseUrl
+      const apiFormat: 'openai' | 'anthropic' = r.apiFormat === 'anthropic' ? 'anthropic' : 'openai'
+      const models = Array.isArray(r.models)
+        ? Array.from(new Set(r.models.filter((m): m is string => typeof m === 'string').map((m) => m.trim()).filter(Boolean)))
+        : []
+      const apiKey = typeof r.apiKey === 'string' ? r.apiKey.trim() : ''
+      return {
+        id,
+        name,
+        baseUrl,
+        apiFormat,
+        models: models.length > 0 ? models : [DEFAULT_FORTUNE_SETTINGS.aiModel],
+        apiKey,
+      }
+    })
+    .filter((p) => Boolean(p.id))
+
+  const fallbackProvider: FortuneAiProviderConfig = {
+    id: 'provider-legacy',
+    name:
+      typeof src.aiProviderName === 'string' && src.aiProviderName.trim()
+        ? src.aiProviderName.trim()
+        : DEFAULT_FORTUNE_SETTINGS.aiProviderName,
+    baseUrl:
+      typeof src.aiBaseUrl === 'string' && src.aiBaseUrl.trim()
+        ? src.aiBaseUrl.trim()
+        : DEFAULT_FORTUNE_SETTINGS.aiBaseUrl,
+    apiFormat:
+      src.aiApiFormat === 'anthropic' || src.aiApiFormat === 'openai'
+        ? src.aiApiFormat
+        : DEFAULT_FORTUNE_SETTINGS.aiApiFormat,
+    models: modelList,
+    apiKey: typeof src.aiApiKey === 'string' ? src.aiApiKey.trim() : '',
+  }
+
+  const providers = parsedProviders.length > 0 ? parsedProviders : [fallbackProvider]
+  const activeIdRaw = typeof src.aiActiveProviderId === 'string' ? src.aiActiveProviderId.trim() : ''
+  const activeProvider = providers.find((p) => p.id === activeIdRaw) ?? providers[0]!
+  const activeModel = activeProvider.models.includes(selectedModel) ? selectedModel : activeProvider.models[0]!
+
   return {
     hexagramSchool: parseHexagramSchool(src.hexagramSchool),
     aiPolish: Boolean(src.aiPolish),
+    aiBaseUrl: activeProvider.baseUrl,
+    aiProviderName: activeProvider.name,
+    aiApiFormat: activeProvider.apiFormat,
+    aiModels: activeProvider.models,
+    aiModel: activeModel,
+    aiApiKey: activeProvider.apiKey,
+    aiProviders: providers,
+    aiActiveProviderId: activeProvider.id,
   }
 }
 
@@ -239,6 +307,53 @@ export const settingsStore = {
     return { ...memory.fortune }
   },
   setFortuneSettings(partial: Partial<FortuneSettings>): FortuneSettings {
+    const nextModelsRaw = partial.aiModels !== undefined ? partial.aiModels : memory.fortune.aiModels
+    const nextModels = Array.from(
+      new Set(
+        (Array.isArray(nextModelsRaw) ? nextModelsRaw : [])
+          .filter((m): m is string => typeof m === 'string')
+          .map((m) => m.trim())
+          .filter(Boolean),
+      ),
+    )
+    const fallbackModel = partial.aiModel !== undefined ? partial.aiModel.trim() : memory.fortune.aiModel
+    const normalizedModels = nextModels.length > 0 ? nextModels : [fallbackModel || DEFAULT_FORTUNE_SETTINGS.aiModel]
+    const nextSelectedModel = normalizedModels.includes(fallbackModel)
+      ? fallbackModel
+      : normalizedModels[0]!
+
+    const nextProvidersRaw = partial.aiProviders !== undefined ? partial.aiProviders : memory.fortune.aiProviders
+    const nextProviders: FortuneAiProviderConfig[] = (Array.isArray(nextProvidersRaw) ? nextProvidersRaw : [])
+      .map((p, idx) => {
+        const id = typeof p.id === 'string' && p.id.trim() ? p.id.trim() : `provider-${idx + 1}`
+        const name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : `Provider ${idx + 1}`
+        const baseUrl = typeof p.baseUrl === 'string' && p.baseUrl.trim()
+          ? p.baseUrl.trim()
+          : DEFAULT_FORTUNE_SETTINGS.aiBaseUrl
+        const apiFormat: 'openai' | 'anthropic' = p.apiFormat === 'anthropic' ? 'anthropic' : 'openai'
+        const models = Array.from(
+          new Set(
+            (Array.isArray(p.models) ? p.models : [])
+              .filter((m): m is string => typeof m === 'string')
+              .map((m) => m.trim())
+              .filter(Boolean),
+          ),
+        )
+        const apiKey = typeof p.apiKey === 'string' ? p.apiKey.trim() : ''
+        return {
+          id,
+          name,
+          baseUrl,
+          apiFormat,
+          models: models.length > 0 ? models : [DEFAULT_FORTUNE_SETTINGS.aiModel],
+          apiKey,
+        }
+      })
+      .filter((p) => Boolean(p.id))
+    const safeProviders = nextProviders.length > 0 ? nextProviders : memory.fortune.aiProviders
+    const activeId = partial.aiActiveProviderId !== undefined ? partial.aiActiveProviderId.trim() : memory.fortune.aiActiveProviderId
+    const activeProvider = safeProviders.find((p) => p.id === activeId) ?? safeProviders[0]!
+
     memory.fortune = {
       ...memory.fortune,
       ...partial,
@@ -246,6 +361,14 @@ export const settingsStore = {
         ? parseHexagramSchool(partial.hexagramSchool)
         : memory.fortune.hexagramSchool,
       aiPolish: partial.aiPolish !== undefined ? Boolean(partial.aiPolish) : memory.fortune.aiPolish,
+      aiBaseUrl: activeProvider.baseUrl,
+      aiProviderName: activeProvider.name,
+      aiApiFormat: activeProvider.apiFormat,
+      aiModels: normalizedModels,
+      aiModel: activeProvider.models.includes(nextSelectedModel) ? nextSelectedModel : activeProvider.models[0]!,
+      aiApiKey: activeProvider.apiKey,
+      aiProviders: safeProviders,
+      aiActiveProviderId: activeProvider.id,
     }
     persist()
     return { ...memory.fortune }

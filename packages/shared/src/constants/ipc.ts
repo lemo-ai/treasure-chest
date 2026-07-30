@@ -32,6 +32,8 @@ export const IpcChannels = {
     getProfile: 'fortune:getProfile',
     saveProfile: 'fortune:saveProfile',
     clearProfile: 'fortune:clearProfile',
+    generateAiAnalysis: 'fortune:generateAiAnalysis',
+    testAiConnection: 'fortune:testAiConnection',
   },
   backup: {
     export: 'backup:export',

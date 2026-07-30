@@ -5,6 +5,8 @@ import {
   type BirthProfile,
   type CalendarMode,
   type DesktopWidgetSettings,
+  type FortuneAiConnectionTestInput,
+  type DailyFortune,
   type LaunchBehavior,
   type NotificationSettings,
   type FortuneSettings,
@@ -16,6 +18,7 @@ import {
   pickDialBackground,
 } from '../modules/settings/DialBackground'
 import { fortuneStore } from '../modules/fortune/FortuneStore'
+import { generateFortuneAiAnalysis, testAiProviderConnection } from '../modules/fortune/FortuneAiService'
 import { exportBackup, importBackup } from '../modules/backup/BackupService'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
@@ -136,6 +139,16 @@ export function registerAllIpc(): void {
     fortuneStore.clearProfile()
     return true
   })
+  ipcMain.handle(
+    IpcChannels.fortune.generateAiAnalysis,
+    async (_e, payload: { fortune: DailyFortune; locale: string }) => {
+      const fortuneSettings = settingsStore.getFortuneSettings()
+      return generateFortuneAiAnalysis(payload.fortune, payload.locale, fortuneSettings)
+    },
+  )
+  ipcMain.handle(IpcChannels.fortune.testAiConnection, (_e, payload: FortuneAiConnectionTestInput) =>
+    testAiProviderConnection(payload),
+  )
 
   ipcMain.handle(IpcChannels.backup.export, () => exportBackup())
   ipcMain.handle(IpcChannels.backup.import, () => importBackup())

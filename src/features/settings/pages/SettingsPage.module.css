@@ -52,6 +52,26 @@
   font-size: 0.92rem;
 }
 
+.settingTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.settingTitleIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-brand);
+}
+
+.settingTitleIcon svg {
+  width: 1.05em;
+  height: 1.05em;
+}
+
 .settingHint {
   margin-top: 2px;
   color: var(--color-ink-tertiary);
@@ -73,6 +93,7 @@
 }
 
 .faceCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -83,16 +104,40 @@
   background: var(--color-bg);
   cursor: pointer;
   color: var(--color-ink);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .faceCard:hover {
-  border-color: var(--color-brand);
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
 }
 
 .faceCardActive {
-  border-color: var(--color-brand);
-  background: var(--color-brand-soft);
-  box-shadow: var(--shadow-soft);
+  border-color: color-mix(in srgb, var(--color-brand) 55%, var(--color-border));
+  background: color-mix(in srgb, var(--color-brand) 8%, var(--color-bg-elevated));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--color-brand) 12%, transparent);
+}
+
+.faceCardActive::after {
+  content: '✓';
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font-size: 0.65rem;
+  font-weight: 700;
 }
 
 .facePreview {
@@ -191,59 +236,189 @@
   gap: var(--space-2);
 }
 
-.bgBtn,
-.bgBtnGhost {
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
-.bgBtn {
-  border: 1px solid var(--color-brand);
-  background: var(--color-brand);
-  color: var(--color-on-brand);
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
-.bgBtn:hover {
-  background: var(--color-brand-hover);
+.aiGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
-.bgBtnGhost {
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-  color: var(--color-ink-secondary);
+.aiProviderRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
-.bgBtnGhost:hover:not(:disabled) {
-  border-color: var(--color-brand);
-  color: var(--color-brand);
-}
-
-.bgBtnGhost:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.row {
+.aiProviderList {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.localeMark {
+.aiProviderChip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  border-radius: 3px;
-  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+}
+
+.aiProviderChipActive {
+  border-color: var(--color-brand);
+  background: color-mix(in srgb, var(--color-brand) 10%, var(--color-bg));
+}
+
+.aiProviderPickBtn {
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.aiProviderRemoveBtn {
+  border: none;
+  border-left: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-ink-tertiary);
+  padding: 0.3rem 0.45rem;
+  cursor: pointer;
+}
+
+.aiField {
+  display: grid;
+  gap: 6px;
+}
+
+.aiLabel {
+  font-size: 0.76rem;
+  font-weight: 650;
   color: var(--color-ink-secondary);
+}
+
+.aiInput {
+  width: 100%;
+  min-height: 2.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.65rem;
+  font-size: 0.86rem;
+  color: var(--color-ink);
+  background: var(--color-bg);
+}
+
+.aiInput:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
+.aiSelect {
+  width: 100%;
+  min-height: 2.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.65rem;
+  font-size: 0.86rem;
+  color: var(--color-ink);
+  background: var(--color-bg);
+}
+
+.aiSelect:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
+.aiModelBlock {
+  margin-top: var(--space-3);
+}
+
+.aiModelAddRow {
+  margin-top: var(--space-2);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+}
+
+.aiAddBtn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+  color: var(--color-ink);
+  font-size: 0.86rem;
+  padding: 0 0.8rem;
+  cursor: pointer;
+}
+
+.aiAddBtn:hover {
+  border-color: var(--color-brand);
+}
+
+.aiModelChips {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.aiModelChip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+}
+
+.aiModelChipActive {
+  border-color: var(--color-brand);
+  background: color-mix(in srgb, var(--color-brand) 10%, var(--color-bg));
+}
+
+.aiModelPickBtn {
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 0.3rem 0.55rem 0.3rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.aiModelRemoveBtn {
+  border: none;
+  border-left: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-ink-tertiary);
+  padding: 0.3rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.aiModelRemoveBtn:hover {
+  color: var(--color-danger);
+}
+
+.aiActionRow {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .hint {

@@ -1,0 +1,164 @@
+.badge {
+  --badge-a: var(--hero-accent, var(--color-brand));
+  --badge-b: var(--hero-accent-2, var(--color-brand-hover));
+  position: relative;
+  display: inline-flex;
+  min-width: 5.5rem;
+  padding: 2px;
+  border-radius: 1rem;
+  transform-style: preserve-3d;
+}
+
+.borderGlow {
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--badge-a) 50%, transparent),
+    color-mix(in srgb, var(--badge-b) 40%, transparent)
+  );
+  filter: blur(8px);
+  opacity: 0.5;
+  animation: badgeGlow 3.6s ease-in-out infinite;
+}
+
+.borderSpin {
+  position: absolute;
+  inset: -40%;
+  background: conic-gradient(
+    from 0deg,
+    var(--badge-a),
+    var(--badge-b),
+    color-mix(in srgb, var(--hero-accent-soft, var(--color-brand-soft)) 80%, white),
+    var(--badge-b),
+    var(--badge-a)
+  );
+  animation: badgeSpin 5s linear infinite;
+}
+
+.borderSpin::after {
+  content: '';
+  position: absolute;
+  inset: 38%;
+  border-radius: 0.85rem;
+  background: var(--color-bg-elevated);
+}
+
+@keyframes badgeSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes badgeGlow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 0.55rem 0.95rem 0.5rem;
+  border-radius: calc(1rem - 2px);
+  background: color-mix(in srgb, var(--hero-accent-soft, var(--color-brand-soft)) 35%, var(--color-bg-elevated));
+  box-shadow: var(--shadow-soft);
+}
+
+.glyph {
+  font-size: 0.62rem;
+  line-height: 1;
+  color: var(--badge-b);
+}
+
+.char {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  color: var(--badge-a);
+}
+
+.tagline {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-tertiary);
+}
+
+.sparkA,
+.sparkB {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--badge-b);
+  animation: sparkFloat 2.8s ease-in-out infinite;
+}
+
+.sparkA {
+  top: 8%;
+  right: 12%;
+}
+
+.sparkB {
+  bottom: 14%;
+  left: 10%;
+  animation-delay: 1.2s;
+}
+
+@keyframes sparkFloat {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0) scale(0.6);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-4px) scale(1);
+  }
+}
+
+.fairRing {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--badge-a) 30%, var(--color-border));
+  animation: fairRotate 12s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes fairRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.excellent,
+.good,
+.fair,
+.caution {
+  /* inherit --hero-accent from parent .root level class */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .borderSpin,
+  .borderGlow,
+  .sparkA,
+  .sparkB,
+  .fairRing {
+    animation: none !important;
+  }
+}

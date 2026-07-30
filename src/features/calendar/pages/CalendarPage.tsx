@@ -12,7 +12,6 @@ import { DayPageTurn } from '../components/DayPageTurn'
 import { parseYmd } from '../lib/CalendarService'
 import { useFortune } from '@renderer/features/fortune/hooks/useFortune'
 import { FortunePanel } from '@renderer/features/fortune/components/FortunePanel'
-import { fortuneSummaryLine } from '@renderer/features/fortune/lib/FortuneService'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import { IconButton } from '@renderer/shared/ui/IconButton'
 import {
@@ -85,7 +84,7 @@ export function CalendarPage(): React.JSX.Element {
 }
 
 export function CalendarStandalonePage(): React.JSX.Element {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   useTheme()
   const now = useNowTick()
   const { fortune } = useFortune(now)
@@ -134,10 +133,6 @@ export function CalendarStandalonePage(): React.JSX.Element {
     void window.treasureChest.closeCalendarWindow()
   }
 
-  const dialFortuneLine = fortune
-    ? fortuneSummaryLine(fortune, i18n.language)
-    : t('fortune.widget.empty')
-
   if (mode === 'widget') {
     return (
       <DayPageTurn pageKey={day.date} className={styles.dialRoot}>
@@ -147,7 +142,6 @@ export function CalendarStandalonePage(): React.JSX.Element {
           face={dialFace}
           backgroundImageUrl={backgroundImageUrl}
           showTicks={showTicks}
-          fortuneLine={dialFortuneLine}
           onExpand={() => void onToggleMode()}
           onClose={onClose}
         />

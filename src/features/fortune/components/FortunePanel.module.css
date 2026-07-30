@@ -1,9 +1,10 @@
 .root {
   padding: var(--space-4);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-bg-elevated) 88%, transparent);
-  backdrop-filter: blur(6px);
+  border: 1px solid color-mix(in srgb, var(--color-brand) 16%, var(--color-border));
+  background: color-mix(in srgb, var(--color-bg-elevated) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-soft);
 }
 
 .disclaimer {
@@ -17,85 +18,4 @@
   margin: 0;
   font-size: 0.88rem;
   color: var(--color-ink-secondary);
-}
-
-:global(.fortuneSummaryHero) {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-}
-
-:global(.fortuneSummaryGlyph) {
-  width: 44px;
-  height: auto;
-  flex-shrink: 0;
-  color: var(--color-brand);
-}
-
-:global(.fortuneSummaryHex) {
-  margin: 0 0 var(--space-1);
-  font-size: 1rem;
-  font-weight: 650;
-  color: var(--color-ink);
-}
-
-:global(.fortuneSummaryScore) {
-  margin: 0 0 var(--space-1);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-:global(.fortuneSummaryBlurb),
-:global(.fortuneSummaryAdvice) {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  color: var(--color-ink-secondary);
-}
-
-:global(.fortuneSummaryAdvice) {
-  margin-top: var(--space-2);
-}
-
-:global(.fortuneSummaryAspects) {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-:global(.fortuneSummaryAspect) {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-2);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
-}
-
-:global(.fortuneSummaryAspectScore) {
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-:global(.fortuneSummaryAspectBlurb) {
-  font-size: 0.68rem;
-  line-height: 1.4;
-  color: var(--color-ink-tertiary);
-}
-
-:global(.fortuneLevel_excellent) {
-  color: var(--color-fortune-good);
-}
-
-:global(.fortuneLevel_good) {
-  color: var(--color-brand);
-}
-
-:global(.fortuneLevel_fair) {
-  color: var(--color-fortune-mid);
-}
-
-:global(.fortuneLevel_caution) {
-  color: var(--color-fortune-caution);
 }

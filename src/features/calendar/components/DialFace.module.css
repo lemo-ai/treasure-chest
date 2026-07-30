@@ -219,18 +219,6 @@
   color: var(--dial-muted);
 }
 
-.fortuneLine {
-  margin-top: 2px;
-  font-size: 0.5rem;
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--dial-accent);
-  max-width: 9.5rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .handHour,
 .handMinute,
 .handSecond {

@@ -10,6 +10,10 @@ import {
   type LaunchBehavior,
   type NotificationSettings,
   type FortuneSettings,
+  type DailyFortune,
+  type FortuneAiConnectionTestInput,
+  type FortuneAiConnectionTestResponse,
+  type FortuneAiResponse,
   type ThemeMode,
 } from '@shared'
 
@@ -71,6 +75,10 @@ const api = {
     ipcRenderer.invoke(IpcChannels.settings.setNotifications, partial),
   setFortuneSettings: (partial: Partial<FortuneSettings>): Promise<FortuneSettings> =>
     ipcRenderer.invoke(IpcChannels.settings.setFortuneSettings, partial),
+  generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string): Promise<FortuneAiResponse> =>
+    ipcRenderer.invoke(IpcChannels.fortune.generateAiAnalysis, { fortune, locale }),
+  testFortuneAiConnection: (payload: FortuneAiConnectionTestInput): Promise<FortuneAiConnectionTestResponse> =>
+    ipcRenderer.invoke(IpcChannels.fortune.testAiConnection, payload),
 }
 
 contextBridge.exposeInMainWorld('treasureChest', api)

@@ -8,7 +8,6 @@ interface DialFaceProps {
   face: DialFaceStyle
   backgroundImageUrl?: string | null
   showTicks?: boolean
-  fortuneLine?: string | null
   onExpand: () => void
   onClose: () => void
 }
@@ -81,7 +80,6 @@ export function DialFace({
   face,
   backgroundImageUrl,
   showTicks = true,
-  fortuneLine,
   onExpand,
   onClose,
 }: DialFaceProps): React.JSX.Element {
@@ -151,7 +149,6 @@ export function DialFace({
             </div>
             <div className={styles.bottomInfo}>
               <div className={styles.lunarYmd}>{lunarLine}</div>
-              {fortuneLine ? <div className={styles.fortuneLine}>{fortuneLine}</div> : null}
             </div>
 
             <span className={styles.handHour} style={{ transform: `rotate(${angles.hour}deg)` }} />

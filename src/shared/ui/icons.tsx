@@ -169,3 +169,138 @@ export function IconArrowRight(props: IconProps): React.JSX.Element {
   )
 }
 
+export function IconGlobe(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3.5 12h17M12 3.5a14 14 0 0 1 0 17M12 3.5a14 14 0 0 0 0 17" />
+    </svg>
+  )
+}
+
+export function IconPower(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3v6" />
+      <path d="M7.5 4.8a7 7 0 1 0 9 0" />
+    </svg>
+  )
+}
+
+export function IconTray(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 14h16l-1.2 4H5.2L4 14z" />
+      <path d="M7 10h10l2 4H5l2-4z" />
+      <path d="M9 6h6l1 4H8l1-4z" />
+    </svg>
+  )
+}
+
+export function IconDial(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 12V7" />
+      <path d="M12 12l3.5 2" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+export function IconBell(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 4.5a4 4 0 0 0-4 4v3.5l-1.5 2.5h11L16 12V8.5a4 4 0 0 0-4-4z" />
+      <path d="M10 18.5a2 2 0 0 0 4 0" />
+    </svg>
+  )
+}
+
+export function IconSparkles(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3.5l.9 3.1L16 7.5l-3.1.9L12 11.5l-.9-3.1L8 7.5l3.1-.9L12 3.5z" />
+      <path d="M6 14l.6 2 2 .6-2 .6L6 19.2l-.6-2-2-.6 2-.6L6 14z" />
+      <path d="M17 13l.5 1.7 1.7.5-1.7.5L17 17.4l-.5-1.7-1.7-.5 1.7-.5L17 13z" />
+    </svg>
+  )
+}
+
+export function IconYinYang(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 3.5a8.5 4.25 0 0 1 0 8.5 4.25 4.25 0 0 1 0-8.5z" />
+      <circle cx="12" cy="9.75" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="14.25" r="1" fill="var(--color-bg-elevated, #fff)" stroke="none" />
+    </svg>
+  )
+}
+
+export function IconFlower(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="2" />
+      <path d="M12 4.5v3M12 16.5v3M4.5 12h3M16.5 12h3M6.4 6.4l2.1 2.1M15.5 15.5l2.1 2.1M17.6 6.4l-2.1 2.1M8.5 15.5l-2.1 2.1" />
+    </svg>
+  )
+}
+
+export function IconLayers(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 4.5 4 8.5l8 4 8-4-8-4z" />
+      <path d="M4 12.5l8 4 8-4" />
+      <path d="M4 16.5l8 4 8-4" />
+    </svg>
+  )
+}
+
+export function IconDownload(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 4.5v10" />
+      <path d="M8.5 11 12 14.5 15.5 11" />
+      <path d="M5 19.5h14" />
+    </svg>
+  )
+}
+
+export function IconUpload(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 14.5V4.5" />
+      <path d="M8.5 8 12 4.5 15.5 8" />
+      <path d="M5 19.5h14" />
+    </svg>
+  )
+}
+
+export function IconImage(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <rect x="4" y="5.5" width="16" height="13" rx="1.5" />
+      <circle cx="9" cy="10.5" r="1.5" />
+      <path d="m6 17.5 4.5-4 3 2.5L17 11.5" />
+    </svg>
+  )
+}
+
+export function IconEraser(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="m16 6-8.5 8.5-2 2L6 20l3.5-3.5 2-2L20 8l-4-2z" />
+      <path d="M11.5 11.5 16 16" />
+    </svg>
+  )
+}
+
+export function IconCheck(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5.5 12.5 10 17 18.5 7" />
+    </svg>
+  )
+}
+
