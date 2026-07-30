@@ -25,7 +25,9 @@ export function createMainWindow(): BrowserWindow {
   setMainWindow(win)
 
   win.on('ready-to-show', () => {
-    win.show()
+    if (settingsStore.getLaunchBehavior() !== 'tray') {
+      win.show()
+    }
   })
 
   win.on('close', (event) => {

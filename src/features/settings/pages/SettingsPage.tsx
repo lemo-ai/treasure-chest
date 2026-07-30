@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AppLocale, DesktopWidgetView, DialFaceStyle, ThemeMode } from '@shared'
+import type { AppLocale, DesktopWidgetView, DialFaceStyle, LaunchBehavior, ThemeMode } from '@shared'
 import { DEFAULT_DESKTOP_WIDGET, DIAL_FACE_STYLES } from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
@@ -11,6 +11,7 @@ import styles from './SettingsPage.module.css'
 
 const themes: ThemeMode[] = ['light', 'dark', 'system']
 const locales: AppLocale[] = ['zh-CN', 'en-US']
+const launchBehaviors: LaunchBehavior[] = ['main', 'tray', 'widget']
 
 const themeIcons = {
   light: <IconSun />,
@@ -25,9 +26,18 @@ export function SettingsPage(): React.JSX.Element {
     ...DEFAULT_DESKTOP_WIDGET,
     backgroundImageUrl: null,
   })
+  const [launchAtLogin, setLaunchAtLogin] = useState(false)
+  const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
+  const [backupMsg, setBackupMsg] = useState<string | null>(null)
 
   useEffect(() => {
     void window.treasureChest.getDesktopWidget().then(setWidget)
+    void window.treasureChest.getSettingsSnapshot().then((snap) => {
+      setLaunchBehavior(snap.launchBehavior)
+    })
+    void window.treasureChest.getLaunchAtLogin().then((state) => {
+      setLaunchAtLogin(state.configured)
+    })
   }, [])
 
   const onLocale = async (locale: AppLocale): Promise<void> => {
@@ -44,6 +54,42 @@ export function SettingsPage(): React.JSX.Element {
 
   const onPickFace = (dialFace: DialFaceStyle): void => {
     void patchWidget({ dialFace })
+  }
+
+  const onLaunchAtLogin = (enabled: boolean): void => {
+    void window.treasureChest.setLaunchAtLogin(enabled).then((state) => {
+      setLaunchAtLogin(state.configured)
+    })
+  }
+
+  const onLaunchBehavior = (behavior: LaunchBehavior): void => {
+    void window.treasureChest.setLaunchBehavior(behavior).then(setLaunchBehavior)
+  }
+
+  const onExportBackup = (): void => {
+    void window.treasureChest.exportBackup().then((result) => {
+      if (result.ok && result.path) {
+        setBackupMsg(t('settings.backupExported', { path: result.path }))
+      } else if (result.error) {
+        setBackupMsg(t('settings.backupFailed', { error: result.error }))
+      }
+    })
+  }
+
+  const onImportBackup = (): void => {
+    void window.treasureChest.importBackup().then(async (result) => {
+      if (result.ok) {
+        setBackupMsg(t('settings.backupImported'))
+        const snap = await window.treasureChest.getSettingsSnapshot()
+        setLaunchBehavior(snap.launchBehavior)
+        const login = await window.treasureChest.getLaunchAtLogin()
+        setLaunchAtLogin(login.configured)
+        const w = await window.treasureChest.getDesktopWidget()
+        setWidget(w)
+      } else if (result.error) {
+        setBackupMsg(t('settings.backupFailed', { error: result.error }))
+      }
+    })
   }
 
   return (
@@ -153,6 +199,39 @@ export function SettingsPage(): React.JSX.Element {
       </div>
 
       <div className={styles.group}>
+        <h2 className={styles.label}>{t('settings.system')}</h2>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.launchAtLogin')}</div>
+            <div className={styles.settingHint}>{t('settings.launchAtLoginHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={launchAtLogin}
+            label={t('settings.launchAtLogin')}
+            onChange={onLaunchAtLogin}
+          />
+        </div>
+
+        <div className={styles.faceBlock}>
+          <div className={styles.settingTitle}>{t('settings.launchBehavior')}</div>
+          <div className={styles.row}>
+            {launchBehaviors.map((behavior) => (
+              <IconButton
+                key={behavior}
+                icon={<span className={styles.localeMark}>{behavior[0]?.toUpperCase()}</span>}
+                label={t(`settings.launchBehavior.${behavior}`)}
+                showLabel
+                variant="ghost"
+                active={launchBehavior === behavior}
+                onClick={() => onLaunchBehavior(behavior)}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.group}>
         <h2 className={styles.label}>{t('settings.theme')}</h2>
         <div className={styles.row}>
           {themes.map((mode) => (
@@ -186,7 +265,19 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <p className={styles.hint}>{t('settings.backup')}</p>
+      <div className={styles.group}>
+        <h2 className={styles.label}>{t('settings.backup')}</h2>
+        <p className={styles.desc}>{t('settings.backupDesc')}</p>
+        <div className={styles.row}>
+          <button type="button" className={styles.bgBtn} onClick={onExportBackup}>
+            {t('settings.exportBackup')}
+          </button>
+          <button type="button" className={styles.bgBtnGhost} onClick={onImportBackup}>
+            {t('settings.importBackup')}
+          </button>
+        </div>
+        {backupMsg ? <p className={styles.hint}>{backupMsg}</p> : null}
+      </div>
     </section>
   )
 }

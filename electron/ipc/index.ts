@@ -2,8 +2,10 @@ import { BrowserWindow, ipcMain, app, screen } from 'electron'
 import {
   IpcChannels,
   type AppLocale,
+  type BirthProfile,
   type CalendarMode,
   type DesktopWidgetSettings,
+  type LaunchBehavior,
   type ThemeMode,
 } from '@shared'
 import { settingsStore } from '../modules/settings/SettingsStore'
@@ -11,6 +13,9 @@ import {
   clearDialBackgroundFile,
   pickDialBackground,
 } from '../modules/settings/DialBackground'
+import { fortuneStore } from '../modules/fortune/FortuneStore'
+import { exportBackup, importBackup } from '../modules/backup/BackupService'
+import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
   applyCalendarMode,
   closeCalendarWindow,
@@ -119,5 +124,35 @@ export function registerAllIpc(): void {
     const next = settingsStore.setCalendarMode(mode)
     applyCalendarMode(next)
     return next
+  })
+
+  ipcMain.handle(IpcChannels.fortune.getProfile, () => fortuneStore.getProfile())
+  ipcMain.handle(IpcChannels.fortune.saveProfile, (_e, profile: BirthProfile) =>
+    fortuneStore.saveProfile(profile),
+  )
+  ipcMain.handle(IpcChannels.fortune.clearProfile, () => {
+    fortuneStore.clearProfile()
+    return true
+  })
+
+  ipcMain.handle(IpcChannels.backup.export, () => exportBackup())
+  ipcMain.handle(IpcChannels.backup.import, () => importBackup())
+
+  ipcMain.handle(IpcChannels.system.getLaunchAtLogin, () => ({
+    configured: settingsStore.getLaunchAtLogin(),
+    system: readSystemLaunchAtLogin(),
+  }))
+  ipcMain.handle(IpcChannels.system.setLaunchAtLogin, (_e, enabled: boolean) => {
+    settingsStore.setLaunchAtLogin(enabled)
+    syncLaunchAtLogin()
+    return {
+      configured: settingsStore.getLaunchAtLogin(),
+      system: readSystemLaunchAtLogin(),
+    }
+  })
+  ipcMain.handle(IpcChannels.settings.setLaunchBehavior, (_e, behavior: LaunchBehavior) => {
+    settingsStore.setLaunchBehavior(behavior)
+    syncLaunchAtLogin()
+    return settingsStore.getLaunchBehavior()
   })
 }

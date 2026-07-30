@@ -8,9 +8,10 @@ import type {
   DesktopWidgetSettings,
   DesktopWidgetView,
   DialFaceStyle,
+  LaunchBehavior,
   ThemeMode,
 } from '@shared'
-import { DEFAULT_DESKTOP_WIDGET, DIAL_FACE_STYLES } from '@shared'
+import { DEFAULT_DESKTOP_WIDGET, DEFAULT_LAUNCH_BEHAVIOR, DIAL_FACE_STYLES } from '@shared'
 import { resolveDialBackgroundUrl } from './DialBackground'
 import { logger } from '../../utils/logger'
 
@@ -19,6 +20,8 @@ interface PersistedSettings {
   locale: AppLocale
   calendarMode: CalendarMode
   desktopWidget: DesktopWidgetSettings
+  launchAtLogin: boolean
+  launchBehavior: LaunchBehavior
 }
 
 const memory: PersistedSettings = {
@@ -26,6 +29,8 @@ const memory: PersistedSettings = {
   locale: 'zh-CN',
   calendarMode: 'widget',
   desktopWidget: { ...DEFAULT_DESKTOP_WIDGET },
+  launchAtLogin: false,
+  launchBehavior: DEFAULT_LAUNCH_BEHAVIOR,
 }
 
 function settingsPath(): string {
@@ -39,6 +44,11 @@ function parseDialFace(value: unknown): DialFaceStyle {
   return DEFAULT_DESKTOP_WIDGET.dialFace
 }
 
+function parseLaunchBehavior(value: unknown): LaunchBehavior {
+  if (value === 'main' || value === 'tray' || value === 'widget') return value
+  return DEFAULT_LAUNCH_BEHAVIOR
+}
+
 function load(): void {
   try {
     const path = settingsPath()
@@ -47,6 +57,8 @@ function load(): void {
     if (raw.theme) memory.theme = raw.theme
     if (raw.locale) memory.locale = raw.locale
     if (raw.calendarMode) memory.calendarMode = raw.calendarMode
+    if (raw.launchAtLogin !== undefined) memory.launchAtLogin = Boolean(raw.launchAtLogin)
+    if (raw.launchBehavior) memory.launchBehavior = parseLaunchBehavior(raw.launchBehavior)
     if (raw.desktopWidget) {
       const bg =
         typeof raw.desktopWidget.backgroundImagePath === 'string'
@@ -96,6 +108,8 @@ export const settingsStore = {
       locale: memory.locale,
       calendarMode: memory.calendarMode,
       desktopWidget: { ...memory.desktopWidget },
+      launchAtLogin: memory.launchAtLogin,
+      launchBehavior: memory.launchBehavior,
     }
   },
   getTheme(): ThemeMode {
@@ -150,5 +164,35 @@ export const settingsStore = {
     }
     save()
     return { ...memory.desktopWidget }
+  },
+  getLaunchAtLogin(): boolean {
+    return memory.launchAtLogin
+  },
+  setLaunchAtLogin(enabled: boolean): boolean {
+    memory.launchAtLogin = enabled
+    save()
+    return memory.launchAtLogin
+  },
+  getLaunchBehavior(): LaunchBehavior {
+    return memory.launchBehavior
+  },
+  setLaunchBehavior(behavior: LaunchBehavior): LaunchBehavior {
+    memory.launchBehavior = parseLaunchBehavior(behavior)
+    save()
+    return memory.launchBehavior
+  },
+  applySnapshot(snapshot: AppSettingsSnapshot): AppSettingsSnapshot {
+    memory.theme = snapshot.theme
+    memory.locale = snapshot.locale
+    memory.calendarMode = snapshot.calendarMode
+    memory.desktopWidget = {
+      ...DEFAULT_DESKTOP_WIDGET,
+      ...snapshot.desktopWidget,
+      dialFace: parseDialFace(snapshot.desktopWidget?.dialFace),
+    }
+    memory.launchAtLogin = Boolean(snapshot.launchAtLogin)
+    memory.launchBehavior = parseLaunchBehavior(snapshot.launchBehavior)
+    save()
+    return settingsStore.getSnapshot()
   },
 }

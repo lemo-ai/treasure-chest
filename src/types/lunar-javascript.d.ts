@@ -2,6 +2,7 @@ declare module 'lunar-javascript' {
   export class Solar {
     static fromDate(date: Date): Solar
     static fromYmd(year: number, month: number, day: number): Solar
+    static fromYmdHms(year: number, month: number, day: number, hour: number, minute: number, second: number): Solar
     getYear(): number
     getMonth(): number
     getDay(): number
@@ -26,6 +27,7 @@ declare module 'lunar-javascript' {
   }
 
   export class Lunar {
+    static fromYmdHms(year: number, month: number, day: number, hour: number, minute: number, second: number): Lunar
     getYearInChinese(): string
     getMonthInChinese(): string
     getDayInChinese(): string
@@ -40,7 +42,16 @@ declare module 'lunar-javascript' {
     getPrevJieQi(): JieQi | null
     getDayYi(): string[]
     getDayJi(): string[]
+    getEightChar(): EightChar
     toString(): string
+  }
+
+  export class EightChar {
+    getYear(): string
+    getMonth(): string
+    getDay(): string
+    getTime(): string
+    getYearShengXiao(): string
   }
 
   export class JieQi {

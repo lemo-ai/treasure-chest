@@ -5,6 +5,7 @@ import type { DesktopWidgetView } from '@shared'
 import { DEFAULT_DESKTOP_WIDGET } from '@shared'
 import { useDaySnapshot } from '@renderer/features/calendar/hooks/useCalendarData'
 import { useNowTick } from '@renderer/features/calendar/hooks/useNowTick'
+import { useFortune } from '@renderer/features/fortune/hooks/useFortune'
 import {
   IconArrowRight,
   IconCalendar,
@@ -23,6 +24,7 @@ export function HomePage(): React.JSX.Element {
   const { t } = useTranslation()
   const now = useNowTick()
   const day = useDaySnapshot()
+  const { fortune } = useFortune(now)
   const [version, setVersion] = useState('')
   const [widget, setWidget] = useState<DesktopWidgetView>({
     ...DEFAULT_DESKTOP_WIDGET,
@@ -46,7 +48,7 @@ export function HomePage(): React.JSX.Element {
       to: '/fortune',
       icon: <IconFortune />,
       title: t('home.card.fortune.title'),
-      desc: t('home.card.fortune.desc'),
+      desc: t('home.card.fortune.descActive'),
       tone: styles.toneAccent,
     },
     {
@@ -123,6 +125,26 @@ export function HomePage(): React.JSX.Element {
             <IconArrowRight />
           </Link>
         </div>
+      </div>
+
+      <div className={styles.fortuneCard}>
+        <div className={styles.fortuneHead}>
+          <h2 className={styles.fortuneTitle}>{t('home.fortune.title')}</h2>
+          <Link to="/fortune" className={styles.fortuneLink}>
+            {t('home.fortune.viewAll')}
+            <IconArrowRight />
+          </Link>
+        </div>
+        {fortune ? (
+          <>
+            <p className={styles.fortuneHex}>
+              {fortune.hexagram.nameFull} · {t(`fortune.level.${fortune.overall.level}`)}
+            </p>
+            <p className={styles.fortuneBlurb}>{fortune.overall.blurb}</p>
+          </>
+        ) : (
+          <p className={styles.fortuneBlurb}>{t('home.fortune.empty')}</p>
+        )}
       </div>
 
       <div className={styles.moduleGrid}>

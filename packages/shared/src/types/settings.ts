@@ -26,12 +26,19 @@ export interface DesktopWidgetView extends DesktopWidgetSettings {
   backgroundImageUrl: string | null
 }
 
+/** What to show right after the app launches. */
+export type LaunchBehavior = 'main' | 'tray' | 'widget'
+
 export interface AppSettingsSnapshot {
   theme: ThemeMode
   locale: AppLocale
   calendarMode: CalendarMode
   desktopWidget: DesktopWidgetSettings
+  launchAtLogin: boolean
+  launchBehavior: LaunchBehavior
 }
+
+export const DEFAULT_LAUNCH_BEHAVIOR: LaunchBehavior = 'main'
 
 export const DEFAULT_DESKTOP_WIDGET: DesktopWidgetSettings = {
   enabled: false,

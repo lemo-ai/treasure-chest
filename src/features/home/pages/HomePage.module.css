@@ -318,6 +318,55 @@
   font-size: 0.8rem;
 }
 
+.fortuneCard {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-brand) 8%, var(--color-bg)),
+    var(--color-bg)
+  );
+}
+
+.fortuneHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.fortuneTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.fortuneLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-brand);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.fortuneHex {
+  margin: 0 0 var(--space-1);
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--color-brand);
+}
+
+.fortuneBlurb {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 900px) {
   .moduleGrid {
     grid-template-columns: 1fr;

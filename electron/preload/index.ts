@@ -3,9 +3,11 @@ import {
   IpcChannels,
   type AppLocale,
   type AppSettingsSnapshot,
+  type BirthProfile,
   type CalendarMode,
   type DesktopWidgetSettings,
   type DesktopWidgetView,
+  type LaunchBehavior,
   type ThemeMode,
 } from '@shared'
 
@@ -48,6 +50,21 @@ const api = {
   getCalendarMode: (): Promise<CalendarMode> => ipcRenderer.invoke(IpcChannels.calendar.getMode),
   setCalendarMode: (mode: CalendarMode): Promise<CalendarMode> =>
     ipcRenderer.invoke(IpcChannels.calendar.setMode, mode),
+  getBirthProfile: (): Promise<BirthProfile | null> =>
+    ipcRenderer.invoke(IpcChannels.fortune.getProfile),
+  saveBirthProfile: (profile: BirthProfile): Promise<BirthProfile> =>
+    ipcRenderer.invoke(IpcChannels.fortune.saveProfile, profile),
+  clearBirthProfile: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.fortune.clearProfile),
+  exportBackup: (): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.backup.export),
+  importBackup: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.backup.import),
+  getLaunchAtLogin: (): Promise<{ configured: boolean; system: boolean }> =>
+    ipcRenderer.invoke(IpcChannels.system.getLaunchAtLogin),
+  setLaunchAtLogin: (enabled: boolean): Promise<{ configured: boolean; system: boolean }> =>
+    ipcRenderer.invoke(IpcChannels.system.setLaunchAtLogin, enabled),
+  setLaunchBehavior: (behavior: LaunchBehavior): Promise<LaunchBehavior> =>
+    ipcRenderer.invoke(IpcChannels.settings.setLaunchBehavior, behavior),
 }
 
 contextBridge.exposeInMainWorld('treasureChest', api)

@@ -4,20 +4,31 @@ import { createCalendarWindow, getCalendarWindow } from '../windows/createCalend
 import { getMainWindow, showMainWindow } from '../windows/mainWindowRef'
 import { registerAllIpc } from '../ipc'
 import { initSettingsStore, settingsStore } from '../modules/settings/SettingsStore'
+import { initFortuneStore } from '../modules/fortune/FortuneStore'
+import { syncLaunchAtLogin } from '../modules/system/LaunchService'
 import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
 import { logger } from '../utils/logger'
 
 app.whenReady().then(() => {
   logger.info('app ready')
   initSettingsStore()
+  initFortuneStore()
+  syncLaunchAtLogin()
   registerAllIpc()
-  createMainWindow()
 
+  const behavior = settingsStore.getLaunchBehavior()
   const widget = settingsStore.getDesktopWidget()
-  if (widget.enabled) {
+
+  createMainWindow()
+  const main = getMainWindow()
+  if (main && behavior === 'tray') {
+    main.hide()
+  }
+
+  if (widget.enabled || behavior === 'widget') {
     createCalendarWindow()
   }
-  if (widget.enabled || widget.keepAlive) {
+  if (widget.enabled || widget.keepAlive || behavior === 'tray') {
     ensureTray()
   }
   syncTrayVisibility()

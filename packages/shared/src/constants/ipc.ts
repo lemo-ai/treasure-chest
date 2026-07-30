@@ -13,6 +13,7 @@ export const IpcChannels = {
     desktopWidgetUpdated: 'settings:desktopWidgetUpdated',
     pickDialBackground: 'settings:pickDialBackground',
     clearDialBackground: 'settings:clearDialBackground',
+    setLaunchBehavior: 'settings:setLaunchBehavior',
   },
   window: {
     openCalendar: 'window:openCalendar',
@@ -24,6 +25,19 @@ export const IpcChannels = {
   calendar: {
     getMode: 'calendar:getMode',
     setMode: 'calendar:setMode',
+  },
+  fortune: {
+    getProfile: 'fortune:getProfile',
+    saveProfile: 'fortune:saveProfile',
+    clearProfile: 'fortune:clearProfile',
+  },
+  backup: {
+    export: 'backup:export',
+    import: 'backup:import',
+  },
+  system: {
+    getLaunchAtLogin: 'system:getLaunchAtLogin',
+    setLaunchAtLogin: 'system:setLaunchAtLogin',
   },
 } as const
 
