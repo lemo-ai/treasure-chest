@@ -1,27 +1,14 @@
-import { BrowserWindow, nativeImage, shell } from 'electron'
-import { existsSync } from 'node:fs'
+import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { settingsStore } from '../modules/settings/SettingsStore'
 import { ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
+import { loadAppIcon } from '../utils/appIcon'
 import { closeCalendarWindow } from './createCalendarWindow'
 import { registerMainWindowFactory, setMainWindow } from './mainWindowRef'
 import { logger } from '../utils/logger'
 
-function resolveAppIcon(): Electron.NativeImage | undefined {
-  const candidates = [
-    join(__dirname, '../../resources/icon.png'),
-    join(__dirname, '../../../resources/icon.png'),
-  ]
-  for (const path of candidates) {
-    if (!existsSync(path)) continue
-    const img = nativeImage.createFromPath(path)
-    if (!img.isEmpty()) return img
-  }
-  return undefined
-}
-
 export function createMainWindow(): BrowserWindow {
-  const icon = resolveAppIcon()
+  const icon = loadAppIcon()
   const win = new BrowserWindow({
     width: 1180,
     height: 760,

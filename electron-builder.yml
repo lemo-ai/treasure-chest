@@ -10,7 +10,7 @@
     "resources/**/*"
   ],
   "mac": {
-    "icon": "resources/icon.png",
+    "icon": "resources/icon.icns",
     "target": [
       { "target": "dmg", "arch": ["x64", "arm64"] }
     ],

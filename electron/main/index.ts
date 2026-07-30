@@ -10,10 +10,16 @@ import { syncLaunchAtLogin } from '../modules/system/LaunchService'
 import { startFortuneNotificationScheduler, stopFortuneNotificationScheduler } from '../modules/notifications/FortuneNotificationService'
 import { startStocksScheduler, stopStocksScheduler } from '../modules/stocks/StocksScheduler'
 import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
+import { applyAppDockIcon } from '../utils/appIcon'
 import { logger } from '../utils/logger'
+
+app.setName('百宝箱')
 
 app.whenReady().then(() => {
   logger.info('app ready')
+  applyAppDockIcon()
+  // Re-apply after a tick; Dock sometimes ignores the first setIcon on cold start.
+  setTimeout(() => applyAppDockIcon(), 300)
   initDatabase()
   initSettingsStore()
   initFortuneStore()

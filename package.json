@@ -9,13 +9,15 @@
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "dev:clean": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "postinstall": "bash scripts/patch-electron-icon.sh",
     "build": "npm run typecheck && electron-vite build",
     "preview": "env -u ELECTRON_RUN_AS_NODE electron-vite preview",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p packages/shared/tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "patch:icon": "bash scripts/patch-electron-icon.sh"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
