@@ -5,8 +5,6 @@ import { join } from 'node:path'
 import type { BirthProfile } from '@shared'
 import { logger } from '../utils/logger'
 
-const MIGRATION_VERSION = 1
-
 let db: Database.Database | null = null
 
 export function getDb(): Database.Database {
@@ -40,13 +38,74 @@ function runMigrations(database: Database.Database): void {
       state      TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS stocks_watchlist (
+      market     TEXT NOT NULL,
+      symbol     TEXT NOT NULL,
+      data       TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (market, symbol)
+    );
+    CREATE TABLE IF NOT EXISTS stocks_reports (
+      date       TEXT PRIMARY KEY NOT NULL,
+      data       TEXT NOT NULL,
+      generated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS stocks_scanner_pool (
+      market     TEXT NOT NULL,
+      symbol     TEXT NOT NULL,
+      data       TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (market, symbol)
+    );
+    CREATE TABLE IF NOT EXISTS stocks_daily_bars (
+      market     TEXT NOT NULL,
+      symbol     TEXT NOT NULL,
+      date       TEXT NOT NULL,
+      open       REAL,
+      high       REAL,
+      low        REAL,
+      close      REAL NOT NULL,
+      volume     REAL,
+      PRIMARY KEY (market, symbol, date)
+    );
+    CREATE TABLE IF NOT EXISTS stocks_bar_meta (
+      market     TEXT NOT NULL,
+      symbol     TEXT NOT NULL,
+      currency   TEXT,
+      fetched_at TEXT NOT NULL,
+      PRIMARY KEY (market, symbol)
+    );
   `)
 
   const row = database.prepare('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1').get() as
     | { version: number }
     | undefined
-  if (!row) {
-    database.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(MIGRATION_VERSION)
+  const current = row?.version ?? 0
+  if (current < 1) {
+    database.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(1)
+  }
+  if (current < 2) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS stocks_daily_bars (
+        market     TEXT NOT NULL,
+        symbol     TEXT NOT NULL,
+        date       TEXT NOT NULL,
+        open       REAL,
+        high       REAL,
+        low        REAL,
+        close      REAL NOT NULL,
+        volume     REAL,
+        PRIMARY KEY (market, symbol, date)
+      );
+      CREATE TABLE IF NOT EXISTS stocks_bar_meta (
+        market     TEXT NOT NULL,
+        symbol     TEXT NOT NULL,
+        currency   TEXT,
+        fetched_at TEXT NOT NULL,
+        PRIMARY KEY (market, symbol)
+      );
+    `)
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(2)
   }
 }
 

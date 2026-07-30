@@ -1,0 +1,12 @@
+.svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.up {
+  color: var(--color-success);
+}
+
+.down {
+  color: var(--color-danger);
+}

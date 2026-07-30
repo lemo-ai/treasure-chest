@@ -1,6 +1,7 @@
 import type { AppLocale, ThemeMode } from '../constants/ipc'
 import type { CalendarMode } from './calendar'
 import type { FortuneSettings } from './fortune'
+import type { StocksSettings } from './stocks'
 
 export type { AppLocale, ThemeMode }
 
@@ -35,11 +36,14 @@ export interface NotificationSettings {
   fortuneDaily: boolean
   /** Hour (0–23) to notify if the app is running; also fires on first open after this hour. */
   fortuneNotifyHour: number
+  /** Push when a daily stocks report finishes (auto or after first run of the day). */
+  stocksDaily: boolean
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   fortuneDaily: false,
   fortuneNotifyHour: 8,
+  stocksDaily: false,
 }
 
 export interface AppSettingsSnapshot {
@@ -51,6 +55,7 @@ export interface AppSettingsSnapshot {
   launchBehavior: LaunchBehavior
   notifications: NotificationSettings
   fortune: FortuneSettings
+  stocks: StocksSettings
 }
 
 export const DEFAULT_LAUNCH_AT_LOGIN = true

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import type { DesktopWidgetView } from '@shared'
-import { DEFAULT_DESKTOP_WIDGET } from '@shared'
+import type { DesktopWidgetView, StocksReport } from '@shared'
+import { DEFAULT_DESKTOP_WIDGET, getMarketSessionStatus } from '@shared'
 import { useDaySnapshot } from '@renderer/features/calendar/hooks/useCalendarData'
 import { useNowTick } from '@renderer/features/calendar/hooks/useNowTick'
 import { useFortune } from '@renderer/features/fortune/hooks/useFortune'
@@ -30,11 +30,17 @@ export function HomePage(): React.JSX.Element {
     ...DEFAULT_DESKTOP_WIDGET,
     backgroundImageUrl: null,
   })
+  const [stocksReport, setStocksReport] = useState<StocksReport | null>(null)
 
   useEffect(() => {
     void window.treasureChest.getVersion().then(setVersion)
     void window.treasureChest.getDesktopWidget().then(setWidget)
+    void window.treasureChest.getLatestStocksReport().then(setStocksReport)
   }, [])
+
+  const cnStatus = getMarketSessionStatus('CN', now)
+  const usStatus = getMarketSessionStatus('US', now)
+  const topPicks = stocksReport?.recommendations.slice(0, 3) ?? []
 
   const modules = [
     {
@@ -127,24 +133,72 @@ export function HomePage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.fortuneCard}>
-        <div className={styles.fortuneHead}>
-          <h2 className={styles.fortuneTitle}>{t('home.fortune.title')}</h2>
-          <Link to="/fortune" className={styles.fortuneLink}>
-            {t('home.fortune.viewAll')}
-            <IconArrowRight />
-          </Link>
+      <div className={styles.digestRow}>
+        <div className={styles.fortuneCard}>
+          <div className={styles.fortuneHead}>
+            <h2 className={styles.fortuneTitle}>{t('home.fortune.title')}</h2>
+            <Link to="/fortune" className={styles.fortuneLink}>
+              {t('home.fortune.viewAll')}
+              <IconArrowRight />
+            </Link>
+          </div>
+          {fortune ? (
+            <>
+              <p className={styles.fortuneHex}>
+                {fortune.hexagram.nameFull} · {t(`fortune.level.${fortune.overall.level}`)}
+              </p>
+              <p className={styles.fortuneBlurb}>{fortune.overall.blurb}</p>
+            </>
+          ) : (
+            <p className={styles.fortuneBlurb}>{t('home.fortune.empty')}</p>
+          )}
         </div>
-        {fortune ? (
-          <>
-            <p className={styles.fortuneHex}>
-              {fortune.hexagram.nameFull} · {t(`fortune.level.${fortune.overall.level}`)}
-            </p>
-            <p className={styles.fortuneBlurb}>{fortune.overall.blurb}</p>
-          </>
-        ) : (
-          <p className={styles.fortuneBlurb}>{t('home.fortune.empty')}</p>
-        )}
+
+        <div className={styles.stocksCard}>
+          <div className={styles.fortuneHead}>
+            <h2 className={styles.fortuneTitle}>{t('home.stocks.title')}</h2>
+            <Link to="/stocks" className={styles.fortuneLink}>
+              {t('home.stocks.viewAll')}
+              <IconArrowRight />
+            </Link>
+          </div>
+
+          <div className={styles.marketPills}>
+            <span className={`${styles.marketPill} ${cnStatus.open ? styles.marketOpen : styles.marketClosed}`}>
+              A股 · {cnStatus.open ? t('home.stocks.marketOpen') : t('home.stocks.marketClosed')}
+            </span>
+            <span className={`${styles.marketPill} ${usStatus.open ? styles.marketOpen : styles.marketClosed}`}>
+              US · {usStatus.open ? t('home.stocks.marketOpen') : t('home.stocks.marketClosed')}
+            </span>
+          </div>
+
+          {stocksReport && topPicks.length > 0 ? (
+            <>
+              <p className={styles.stocksMeta}>
+                {t('home.stocks.reportAt', {
+                  time: new Date(stocksReport.generatedAt).toLocaleString(),
+                  count: stocksReport.recommendations.length,
+                })}
+              </p>
+              <ul className={styles.pickList}>
+                {topPicks.map((pick) => (
+                  <li key={`${pick.market}-${pick.symbol}`} className={styles.pickRow}>
+                    <div>
+                      <strong>{pick.symbol}</strong>
+                      {pick.name ? <span className={styles.pickName}>{pick.name}</span> : null}
+                    </div>
+                    <span className={`${styles.pickSignal} ${styles[`pick_${pick.signal}`]}`}>
+                      {t(`stocks.signal.${pick.signal}`)}
+                    </span>
+                    <span className={styles.pickScore}>{pick.score}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className={styles.fortuneBlurb}>{t('home.stocks.empty')}</p>
+          )}
+        </div>
       </div>
 
       <div className={styles.moduleGrid}>
@@ -176,7 +230,7 @@ export function HomePage(): React.JSX.Element {
             onClick={() => void window.treasureChest.openCalendarWindow()}
           >
             <IconOpenWindow />
-            {t('home.widget.open')}
+            {t('home.openCalendar')}
           </button>
           <Link to="/settings" className={styles.ghostBtn}>
             <IconSettings />

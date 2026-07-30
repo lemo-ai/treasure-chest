@@ -15,7 +15,7 @@ function trayIcon(): Electron.NativeImage {
   ]
   for (const path of candidates) {
     const img = nativeImage.createFromPath(path)
-    if (!img.isEmpty()) return img.resize({ width: 16, height: 16 })
+    if (!img.isEmpty()) return img.resize({ width: 18, height: 18 })
   }
   return nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA50lEQVR4nO1W0QnEIAx1gQzQCVykG7hBN+gWGSDfjuAmHeFGcIRyhxBBSrmql7uUw8CDUmzf07zEGDNiREcAoQXCGQgdIz3bb5NOQLgAoQfCDQgjEO6MyO88r5mkydMuA5M9L7DzWidFvgLho4L4iPTNKkEeO8gzYrcIPvaenZ+dRFs62HBBgDwjNBmTnVxjuFqkfy0tArwgeYavJbdc09ICtqpmxV3tE+e/q4i5RoATzn/pg+tquIMA9RTomtBol6G5SSPSbcVG+zIqROhdxwcROgNJIUJvJCtE6A2lJ2J+P5aP+Nt4AamMlSbc61D9AAAAAElFTkSuQmCC',

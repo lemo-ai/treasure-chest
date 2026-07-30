@@ -14,6 +14,8 @@ import type {
   FortuneSettings,
   FortuneAiProviderConfig,
   HexagramSchool,
+  StocksSettings,
+  StocksRangeKey,
 } from '@shared'
 import {
   DEFAULT_DESKTOP_WIDGET,
@@ -21,6 +23,7 @@ import {
   DEFAULT_LAUNCH_AT_LOGIN,
   DEFAULT_LAUNCH_BEHAVIOR,
   DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_STOCKS_SETTINGS,
   DIAL_FACE_STYLES,
   HEXAGRAM_SCHOOLS,
 } from '@shared'
@@ -37,6 +40,7 @@ interface PersistedSettings {
   launchBehavior: LaunchBehavior
   notifications: NotificationSettings
   fortune: FortuneSettings
+  stocks: StocksSettings
 }
 
 const memory: PersistedSettings = {
@@ -48,6 +52,7 @@ const memory: PersistedSettings = {
   launchBehavior: DEFAULT_LAUNCH_BEHAVIOR,
   notifications: { ...DEFAULT_NOTIFICATION_SETTINGS },
   fortune: { ...DEFAULT_FORTUNE_SETTINGS },
+  stocks: { ...DEFAULT_STOCKS_SETTINGS },
 }
 
 function settingsPath(): string {
@@ -71,6 +76,35 @@ function parseHexagramSchool(value: unknown): HexagramSchool {
     return value as HexagramSchool
   }
   return DEFAULT_FORTUNE_SETTINGS.hexagramSchool
+}
+
+function parseStocksSettings(raw: unknown): StocksSettings {
+  const src = (raw ?? {}) as Partial<StocksSettings>
+  const allowed: StocksRangeKey[] = ['d1', 'w1', 'm1', 'm3', 'm6', 'ytd', 'y1']
+  const ranges = Array.isArray(src.defaultRanges)
+    ? src.defaultRanges.filter((k): k is StocksRangeKey => allowed.includes(k as StocksRangeKey))
+    : DEFAULT_STOCKS_SETTINGS.defaultRanges
+  const hour =
+    typeof src.autoGenerateHour === 'number' && Number.isFinite(src.autoGenerateHour)
+      ? Math.max(0, Math.min(23, Math.round(src.autoGenerateHour)))
+      : DEFAULT_STOCKS_SETTINGS.autoGenerateHour
+  const scannerMax =
+    typeof src.scannerMax === 'number' && Number.isFinite(src.scannerMax)
+      ? Math.max(1, Math.min(100, Math.round(src.scannerMax)))
+      : DEFAULT_STOCKS_SETTINGS.scannerMax
+  const maxRecommendations =
+    typeof src.maxRecommendations === 'number' && Number.isFinite(src.maxRecommendations)
+      ? Math.max(1, Math.min(50, Math.round(src.maxRecommendations)))
+      : DEFAULT_STOCKS_SETTINGS.maxRecommendations
+  return {
+    marketCN: src.marketCN !== undefined ? Boolean(src.marketCN) : DEFAULT_STOCKS_SETTINGS.marketCN,
+    marketUS: src.marketUS !== undefined ? Boolean(src.marketUS) : DEFAULT_STOCKS_SETTINGS.marketUS,
+    autoGenerate: src.autoGenerate !== undefined ? Boolean(src.autoGenerate) : DEFAULT_STOCKS_SETTINGS.autoGenerate,
+    autoGenerateHour: hour,
+    scannerMax,
+    maxRecommendations,
+    defaultRanges: ranges.length > 0 ? ranges : [...DEFAULT_STOCKS_SETTINGS.defaultRanges],
+  }
 }
 
 function parseFortuneSettings(raw: unknown): FortuneSettings {
@@ -172,6 +206,7 @@ function loadFromDb(): void {
     ...getSetting('notifications', DEFAULT_NOTIFICATION_SETTINGS),
   }
   memory.fortune = parseFortuneSettings(getSetting('fortune', DEFAULT_FORTUNE_SETTINGS))
+  memory.stocks = parseStocksSettings(getSetting('stocks', DEFAULT_STOCKS_SETTINGS))
 }
 
 /** Fallback for dev runs before DB init: legacy settings.json */
@@ -200,6 +235,7 @@ function persist(): void {
   setSetting('desktop.widget', memory.desktopWidget)
   setSetting('notifications', memory.notifications)
   setSetting('fortune', memory.fortune)
+  setSetting('stocks', memory.stocks)
 }
 
 export function initSettingsStore(): void {
@@ -224,6 +260,7 @@ export const settingsStore = {
       launchBehavior: memory.launchBehavior,
       notifications: { ...memory.notifications },
       fortune: { ...memory.fortune },
+      stocks: { ...memory.stocks },
     }
   },
   getTheme(): ThemeMode {
@@ -373,6 +410,14 @@ export const settingsStore = {
     persist()
     return { ...memory.fortune }
   },
+  getStocksSettings(): StocksSettings {
+    return { ...memory.stocks }
+  },
+  setStocksSettings(partial: Partial<StocksSettings>): StocksSettings {
+    memory.stocks = parseStocksSettings({ ...memory.stocks, ...partial })
+    persist()
+    return { ...memory.stocks }
+  },
   applySnapshot(snapshot: AppSettingsSnapshot): AppSettingsSnapshot {
     memory.theme = snapshot.theme
     memory.locale = snapshot.locale
@@ -385,6 +430,7 @@ export const settingsStore = {
       ...snapshot.notifications,
     }
     memory.fortune = parseFortuneSettings(snapshot.fortune ?? DEFAULT_FORTUNE_SETTINGS)
+    memory.stocks = parseStocksSettings(snapshot.stocks ?? DEFAULT_STOCKS_SETTINGS)
     persist()
     return settingsStore.getSnapshot()
   },
@@ -399,6 +445,7 @@ export const settingsStore = {
       'desktop.widget': memory.desktopWidget,
       notifications: memory.notifications,
       fortune: memory.fortune,
+      stocks: memory.stocks,
     }
   },
   importSettingsMap(entries: Record<string, unknown>): void {
@@ -422,6 +469,9 @@ export const settingsStore = {
     }
     if (entries.fortune) {
       memory.fortune = parseFortuneSettings(entries.fortune)
+    }
+    if (entries.stocks) {
+      memory.stocks = parseStocksSettings(entries.stocks)
     }
     persist()
   },

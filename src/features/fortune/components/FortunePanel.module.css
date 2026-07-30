@@ -19,3 +19,14 @@
   font-size: 0.88rem;
   color: var(--color-ink-secondary);
 }
+
+.emptyLink {
+  border: none;
+  padding: 0;
+  background: none;
+  color: var(--color-brand);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

@@ -102,8 +102,13 @@ export function CalendarStandalonePage(): React.JSX.Element {
     return () => {
       document.documentElement.classList.remove('calendar-float-root')
       document.body.classList.remove('calendar-float-body')
+      document.body.classList.remove('calendar-float-large')
     }
   }, [])
+
+  useEffect(() => {
+    document.body.classList.toggle('calendar-float-large', mode === 'large')
+  }, [mode])
 
   useEffect(() => {
     void window.treasureChest.getCalendarMode().then(setMode)
@@ -158,12 +163,14 @@ export function CalendarStandalonePage(): React.JSX.Element {
             icon={<IconCompress />}
             label={t('calendar.switchWidget')}
             variant="soft"
+            size="sm"
             onClick={() => void onToggleMode()}
           />
           <IconButton
             icon={<IconClose />}
             label={t('calendar.closeWidget')}
             variant="soft"
+            size="sm"
             onClick={onClose}
           />
         </div>
@@ -171,8 +178,14 @@ export function CalendarStandalonePage(): React.JSX.Element {
 
       <DayPageTurn pageKey={day.date} className={styles.expandedTurn}>
         <div className={styles.expandedBody} style={{ backgroundImage: gradient }}>
-          <DayBoard day={day} now={now} compact dense />
-          <FortunePanel fortune={fortune} />
+          <div className={styles.expandedMain}>
+            <section className={styles.expandedDay}>
+              <DayBoard day={day} now={now} compact dense />
+            </section>
+            <section className={styles.expandedFortune}>
+              <FortunePanel fortune={fortune} compact className={styles.fortuneEmbed} />
+            </section>
+          </div>
         </div>
       </DayPageTurn>
     </div>

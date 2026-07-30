@@ -1,0 +1,162 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, #000 42%, transparent);
+}
+
+.modal {
+  width: min(720px, 100%);
+  max-height: min(90vh, 820px);
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-lg, 0 18px 48px color-mix(in srgb, #000 22%, transparent));
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: baseline;
+}
+
+.name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-ink-secondary);
+}
+
+.sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-ink-tertiary);
+}
+
+.closeBtn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-ink-secondary);
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+.hint,
+.error {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+.priceRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.priceLabel {
+  font-size: 0.68rem;
+  color: var(--color-ink-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.price {
+  margin: 0.15rem 0 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.currency {
+  margin-right: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-ink-secondary);
+}
+
+.cacheTag {
+  font-size: 0.68rem;
+  border-radius: var(--radius-full);
+  padding: 0.15rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--color-brand) 30%, var(--color-border));
+  color: var(--color-brand);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tab {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 0.22rem 0.65rem;
+  background: var(--color-bg);
+  color: var(--color-ink-secondary);
+  cursor: pointer;
+  font-size: 0.74rem;
+}
+
+.tabActive {
+  border-color: color-mix(in srgb, var(--color-brand) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-brand) 10%, var(--color-bg));
+  color: var(--color-brand);
+  font-weight: 600;
+}
+
+.rangeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.2rem, 1fr));
+  gap: 0.4rem;
+}
+
+.rangeCell {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  font-size: 0.72rem;
+  color: var(--color-ink-tertiary);
+}
+
+.rangeCell strong {
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.up {
+  color: var(--color-success);
+}
+
+.down {
+  color: var(--color-danger);
+}
+
+.flat {
+  color: var(--color-ink-secondary);
+}

@@ -8,6 +8,7 @@ import { initSettingsStore, settingsStore } from '../modules/settings/SettingsSt
 import { initFortuneStore } from '../modules/fortune/FortuneStore'
 import { syncLaunchAtLogin } from '../modules/system/LaunchService'
 import { startFortuneNotificationScheduler, stopFortuneNotificationScheduler } from '../modules/notifications/FortuneNotificationService'
+import { startStocksScheduler, stopStocksScheduler } from '../modules/stocks/StocksScheduler'
 import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
 import { logger } from '../utils/logger'
 
@@ -19,6 +20,7 @@ app.whenReady().then(() => {
   syncLaunchAtLogin()
   registerAllIpc()
   startFortuneNotificationScheduler()
+  startStocksScheduler()
 
   const behavior = settingsStore.getLaunchBehavior()
   const widget = settingsStore.getDesktopWidget()
@@ -55,6 +57,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   stopFortuneNotificationScheduler()
+  stopStocksScheduler()
   closeDatabase()
   const main = getMainWindow()
   if (main && !main.isDestroyed()) {

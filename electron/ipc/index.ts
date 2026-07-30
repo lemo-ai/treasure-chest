@@ -7,10 +7,15 @@ import {
   type DesktopWidgetSettings,
   type FortuneAiConnectionTestInput,
   type DailyFortune,
+  type StockMarket,
+  type StocksReport,
   type LaunchBehavior,
   type NotificationSettings,
   type FortuneSettings,
   type ThemeMode,
+  type StocksSettings,
+  type StocksReportSummary,
+  type StockQuoteDetail,
 } from '@shared'
 import { settingsStore } from '../modules/settings/SettingsStore'
 import {
@@ -30,6 +35,11 @@ import {
 } from '../windows/createCalendarWindow'
 import { showMainWindow, getMainWindow } from '../windows/mainWindowRef'
 import { ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
+import { stocksStore } from '../modules/stocks/StocksStore'
+import { generateStocksReportFromWatchlist } from '../modules/stocks/StocksService'
+import { exportStocksCsv, importStocksCsv } from '../modules/stocks/StocksCsvService'
+import { notifyStocksReportIfNeeded } from '../modules/stocks/StocksScheduler'
+import { getQuoteSnapshot } from '../modules/stocks/PriceRangeService'
 
 function afterWidgetChange(partial?: Partial<DesktopWidgetSettings>): void {
   if (partial?.enabled !== undefined) {
@@ -150,6 +160,72 @@ export function registerAllIpc(): void {
     testAiProviderConnection(payload),
   )
 
+  ipcMain.handle(IpcChannels.stocks.getWatchlist, () => stocksStore.getWatchlist())
+  ipcMain.handle(
+    IpcChannels.stocks.addWatchlistItem,
+    (_e, payload: { market: StockMarket; symbol: string; name?: string; note?: string }) =>
+      stocksStore.upsertWatchlistItem(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.stocks.removeWatchlistItem,
+    (_e, payload: { market: StockMarket; symbol: string }) => {
+      stocksStore.removeWatchlistItem(payload.market, payload.symbol)
+      return true
+    },
+  )
+  ipcMain.handle(IpcChannels.stocks.getScannerPool, () => stocksStore.getScannerPool())
+  ipcMain.handle(
+    IpcChannels.stocks.addScannerPoolItem,
+    (_e, payload: { market: StockMarket; symbol: string; name?: string }) =>
+      stocksStore.upsertScannerPoolItem(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.stocks.removeScannerPoolItem,
+    (_e, payload: { market: StockMarket; symbol: string }) => {
+      stocksStore.removeScannerPoolItem(payload.market, payload.symbol)
+      return true
+    },
+  )
+  ipcMain.handle(IpcChannels.stocks.importWatchlistCsv, () => importStocksCsv('watchlist'))
+  ipcMain.handle(IpcChannels.stocks.exportWatchlistCsv, () => exportStocksCsv('watchlist'))
+  ipcMain.handle(IpcChannels.stocks.importScannerCsv, () => importStocksCsv('scanner'))
+  ipcMain.handle(IpcChannels.stocks.exportScannerCsv, () => exportStocksCsv('scanner'))
+  ipcMain.handle(IpcChannels.stocks.generateReport, async (): Promise<StocksReport> => {
+    const report = await generateStocksReportFromWatchlist()
+    notifyStocksReportIfNeeded(report.recommendations.length)
+    return report
+  })
+  ipcMain.handle(IpcChannels.stocks.getLatestReport, (): StocksReport | null => stocksStore.getLatestReport())
+  ipcMain.handle(IpcChannels.stocks.listReports, (_e, limit?: number): StocksReportSummary[] =>
+    stocksStore.listReports(typeof limit === 'number' ? limit : 30),
+  )
+  ipcMain.handle(IpcChannels.stocks.getReportByDate, (_e, date: string): StocksReport | null =>
+    stocksStore.getReportByDate(date),
+  )
+  ipcMain.handle(
+    IpcChannels.stocks.getQuote,
+    async (_e, payload: { market: StockMarket; symbol: string; name?: string }): Promise<StockQuoteDetail> => {
+      const quote = await getQuoteSnapshot({
+        market: payload.market,
+        symbol: payload.symbol,
+        name: payload.name,
+        enabled: true,
+        updatedAt: new Date().toISOString(),
+      })
+      return {
+        market: payload.market,
+        symbol: payload.symbol,
+        name: payload.name,
+        price: quote.price,
+        currency: quote.currency,
+        ranges: quote.ranges,
+        sparkline: quote.sparkline,
+        bars: quote.bars.slice(-120),
+        fromCache: quote.fromCache,
+      }
+    },
+  )
+
   ipcMain.handle(IpcChannels.backup.export, () => exportBackup())
   ipcMain.handle(IpcChannels.backup.import, () => importBackup())
 
@@ -175,5 +251,8 @@ export function registerAllIpc(): void {
   )
   ipcMain.handle(IpcChannels.settings.setFortuneSettings, (_e, partial: Partial<FortuneSettings>) =>
     settingsStore.setFortuneSettings(partial),
+  )
+  ipcMain.handle(IpcChannels.settings.setStocksSettings, (_e, partial: Partial<StocksSettings>) =>
+    settingsStore.setStocksSettings(partial),
   )
 }

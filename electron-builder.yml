@@ -2,22 +2,28 @@
   "appId": "com.lemo.treasure-chest",
   "productName": "百宝箱",
   "directories": {
-    "output": "release"
+    "output": "release",
+    "buildResources": "resources"
   },
   "files": [
     "out/**/*",
     "resources/**/*"
   ],
   "mac": {
+    "icon": "resources/icon.png",
     "target": [
       { "target": "dmg", "arch": ["x64", "arm64"] }
     ],
     "category": "public.app-category.utilities"
   },
   "win": {
+    "icon": "resources/icon.png",
     "target": [
       { "target": "nsis", "arch": ["x64"] }
     ]
+  },
+  "linux": {
+    "icon": "resources/icon.png"
   },
   "nsis": {
     "oneClick": false,

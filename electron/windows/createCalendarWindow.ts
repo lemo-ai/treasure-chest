@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { IpcChannels, type CalendarMode } from '@shared'
 import { settingsStore } from '../modules/settings/SettingsStore'
@@ -26,10 +26,10 @@ const MODE_BOUNDS: Record<
     skipTaskbar: true,
   },
   large: {
-    width: 360,
-    height: 520,
-    minWidth: 320,
-    minHeight: 400,
+    width: 640,
+    height: 560,
+    minWidth: 480,
+    minHeight: 440,
     alwaysOnTop: true,
     skipTaskbar: true,
   },
@@ -86,6 +86,8 @@ export function applyCalendarMode(mode: CalendarMode): void {
   win.setSkipTaskbar(cfg.skipTaskbar)
 
   if (mode === 'widget') {
+    win.setBackgroundColor('#00000000')
+    win.setHasShadow(false)
     win.setMinimumSize(cfg.minWidth, cfg.minHeight)
     win.setMaximumSize(cfg.width, cfg.height)
     win.setResizable(false)
@@ -93,6 +95,9 @@ export function applyCalendarMode(mode: CalendarMode): void {
     return
   }
 
+  // Expanded card: opaque fill so transparent dial chrome doesn't show through.
+  win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1a1f27' : '#f4f6f8')
+  win.setHasShadow(true)
   const size = fitLargeSize(win)
   win.setMaximumSize(0, 0)
   win.setMinimumSize(cfg.minWidth, Math.min(cfg.minHeight, size.height))

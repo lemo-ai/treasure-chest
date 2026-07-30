@@ -7,9 +7,19 @@ import type {
   FortuneAiProviderConfig,
   HexagramSchool,
   LaunchBehavior,
+  StocksRangeKey,
+  StocksSettings,
   ThemeMode,
 } from '@shared'
-import { DEFAULT_DESKTOP_WIDGET, DEFAULT_FORTUNE_SETTINGS, DEFAULT_NOTIFICATION_SETTINGS, DIAL_FACE_STYLES, HEXAGRAM_SCHOOLS } from '@shared'
+import {
+  ALL_STOCKS_RANGE_KEYS,
+  DEFAULT_DESKTOP_WIDGET,
+  DEFAULT_FORTUNE_SETTINGS,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_STOCKS_SETTINGS,
+  DIAL_FACE_STYLES,
+  HEXAGRAM_SCHOOLS,
+} from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import { SettingActionButton } from '@renderer/shared/ui/SettingActionButton'
@@ -71,6 +81,8 @@ export function SettingsPage(): React.JSX.Element {
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
   const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
   const [fortuneDailyNotify, setFortuneDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
+  const [stocksDailyNotify, setStocksDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
+  const [stocksSettings, setStocksSettings] = useState<StocksSettings>({ ...DEFAULT_STOCKS_SETTINGS })
   const [hexagramSchool, setHexagramSchool] = useState<HexagramSchool>(DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
   const [fortuneAiPolish, setFortuneAiPolish] = useState(DEFAULT_FORTUNE_SETTINGS.aiPolish)
   const [aiProviders, setAiProviders] = useState<FortuneAiProviderConfig[]>(DEFAULT_FORTUNE_SETTINGS.aiProviders)
@@ -92,6 +104,8 @@ export function SettingsPage(): React.JSX.Element {
     void window.treasureChest.getSettingsSnapshot().then((snap) => {
       setLaunchBehavior(snap.launchBehavior)
       setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
+      setStocksDailyNotify(snap.notifications?.stocksDaily ?? DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
+      setStocksSettings(snap.stocks ?? DEFAULT_STOCKS_SETTINGS)
       setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
       setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
       setAiProviders(snap.fortune?.aiProviders ?? DEFAULT_FORTUNE_SETTINGS.aiProviders)
@@ -140,6 +154,23 @@ export function SettingsPage(): React.JSX.Element {
     })
   }
 
+  const onStocksDailyNotify = (stocksDaily: boolean): void => {
+    void window.treasureChest.setNotifications({ stocksDaily }).then((next) => {
+      setStocksDailyNotify(next.stocksDaily)
+    })
+  }
+
+  const patchStocks = (partial: Partial<StocksSettings>): void => {
+    void window.treasureChest.setStocksSettings(partial).then(setStocksSettings)
+  }
+
+  const onToggleRange = (key: StocksRangeKey): void => {
+    const current = stocksSettings.defaultRanges
+    const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+    const ordered = ALL_STOCKS_RANGE_KEYS.filter((k) => next.includes(k))
+    patchStocks({ defaultRanges: ordered.length > 0 ? ordered : ['d1', 'w1', 'm1', 'm3'] })
+  }
+
   const onHexagramSchool = (school: HexagramSchool): void => {
     void window.treasureChest.setFortuneSettings({ hexagramSchool: school }).then((next) => {
       setHexagramSchool(next.hexagramSchool)
@@ -169,6 +200,8 @@ export function SettingsPage(): React.JSX.Element {
         const snap = await window.treasureChest.getSettingsSnapshot()
         setLaunchBehavior(snap.launchBehavior)
         setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
+        setStocksDailyNotify(snap.notifications?.stocksDaily ?? DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
+        setStocksSettings(snap.stocks ?? DEFAULT_STOCKS_SETTINGS)
         setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
         setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
         setAiProviders(snap.fortune?.aiProviders ?? DEFAULT_FORTUNE_SETTINGS.aiProviders)
@@ -612,6 +645,114 @@ export function SettingsPage(): React.JSX.Element {
       </div>
 
       <div className={styles.group}>
+        <h2 className={styles.label}>{t('settings.stocks')}</h2>
+        <p className={styles.groupHint}>{t('settings.stocksHint')}</p>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksMarketCN')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksMarketCNHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={stocksSettings.marketCN}
+            label={t('settings.stocksMarketCN')}
+            onChange={(marketCN) => patchStocks({ marketCN })}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksMarketUS')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksMarketUSHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={stocksSettings.marketUS}
+            label={t('settings.stocksMarketUS')}
+            onChange={(marketUS) => patchStocks({ marketUS })}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksAutoGenerate')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksAutoGenerateHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={stocksSettings.autoGenerate}
+            label={t('settings.stocksAutoGenerate')}
+            onChange={(autoGenerate) => patchStocks({ autoGenerate })}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksAutoHour')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksAutoHourHint')}</div>
+          </div>
+          <input
+            className={styles.numberInput}
+            type="number"
+            min={0}
+            max={23}
+            value={stocksSettings.autoGenerateHour}
+            onChange={(e) => patchStocks({ autoGenerateHour: Number(e.target.value) })}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksScannerMax')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksScannerMaxHint')}</div>
+          </div>
+          <input
+            className={styles.numberInput}
+            type="number"
+            min={1}
+            max={100}
+            value={stocksSettings.scannerMax}
+            onChange={(e) => patchStocks({ scannerMax: Number(e.target.value) })}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksMaxRecs')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksMaxRecsHint')}</div>
+          </div>
+          <input
+            className={styles.numberInput}
+            type="number"
+            min={1}
+            max={50}
+            value={stocksSettings.maxRecommendations}
+            onChange={(e) => patchStocks({ maxRecommendations: Number(e.target.value) })}
+          />
+        </div>
+
+        <div className={styles.rangeSetting}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksRanges')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksRangesHint')}</div>
+          </div>
+          <div className={styles.rangeChips}>
+            {ALL_STOCKS_RANGE_KEYS.map((key) => {
+              const active = stocksSettings.defaultRanges.includes(key)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`${styles.rangeChip} ${active ? styles.rangeChipActive : ''}`}
+                  onClick={() => onToggleRange(key)}
+                >
+                  {t(`stocks.range.${key}`)}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.group}>
         <h2 className={styles.label}>{t('settings.notifications')}</h2>
 
         <div className={styles.settingRow}>
@@ -623,6 +764,18 @@ export function SettingsPage(): React.JSX.Element {
             checked={fortuneDailyNotify}
             label={t('settings.fortuneDailyNotify')}
             onChange={onFortuneDailyNotify}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.stocksDailyNotify')}</div>
+            <div className={styles.settingHint}>{t('settings.stocksDailyNotifyHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={stocksDailyNotify}
+            label={t('settings.stocksDailyNotify')}
+            onChange={onStocksDailyNotify}
           />
         </div>
       </div>

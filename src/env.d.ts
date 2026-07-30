@@ -12,6 +12,13 @@ import type {
   FortuneAiConnectionTestInput,
   FortuneAiConnectionTestResponse,
   FortuneAiResponse,
+  StockMarket,
+  ScannerPoolItem,
+  StocksReport,
+  StocksReportSummary,
+  StocksSettings,
+  StockQuoteDetail,
+  WatchlistItem,
   ThemeMode,
 } from '@shared'
 
@@ -44,8 +51,24 @@ interface TreasureChestApi {
   setLaunchBehavior: (behavior: LaunchBehavior) => Promise<LaunchBehavior>
   setNotifications: (partial: Partial<NotificationSettings>) => Promise<NotificationSettings>
   setFortuneSettings: (partial: Partial<FortuneSettings>) => Promise<FortuneSettings>
+  setStocksSettings: (partial: Partial<StocksSettings>) => Promise<StocksSettings>
   generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string) => Promise<FortuneAiResponse>
   testFortuneAiConnection: (payload: FortuneAiConnectionTestInput) => Promise<FortuneAiConnectionTestResponse>
+  getStocksWatchlist: () => Promise<WatchlistItem[]>
+  addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }) => Promise<WatchlistItem>
+  removeStocksWatchlistItem: (payload: { market: StockMarket; symbol: string }) => Promise<boolean>
+  getStocksScannerPool: () => Promise<ScannerPoolItem[]>
+  addStocksScannerPoolItem: (payload: { market: StockMarket; symbol: string; name?: string }) => Promise<ScannerPoolItem>
+  removeStocksScannerPoolItem: (payload: { market: StockMarket; symbol: string }) => Promise<boolean>
+  importStocksWatchlistCsv: () => Promise<{ ok: boolean; count?: number; error?: string }>
+  exportStocksWatchlistCsv: () => Promise<{ ok: boolean; path?: string; error?: string }>
+  importStocksScannerCsv: () => Promise<{ ok: boolean; count?: number; error?: string }>
+  exportStocksScannerCsv: () => Promise<{ ok: boolean; path?: string; error?: string }>
+  generateStocksReport: () => Promise<StocksReport>
+  getLatestStocksReport: () => Promise<StocksReport | null>
+  listStocksReports: (limit?: number) => Promise<StocksReportSummary[]>
+  getStocksReportByDate: (date: string) => Promise<StocksReport | null>
+  getStockQuote: (payload: { market: StockMarket; symbol: string; name?: string }) => Promise<StockQuoteDetail>
 }
 
 declare global {

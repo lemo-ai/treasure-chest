@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Outlet, NavLink } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
   IconCalendar,
-  IconChest,
   IconFortune,
   IconHome,
   IconSettings,
   IconStocks,
 } from '@renderer/shared/ui/icons'
+import appLogo from '@renderer/assets/app-logo.png'
+import { ChangelogModal } from './ChangelogModal'
 import styles from './AppLayout.module.css'
 
 const navItems: { to: string; end?: boolean; labelKey: string; icon: ReactNode }[] = [
@@ -20,13 +21,19 @@ const navItems: { to: string; end?: boolean; labelKey: string; icon: ReactNode }
 
 export function AppLayout(): React.JSX.Element {
   const { t } = useTranslation()
+  const [version, setVersion] = useState('')
+  const [changelogOpen, setChangelogOpen] = useState(false)
+
+  useEffect(() => {
+    void window.treasureChest.getVersion().then(setVersion)
+  }, [])
 
   return (
     <div className={styles.shell}>
       <aside className={styles.nav}>
         <div className={styles.brand}>
           <span className={styles.brandMark}>
-            <IconChest />
+            <img src={appLogo} alt="" width={38} height={38} draggable={false} />
           </span>
           <div className={styles.brandText}>
             <span className={styles.brandName}>{t('appName')}</span>
@@ -50,11 +57,27 @@ export function AppLayout(): React.JSX.Element {
             </span>
             <span className={styles.linkLabel}>{t('nav.settings')}</span>
           </NavLink>
+
+          {version ? (
+            <button
+              type="button"
+              className={styles.versionBtn}
+              onClick={() => setChangelogOpen(true)}
+              title={t('changelog.openHint')}
+            >
+              <span className={styles.versionLabel}>{t('nav.version')}</span>
+              <span className={styles.versionValue}>v{version}</span>
+            </button>
+          ) : null}
         </div>
       </aside>
       <main className={styles.main}>
         <Outlet />
       </main>
+
+      {changelogOpen ? (
+        <ChangelogModal version={version} onClose={() => setChangelogOpen(false)} />
+      ) : null}
     </div>
   )
 }

@@ -329,6 +329,106 @@
   );
 }
 
+.digestRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.stocksCard {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-success) 7%, var(--color-bg)),
+    var(--color-bg)
+  );
+}
+
+.marketPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: var(--space-2);
+}
+
+.marketPill {
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--color-border);
+}
+
+.marketOpen {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-bg));
+}
+
+.marketClosed {
+  color: var(--color-ink-tertiary);
+  background: var(--color-bg);
+}
+
+.stocksMeta {
+  margin: 0 0 var(--space-2);
+  font-size: 0.72rem;
+  color: var(--color-ink-tertiary);
+}
+
+.pickList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.pickRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+  border: 1px solid var(--color-border);
+  font-size: 0.82rem;
+}
+
+.pickName {
+  margin-left: 0.4rem;
+  color: var(--color-ink-tertiary);
+  font-size: 0.72rem;
+}
+
+.pickSignal {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pick_buy {
+  color: var(--color-success);
+}
+
+.pick_watch {
+  color: #d97706;
+}
+
+.pick_avoid {
+  color: var(--color-danger);
+}
+
+.pickScore {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--color-ink-secondary);
+}
+
 .fortuneHead {
   display: flex;
   align-items: center;
@@ -369,6 +469,10 @@
 
 @media (max-width: 900px) {
   .moduleGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .digestRow {
     grid-template-columns: 1fr;
   }
 
