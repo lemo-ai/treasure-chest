@@ -14,6 +14,7 @@ export const IpcChannels = {
     pickDialBackground: 'settings:pickDialBackground',
     clearDialBackground: 'settings:clearDialBackground',
     setLaunchBehavior: 'settings:setLaunchBehavior',
+    setNotifications: 'settings:setNotifications',
   },
   window: {
     openCalendar: 'window:openCalendar',

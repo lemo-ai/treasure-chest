@@ -2,6 +2,9 @@ node_modules/
 dist/
 out/
 release/
+*.db
+*.db-wal
+*.db-shm
 *.log
 *.tsbuildinfo
 .DS_Store

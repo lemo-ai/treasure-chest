@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from 'electron'
+import { initDatabase, closeDatabase } from '../db/Database'
 import { createMainWindow } from '../windows/createMainWindow'
 import { createCalendarWindow, getCalendarWindow } from '../windows/createCalendarWindow'
 import { getMainWindow, showMainWindow } from '../windows/mainWindowRef'
@@ -6,15 +7,18 @@ import { registerAllIpc } from '../ipc'
 import { initSettingsStore, settingsStore } from '../modules/settings/SettingsStore'
 import { initFortuneStore } from '../modules/fortune/FortuneStore'
 import { syncLaunchAtLogin } from '../modules/system/LaunchService'
+import { startFortuneNotificationScheduler, stopFortuneNotificationScheduler } from '../modules/notifications/FortuneNotificationService'
 import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
 import { logger } from '../utils/logger'
 
 app.whenReady().then(() => {
   logger.info('app ready')
+  initDatabase()
   initSettingsStore()
   initFortuneStore()
   syncLaunchAtLogin()
   registerAllIpc()
+  startFortuneNotificationScheduler()
 
   const behavior = settingsStore.getLaunchBehavior()
   const widget = settingsStore.getDesktopWidget()
@@ -50,6 +54,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  stopFortuneNotificationScheduler()
+  closeDatabase()
   const main = getMainWindow()
   if (main && !main.isDestroyed()) {
     main.removeAllListeners('close')

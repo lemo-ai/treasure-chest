@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AppLocale, DesktopWidgetView, DialFaceStyle, LaunchBehavior, ThemeMode } from '@shared'
-import { DEFAULT_DESKTOP_WIDGET, DIAL_FACE_STYLES } from '@shared'
+import { DEFAULT_DESKTOP_WIDGET, DEFAULT_NOTIFICATION_SETTINGS, DIAL_FACE_STYLES } from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import { IconButton } from '@renderer/shared/ui/IconButton'
@@ -28,12 +28,14 @@ export function SettingsPage(): React.JSX.Element {
   })
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
   const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
+  const [fortuneDailyNotify, setFortuneDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
 
   useEffect(() => {
     void window.treasureChest.getDesktopWidget().then(setWidget)
     void window.treasureChest.getSettingsSnapshot().then((snap) => {
       setLaunchBehavior(snap.launchBehavior)
+      setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
     })
     void window.treasureChest.getLaunchAtLogin().then((state) => {
       setLaunchAtLogin(state.configured)
@@ -66,6 +68,12 @@ export function SettingsPage(): React.JSX.Element {
     void window.treasureChest.setLaunchBehavior(behavior).then(setLaunchBehavior)
   }
 
+  const onFortuneDailyNotify = (fortuneDaily: boolean): void => {
+    void window.treasureChest.setNotifications({ fortuneDaily }).then((next) => {
+      setFortuneDailyNotify(next.fortuneDaily)
+    })
+  }
+
   const onExportBackup = (): void => {
     void window.treasureChest.exportBackup().then((result) => {
       if (result.ok && result.path) {
@@ -82,6 +90,7 @@ export function SettingsPage(): React.JSX.Element {
         setBackupMsg(t('settings.backupImported'))
         const snap = await window.treasureChest.getSettingsSnapshot()
         setLaunchBehavior(snap.launchBehavior)
+        setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
         const login = await window.treasureChest.getLaunchAtLogin()
         setLaunchAtLogin(login.configured)
         const w = await window.treasureChest.getDesktopWidget()
@@ -228,6 +237,22 @@ export function SettingsPage(): React.JSX.Element {
               />
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className={styles.group}>
+        <h2 className={styles.label}>{t('settings.notifications')}</h2>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.fortuneDailyNotify')}</div>
+            <div className={styles.settingHint}>{t('settings.fortuneDailyNotifyHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={fortuneDailyNotify}
+            label={t('settings.fortuneDailyNotify')}
+            onChange={onFortuneDailyNotify}
+          />
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import {
   type CalendarMode,
   type DesktopWidgetSettings,
   type LaunchBehavior,
+  type NotificationSettings,
   type ThemeMode,
 } from '@shared'
 import { settingsStore } from '../modules/settings/SettingsStore'
@@ -155,4 +156,7 @@ export function registerAllIpc(): void {
     syncLaunchAtLogin()
     return settingsStore.getLaunchBehavior()
   })
+  ipcMain.handle(IpcChannels.settings.setNotifications, (_e, partial: Partial<NotificationSettings>) =>
+    settingsStore.setNotifications(partial),
+  )
 }

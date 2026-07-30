@@ -33,6 +33,9 @@
   --color-fortune-caution: #f59e0b;
 
   --gradient-calendar-morning: linear-gradient(165deg, #e8f4f8 0%, #f4f6f8 50%, #eef2ff 100%);
+  --gradient-calendar-noon: linear-gradient(165deg, #dff5f0 0%, #f4f6f8 45%, #e0f2fe 100%);
+  --gradient-calendar-dusk: linear-gradient(165deg, #fdeee3 0%, #f4f6f8 40%, #e8f4f8 100%);
+  --gradient-calendar-night: linear-gradient(165deg, #dbeafe 0%, #1a1f27 55%, #134e4a 100%);
 
   --color-flip-face: #1c2430;
   --color-flip-face-top: #252e3c;
@@ -142,6 +145,9 @@
   --color-fortune-caution: #fbbf24;
 
   --gradient-calendar-morning: linear-gradient(165deg, #0f1217 0%, #1a1f27 55%, #134e4a 100%);
+  --gradient-calendar-noon: linear-gradient(165deg, #0f1217 0%, #1a2430 50%, #115e59 100%);
+  --gradient-calendar-dusk: linear-gradient(165deg, #1a1410 0%, #1a1f27 45%, #7c2d12 100%);
+  --gradient-calendar-night: linear-gradient(165deg, #080b10 0%, #0f1217 50%, #1e1b4b 100%);
 
   --color-flip-face: #0c1016;
   --color-flip-face-top: #151b24;

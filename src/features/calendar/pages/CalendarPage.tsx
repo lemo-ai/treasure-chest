@@ -4,11 +4,14 @@ import type { CalendarMode, DialFaceStyle } from '@shared'
 import { DEFAULT_DESKTOP_WIDGET } from '@shared'
 import { useNowTick } from '../hooks/useNowTick'
 import { useDaySnapshot, useMonthSnapshot } from '../hooks/useCalendarData'
+import { useTimeAtmosphere } from '../hooks/useTimeAtmosphere'
 import { DayBoard } from '../components/DayBoard'
 import { MonthGrid } from '../components/MonthGrid'
 import { DialFace } from '../components/DialFace'
+import { DayPageTurn } from '../components/DayPageTurn'
 import { parseYmd } from '../lib/CalendarService'
 import { useFortune } from '@renderer/features/fortune/hooks/useFortune'
+import { FortunePanel } from '@renderer/features/fortune/components/FortunePanel'
 import { fortuneSummaryLine } from '@renderer/features/fortune/lib/FortuneService'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import { IconButton } from '@renderer/shared/ui/IconButton'
@@ -33,6 +36,7 @@ export function CalendarPage(): React.JSX.Element {
   const selectedDate = useMemo(() => parseYmd(selected), [selected])
   const day = useDaySnapshot(selected)
   const month = useMonthSnapshot(selectedDate.getFullYear(), selectedDate.getMonth() + 1)
+  const { gradient } = useTimeAtmosphere(now)
 
   const shiftMonth = (delta: number): void => {
     const d = parseYmd(selected)
@@ -69,9 +73,11 @@ export function CalendarPage(): React.JSX.Element {
       </header>
 
       <div className={styles.layout}>
-        <div className={styles.panel}>
-          <DayBoard day={day} now={now} />
-        </div>
+        <DayPageTurn pageKey={selected} className={styles.panelTurn}>
+          <div className={styles.panel} style={{ backgroundImage: gradient }}>
+            <DayBoard day={day} now={now} />
+          </div>
+        </DayPageTurn>
         <MonthGrid month={month} selectedDate={selected} onSelect={setSelected} />
       </div>
     </section>
@@ -83,6 +89,7 @@ export function CalendarStandalonePage(): React.JSX.Element {
   useTheme()
   const now = useNowTick()
   const { fortune } = useFortune(now)
+  const { gradient } = useTimeAtmosphere(now)
   const [mode, setMode] = useState<CalendarMode>('widget')
   const [dialFace, setDialFace] = useState<DialFaceStyle>(DEFAULT_DESKTOP_WIDGET.dialFace)
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null)
@@ -114,14 +121,8 @@ export function CalendarStandalonePage(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      setSelected((prev) => {
-        const ymd = todayYmd()
-        return prev === ymd ? ymd : prev
-      })
-    }, 60_000)
-    return () => window.clearInterval(id)
-  }, [])
+    setSelected(todayYmd())
+  }, [now.getFullYear(), now.getMonth(), now.getDate()])
 
   const onToggleMode = async (): Promise<void> => {
     const next: CalendarMode = mode === 'widget' ? 'large' : 'widget'
@@ -139,7 +140,7 @@ export function CalendarStandalonePage(): React.JSX.Element {
 
   if (mode === 'widget') {
     return (
-      <div className={`calendar-mode-widget ${styles.dialRoot}`}>
+      <DayPageTurn pageKey={day.date} className={styles.dialRoot}>
         <DialFace
           now={now}
           day={day}
@@ -150,7 +151,7 @@ export function CalendarStandalonePage(): React.JSX.Element {
           onExpand={() => void onToggleMode()}
           onClose={onClose}
         />
-      </div>
+      </DayPageTurn>
     )
   }
 
@@ -174,9 +175,12 @@ export function CalendarStandalonePage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.expandedBody}>
-        <DayBoard day={day} now={now} compact dense />
-      </div>
+      <DayPageTurn pageKey={day.date} className={styles.expandedTurn}>
+        <div className={styles.expandedBody} style={{ backgroundImage: gradient }}>
+          <DayBoard day={day} now={now} compact dense />
+          <FortunePanel fortune={fortune} />
+        </div>
+      </DayPageTurn>
     </div>
   )
 }

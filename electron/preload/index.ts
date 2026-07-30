@@ -8,6 +8,7 @@ import {
   type DesktopWidgetSettings,
   type DesktopWidgetView,
   type LaunchBehavior,
+  type NotificationSettings,
   type ThemeMode,
 } from '@shared'
 
@@ -65,6 +66,8 @@ const api = {
     ipcRenderer.invoke(IpcChannels.system.setLaunchAtLogin, enabled),
   setLaunchBehavior: (behavior: LaunchBehavior): Promise<LaunchBehavior> =>
     ipcRenderer.invoke(IpcChannels.settings.setLaunchBehavior, behavior),
+  setNotifications: (partial: Partial<NotificationSettings>): Promise<NotificationSettings> =>
+    ipcRenderer.invoke(IpcChannels.settings.setNotifications, partial),
 }
 
 contextBridge.exposeInMainWorld('treasureChest', api)

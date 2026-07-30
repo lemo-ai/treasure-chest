@@ -29,6 +29,18 @@ export interface DesktopWidgetView extends DesktopWidgetSettings {
 /** What to show right after the app launches. */
 export type LaunchBehavior = 'main' | 'tray' | 'widget'
 
+export interface NotificationSettings {
+  /** Push a desktop notification when today's fortune is ready. */
+  fortuneDaily: boolean
+  /** Hour (0–23) to notify if the app is running; also fires on first open after this hour. */
+  fortuneNotifyHour: number
+}
+
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  fortuneDaily: false,
+  fortuneNotifyHour: 8,
+}
+
 export interface AppSettingsSnapshot {
   theme: ThemeMode
   locale: AppLocale
@@ -36,6 +48,7 @@ export interface AppSettingsSnapshot {
   desktopWidget: DesktopWidgetSettings
   launchAtLogin: boolean
   launchBehavior: LaunchBehavior
+  notifications: NotificationSettings
 }
 
 export const DEFAULT_LAUNCH_BEHAVIOR: LaunchBehavior = 'main'

@@ -47,6 +47,17 @@
   background-image: var(--gradient-calendar-morning);
 }
 
+.panelTurn {
+  min-height: 0;
+}
+
+.expandedTurn {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .standalone {
   height: 100vh;
   max-height: 100vh;
