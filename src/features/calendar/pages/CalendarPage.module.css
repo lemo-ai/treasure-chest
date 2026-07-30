@@ -1,0 +1,129 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-ink-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.panel {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-soft);
+  background-image: var(--gradient-calendar-morning);
+}
+
+.standalone {
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-soft);
+  box-sizing: border-box;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.toolbar button,
+.floatActions button {
+  -webkit-app-region: no-drag;
+}
+
+.toolbarTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-brand);
+  font-size: 0.95rem;
+}
+
+.floatActions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.expandedBody {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  background: var(--gradient-calendar-morning);
+  box-sizing: border-box;
+}
+
+.dialRoot {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+:global(.calendar-float-root),
+:global(.calendar-float-body),
+:global(.calendar-float-body #root) {
+  background: transparent !important;
+}
+
+:global(.calendar-float-body) {
+  overflow: hidden;
+}
+
+:global(.calendar-mode-large) {
+  height: 100%;
+}

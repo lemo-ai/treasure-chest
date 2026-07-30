@@ -1,0 +1,355 @@
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 4px 0 0;
+  box-sizing: border-box;
+  background: transparent;
+  cursor: grab;
+  -webkit-app-region: no-drag;
+}
+
+.root:active {
+  cursor: grabbing;
+}
+
+.dialStage {
+  width: 200px;
+  height: 200px;
+  flex-shrink: 0;
+}
+
+.bezel {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  padding: 7px;
+  box-sizing: border-box;
+  background: var(--dial-bezel);
+  box-shadow: var(--shadow-soft);
+}
+
+.bezelPlain {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--dial-face);
+  border: 1px solid var(--dial-ring);
+}
+
+.faceWithPhoto {
+  background: var(--color-bg-muted);
+  border: none;
+}
+
+.teal .faceWithPhoto,
+.ink .faceWithPhoto,
+.dawn .faceWithPhoto,
+.minimal .faceWithPhoto {
+  --dial-scrim: var(--dial-photo-scrim);
+  --dial-tick: var(--dial-photo-tick);
+  --dial-ink: var(--dial-photo-ink);
+  --dial-muted: var(--dial-photo-muted);
+  --dial-accent: var(--dial-photo-accent);
+  --dial-hand: var(--dial-photo-ink);
+}
+
+.dawn .faceWithPhoto {
+  --dial-accent: var(--dial-dawn-ring);
+  --dial-second: var(--dial-dawn-accent);
+}
+
+.ink .faceWithPhoto {
+  --dial-scrim: var(--color-overlay);
+}
+
+.photo {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--dial-scrim);
+  pointer-events: none;
+}
+
+.pattern {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ticksSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tickLineMajor {
+  stroke: var(--dial-tick);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.tickLineMinor {
+  stroke: var(--dial-tick);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.tickNum {
+  fill: var(--dial-ink);
+  font-family: var(--font-mono-num);
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.actionRail {
+  width: 28px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  z-index: 6;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.rootHovered .actions,
+.actionRail:focus-within .actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.topInfo {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 22%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+  z-index: 5;
+  text-align: center;
+}
+
+.bottomInfo {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: 20%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 5;
+  text-align: center;
+}
+
+.solarYmd {
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--dial-accent);
+  letter-spacing: 0.02em;
+}
+
+.digital {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-family: var(--font-mono-num);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--dial-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.seconds {
+  font-size: 0.52rem;
+  font-weight: 600;
+  color: var(--dial-second);
+  opacity: 0.95;
+}
+
+.lunarYmd {
+  font-size: 0.56rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--dial-muted);
+}
+
+.handHour,
+.handMinute,
+.handSecond {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  transform-origin: center bottom;
+  border-radius: 999px;
+  z-index: 4;
+}
+
+.handHour {
+  width: 3px;
+  height: 18%;
+  margin-left: -1.5px;
+  background: var(--dial-hand);
+}
+
+.handMinute {
+  width: 2px;
+  height: 26%;
+  margin-left: -1px;
+  background: var(--dial-hand);
+}
+
+.handSecond {
+  width: 1.25px;
+  height: 32%;
+  margin-left: -0.625px;
+  background: var(--dial-second);
+}
+
+.hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--dial-second);
+  z-index: 4;
+  box-shadow: 0 0 0 2px var(--dial-face);
+}
+
+.actionBtn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: var(--dial-action-bg);
+  color: var(--dial-action-ink);
+  box-shadow: var(--shadow-soft);
+}
+
+.actionBtn:hover {
+  background: var(--dial-accent);
+  color: var(--dial-action-on);
+}
+
+.teal {
+  --dial-bezel: var(--dial-teal-bezel);
+  --dial-face: var(--dial-teal-face);
+  --dial-ring: var(--dial-teal-ring);
+  --dial-tick: var(--dial-teal-tick);
+  --dial-ink: var(--dial-teal-ink);
+  --dial-muted: var(--dial-teal-muted);
+  --dial-accent: var(--dial-teal-accent);
+  --dial-hand: var(--dial-teal-hand);
+  --dial-second: var(--dial-teal-second);
+  --dial-action-bg: var(--dial-teal-action-bg);
+  --dial-action-ink: var(--dial-teal-action-ink);
+  --dial-action-on: var(--dial-teal-action-on);
+  --dial-pattern: var(--dial-teal-pattern);
+  --dial-pattern-strong: var(--dial-teal-pattern-strong);
+  --dial-scrim: transparent;
+}
+
+.ink {
+  --dial-bezel: var(--dial-ink-bezel);
+  --dial-face: var(--dial-ink-face);
+  --dial-ring: var(--dial-ink-ring);
+  --dial-tick: var(--dial-ink-tick);
+  --dial-ink: var(--dial-ink-ink);
+  --dial-muted: var(--dial-ink-muted);
+  --dial-accent: var(--dial-ink-accent);
+  --dial-hand: var(--dial-ink-hand);
+  --dial-second: var(--dial-ink-second);
+  --dial-action-bg: var(--dial-ink-action-bg);
+  --dial-action-ink: var(--dial-ink-action-ink);
+  --dial-action-on: var(--dial-ink-action-on);
+  --dial-pattern: var(--dial-ink-pattern);
+  --dial-pattern-strong: var(--dial-ink-pattern-strong);
+  --dial-scrim: transparent;
+}
+
+.dawn {
+  --dial-bezel: var(--dial-dawn-bezel);
+  --dial-face: var(--dial-dawn-face);
+  --dial-ring: var(--dial-dawn-ring);
+  --dial-tick: var(--dial-dawn-tick);
+  --dial-ink: var(--dial-dawn-ink);
+  --dial-muted: var(--dial-dawn-muted);
+  --dial-accent: var(--dial-dawn-accent);
+  --dial-hand: var(--dial-dawn-hand);
+  --dial-second: var(--dial-dawn-second);
+  --dial-action-bg: var(--dial-dawn-action-bg);
+  --dial-action-ink: var(--dial-dawn-action-ink);
+  --dial-action-on: var(--dial-dawn-action-on);
+  --dial-pattern: var(--dial-dawn-pattern);
+  --dial-pattern-strong: var(--dial-dawn-pattern-strong);
+  --dial-scrim: transparent;
+}
+
+.minimal {
+  --dial-bezel: var(--dial-minimal-bezel);
+  --dial-face: var(--dial-minimal-face);
+  --dial-ring: var(--dial-minimal-ring);
+  --dial-tick: var(--dial-minimal-tick);
+  --dial-ink: var(--dial-minimal-ink);
+  --dial-muted: var(--dial-minimal-muted);
+  --dial-accent: var(--dial-minimal-accent);
+  --dial-hand: var(--dial-minimal-hand);
+  --dial-second: var(--dial-minimal-second);
+  --dial-action-bg: var(--dial-minimal-action-bg);
+  --dial-action-ink: var(--dial-minimal-action-ink);
+  --dial-action-on: var(--dial-minimal-action-on);
+  --dial-pattern: var(--dial-minimal-pattern);
+  --dial-pattern-strong: var(--dial-minimal-pattern-strong);
+  --dial-scrim: transparent;
+}

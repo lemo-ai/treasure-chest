@@ -1,0 +1,239 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink-tertiary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.clock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.pair {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-flip-pair);
+}
+
+.digit {
+  --digit-w: 2.15rem;
+  --digit-h: 2.85rem;
+  --digit-fs: 1.55rem;
+  --digit-radius: var(--radius-sm);
+
+  position: relative;
+  width: var(--digit-w);
+  height: var(--digit-h);
+  border-radius: var(--digit-radius);
+  background: var(--color-flip-face);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  perspective: 520px;
+  transform-style: preserve-3d;
+}
+
+.halfTop,
+.halfBottom,
+.flapTop,
+.flapBottom {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  overflow: hidden;
+}
+
+.halfTop,
+.flapTop {
+  top: 0;
+  border-radius: var(--digit-radius) var(--digit-radius) 0 0;
+  background: var(--color-flip-face-top);
+}
+
+.halfBottom,
+.flapBottom {
+  bottom: 0;
+  border-radius: 0 0 var(--digit-radius) var(--digit-radius);
+  background: var(--color-flip-face-bottom);
+}
+
+.glyph {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: var(--digit-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono-num);
+  font-weight: 700;
+  font-size: var(--digit-fs);
+  color: var(--color-flip-num);
+  letter-spacing: -0.02em;
+}
+
+.halfTop .glyph,
+.flapTop .glyph {
+  top: 0;
+}
+
+.halfBottom .glyph,
+.flapBottom .glyph {
+  bottom: 0;
+}
+
+.hinge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--color-flip-hinge);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.hinge::before,
+.hinge::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-ink-tertiary);
+  transform: translateY(-50%);
+}
+
+.hinge::before {
+  left: 3px;
+}
+
+.hinge::after {
+  right: 3px;
+}
+
+.flapTop,
+.flapBottom {
+  z-index: 3;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flapTop {
+  transform-origin: center bottom;
+}
+
+.flapBottom {
+  transform-origin: center top;
+  transform: rotateX(90deg);
+}
+
+.flipping .flapTop {
+  animation: flapAway 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.flipping .flapBottom {
+  animation: flapIn 0.28s 0.28s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes flapAway {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes flapIn {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+
+.colon {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 0.55rem;
+  padding-inline: 2px;
+}
+
+.colon i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 0 2px var(--color-brand-soft);
+  animation: colonPulse 1s steps(1) infinite;
+}
+
+.colon i:last-child {
+  animation-delay: 0.5s;
+}
+
+@keyframes colonPulse {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.35;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:global(.calendar-mode-large) .digit {
+  --digit-w: 1.7rem;
+  --digit-h: 2.2rem;
+  --digit-fs: 1.2rem;
+}
+
+:global(.calendar-mode-large) .pair {
+  gap: 2px;
+  padding: 2px;
+}
+
+:global(.calendar-mode-large) .colon {
+  gap: 0.35rem;
+  width: 0.45rem;
+}
+
+:global(.calendar-mode-large) .colon i {
+  width: 4px;
+  height: 4px;
+}
+
+:global(.calendar-mode-large) .wrap {
+  gap: var(--space-2);
+}

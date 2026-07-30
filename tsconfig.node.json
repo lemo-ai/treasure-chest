@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@main/*": ["electron/*"],
+      "@shared/*": ["packages/shared/src/*"],
+      "@shared": ["packages/shared/src/index.ts"]
+    }
+  },
+  "include": [
+    "electron/**/*",
+    "packages/shared/src/**/*",
+    "electron.vite.config.ts"
+  ]
+}

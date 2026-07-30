@@ -1,0 +1,138 @@
+.board,
+.compact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.hero {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.solarDay {
+  font-family: var(--font-display);
+  font-size: 4.5rem;
+  font-weight: 700;
+  line-height: 0.9;
+  color: var(--color-brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.compact .solarDay {
+  font-size: 3.25rem;
+}
+
+.solarMeta {
+  padding-bottom: var(--space-2);
+}
+
+.ymd {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.week {
+  margin-top: var(--space-1);
+  color: var(--color-ink-secondary);
+  font-size: 0.9rem;
+}
+
+.lunar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-ink);
+  font-size: 0.95rem;
+}
+
+.ganzhi {
+  color: var(--color-ink-secondary);
+  font-size: 0.85rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tag,
+.tagJie {
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.tagJie {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-hover);
+}
+
+.nextJie {
+  margin: 0;
+  color: var(--color-highlight);
+  font-size: 0.875rem;
+}
+
+.yiJi {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.compact .yiJi {
+  grid-template-columns: 1fr;
+}
+
+.dense {
+  gap: var(--space-2);
+}
+
+.dense .solarDay {
+  font-size: 2.35rem;
+}
+
+.dense .ymd {
+  font-size: 1rem;
+}
+
+.dense .week,
+.dense .lunar,
+.dense .ganzhi,
+.dense .nextJie,
+.dense .yiText,
+.dense .jiText {
+  font-size: 0.78rem;
+}
+
+.dense .hero {
+  gap: var(--space-3);
+}
+
+.yiTitle,
+.jiTitle {
+  margin: 0 0 var(--space-1);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.yiTitle {
+  color: var(--color-success);
+}
+
+.jiTitle {
+  color: var(--color-danger);
+}
+
+.yiText,
+.jiText {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-ink-secondary);
+  line-height: 1.5;
+}

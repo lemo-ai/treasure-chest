@@ -1,0 +1,45 @@
+{
+  "name": "treasure-chest",
+  "version": "0.1.0",
+  "description": "跨平台桌面百宝箱：万年历、运势、股票推荐",
+  "main": "./out/main/index.js",
+  "author": "edy",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "dev:clean": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "env -u ELECTRON_RUN_AS_NODE electron-vite preview",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit && tsc -p packages/shared/tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.4",
+    "i18next": "^26.3.6",
+    "lunar-javascript": "^1.7.7",
+    "motion": "^12.43.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-i18next": "^17.0.11",
+    "react-router": "^8.3.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6"
+  }
+}

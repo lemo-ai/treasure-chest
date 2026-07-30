@@ -1,0 +1,253 @@
+.page {
+  max-width: 640px;
+}
+
+.title {
+  margin: 0 0 var(--space-6);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.group {
+  margin-bottom: var(--space-6);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-soft);
+}
+
+.label {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+  color: var(--color-ink);
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+.desc {
+  margin: 0 0 var(--space-4);
+  color: var(--color-ink-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.settingRow:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.settingTitle {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.settingHint {
+  margin-top: 2px;
+  color: var(--color-ink-tertiary);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.faceBlock {
+  margin-top: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.faceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.faceCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+  color: var(--color-ink);
+}
+
+.faceCard:hover {
+  border-color: var(--color-brand);
+}
+
+.faceCardActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.facePreview {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px solid var(--preview-bezel);
+  background: var(--preview-face);
+  position: relative;
+  box-shadow: inset 0 0 0 1px var(--preview-ring);
+}
+
+.facePreviewHand {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  border-radius: 999px;
+  background: var(--preview-hand);
+  transform-origin: center bottom;
+  transform: rotate(48deg);
+}
+
+.facePreviewHand::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--preview-second);
+}
+
+.face_teal {
+  --preview-bezel: var(--dial-teal-bezel);
+  --preview-face: var(--dial-teal-face);
+  --preview-ring: var(--dial-teal-ring);
+  --preview-hand: var(--dial-teal-hand);
+  --preview-second: var(--dial-teal-second);
+}
+
+.face_ink {
+  --preview-bezel: var(--dial-ink-bezel);
+  --preview-face: var(--dial-ink-face);
+  --preview-ring: var(--dial-ink-ring);
+  --preview-hand: var(--dial-ink-hand);
+  --preview-second: var(--dial-ink-second);
+}
+
+.face_dawn {
+  --preview-bezel: var(--dial-dawn-bezel);
+  --preview-face: var(--dial-dawn-face);
+  --preview-ring: var(--dial-dawn-ring);
+  --preview-hand: var(--dial-dawn-hand);
+  --preview-second: var(--dial-dawn-second);
+}
+
+.face_minimal {
+  --preview-bezel: var(--dial-minimal-bezel);
+  --preview-face: var(--dial-minimal-face);
+  --preview-ring: var(--dial-minimal-ring);
+  --preview-hand: var(--dial-minimal-hand);
+  --preview-second: var(--dial-minimal-second);
+}
+
+.faceName {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.bgRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.bgPreview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  background-position: center;
+  background-size: cover;
+  flex-shrink: 0;
+}
+
+.bgActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.bgBtn,
+.bgBtnGhost {
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bgBtn {
+  border: 1px solid var(--color-brand);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.bgBtn:hover {
+  background: var(--color-brand-hover);
+}
+
+.bgBtnGhost {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-ink-secondary);
+}
+
+.bgBtnGhost:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.bgBtnGhost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.localeMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 3px;
+  background: var(--color-bg-muted);
+  color: var(--color-ink-secondary);
+}
+
+.hint {
+  margin-top: var(--space-4);
+  color: var(--color-ink-tertiary);
+  font-size: 0.875rem;
+}
