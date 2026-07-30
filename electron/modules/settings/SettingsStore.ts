@@ -11,12 +11,17 @@ import type {
   LaunchBehavior,
   NotificationSettings,
   ThemeMode,
+  FortuneSettings,
+  HexagramSchool,
 } from '@shared'
 import {
   DEFAULT_DESKTOP_WIDGET,
+  DEFAULT_FORTUNE_SETTINGS,
+  DEFAULT_LAUNCH_AT_LOGIN,
   DEFAULT_LAUNCH_BEHAVIOR,
   DEFAULT_NOTIFICATION_SETTINGS,
   DIAL_FACE_STYLES,
+  HEXAGRAM_SCHOOLS,
 } from '@shared'
 import { getSetting, setSetting } from '../../db/AppSettingsRepo'
 import { resolveDialBackgroundUrl } from './DialBackground'
@@ -30,6 +35,7 @@ interface PersistedSettings {
   launchAtLogin: boolean
   launchBehavior: LaunchBehavior
   notifications: NotificationSettings
+  fortune: FortuneSettings
 }
 
 const memory: PersistedSettings = {
@@ -37,9 +43,10 @@ const memory: PersistedSettings = {
   locale: 'zh-CN',
   calendarMode: 'widget',
   desktopWidget: { ...DEFAULT_DESKTOP_WIDGET },
-  launchAtLogin: false,
+  launchAtLogin: DEFAULT_LAUNCH_AT_LOGIN,
   launchBehavior: DEFAULT_LAUNCH_BEHAVIOR,
   notifications: { ...DEFAULT_NOTIFICATION_SETTINGS },
+  fortune: { ...DEFAULT_FORTUNE_SETTINGS },
 }
 
 function settingsPath(): string {
@@ -56,6 +63,21 @@ function parseDialFace(value: unknown): DialFaceStyle {
 function parseLaunchBehavior(value: unknown): LaunchBehavior {
   if (value === 'main' || value === 'tray' || value === 'widget') return value
   return DEFAULT_LAUNCH_BEHAVIOR
+}
+
+function parseHexagramSchool(value: unknown): HexagramSchool {
+  if (typeof value === 'string' && (HEXAGRAM_SCHOOLS as string[]).includes(value)) {
+    return value as HexagramSchool
+  }
+  return DEFAULT_FORTUNE_SETTINGS.hexagramSchool
+}
+
+function parseFortuneSettings(raw: unknown): FortuneSettings {
+  const src = (raw ?? {}) as Partial<FortuneSettings>
+  return {
+    hexagramSchool: parseHexagramSchool(src.hexagramSchool),
+    aiPolish: Boolean(src.aiPolish),
+  }
 }
 
 function parseDesktopWidget(raw: unknown): DesktopWidgetSettings {
@@ -81,6 +103,7 @@ function loadFromDb(): void {
     ...DEFAULT_NOTIFICATION_SETTINGS,
     ...getSetting('notifications', DEFAULT_NOTIFICATION_SETTINGS),
   }
+  memory.fortune = parseFortuneSettings(getSetting('fortune', DEFAULT_FORTUNE_SETTINGS))
 }
 
 /** Fallback for dev runs before DB init: legacy settings.json */
@@ -108,6 +131,7 @@ function persist(): void {
   setSetting('system.launchBehavior', memory.launchBehavior)
   setSetting('desktop.widget', memory.desktopWidget)
   setSetting('notifications', memory.notifications)
+  setSetting('fortune', memory.fortune)
 }
 
 export function initSettingsStore(): void {
@@ -131,6 +155,7 @@ export const settingsStore = {
       launchAtLogin: memory.launchAtLogin,
       launchBehavior: memory.launchBehavior,
       notifications: { ...memory.notifications },
+      fortune: { ...memory.fortune },
     }
   },
   getTheme(): ThemeMode {
@@ -210,6 +235,21 @@ export const settingsStore = {
     persist()
     return { ...memory.notifications }
   },
+  getFortuneSettings(): FortuneSettings {
+    return { ...memory.fortune }
+  },
+  setFortuneSettings(partial: Partial<FortuneSettings>): FortuneSettings {
+    memory.fortune = {
+      ...memory.fortune,
+      ...partial,
+      hexagramSchool: partial.hexagramSchool
+        ? parseHexagramSchool(partial.hexagramSchool)
+        : memory.fortune.hexagramSchool,
+      aiPolish: partial.aiPolish !== undefined ? Boolean(partial.aiPolish) : memory.fortune.aiPolish,
+    }
+    persist()
+    return { ...memory.fortune }
+  },
   applySnapshot(snapshot: AppSettingsSnapshot): AppSettingsSnapshot {
     memory.theme = snapshot.theme
     memory.locale = snapshot.locale
@@ -221,6 +261,7 @@ export const settingsStore = {
       ...DEFAULT_NOTIFICATION_SETTINGS,
       ...snapshot.notifications,
     }
+    memory.fortune = parseFortuneSettings(snapshot.fortune ?? DEFAULT_FORTUNE_SETTINGS)
     persist()
     return settingsStore.getSnapshot()
   },
@@ -234,6 +275,7 @@ export const settingsStore = {
       'system.launchBehavior': memory.launchBehavior,
       'desktop.widget': memory.desktopWidget,
       notifications: memory.notifications,
+      fortune: memory.fortune,
     }
   },
   importSettingsMap(entries: Record<string, unknown>): void {
@@ -254,6 +296,9 @@ export const settingsStore = {
         ...DEFAULT_NOTIFICATION_SETTINGS,
         ...(entries.notifications as NotificationSettings),
       }
+    }
+    if (entries.fortune) {
+      memory.fortune = parseFortuneSettings(entries.fortune)
     }
     persist()
   },

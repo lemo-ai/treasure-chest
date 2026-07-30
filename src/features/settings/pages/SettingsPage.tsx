@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AppLocale, DesktopWidgetView, DialFaceStyle, LaunchBehavior, ThemeMode } from '@shared'
-import { DEFAULT_DESKTOP_WIDGET, DEFAULT_NOTIFICATION_SETTINGS, DIAL_FACE_STYLES } from '@shared'
+import type { AppLocale, DesktopWidgetView, DialFaceStyle, HexagramSchool, LaunchBehavior, ThemeMode } from '@shared'
+import { DEFAULT_DESKTOP_WIDGET, DEFAULT_FORTUNE_SETTINGS, DEFAULT_NOTIFICATION_SETTINGS, DIAL_FACE_STYLES, HEXAGRAM_SCHOOLS } from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import { IconButton } from '@renderer/shared/ui/IconButton'
@@ -12,6 +12,7 @@ import styles from './SettingsPage.module.css'
 const themes: ThemeMode[] = ['light', 'dark', 'system']
 const locales: AppLocale[] = ['zh-CN', 'en-US']
 const launchBehaviors: LaunchBehavior[] = ['main', 'tray', 'widget']
+const hexagramSchools: HexagramSchool[] = HEXAGRAM_SCHOOLS
 
 const themeIcons = {
   light: <IconSun />,
@@ -29,6 +30,8 @@ export function SettingsPage(): React.JSX.Element {
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
   const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
   const [fortuneDailyNotify, setFortuneDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
+  const [hexagramSchool, setHexagramSchool] = useState<HexagramSchool>(DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
+  const [fortuneAiPolish, setFortuneAiPolish] = useState(DEFAULT_FORTUNE_SETTINGS.aiPolish)
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
 
   useEffect(() => {
@@ -36,6 +39,8 @@ export function SettingsPage(): React.JSX.Element {
     void window.treasureChest.getSettingsSnapshot().then((snap) => {
       setLaunchBehavior(snap.launchBehavior)
       setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
+      setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
+      setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
     })
     void window.treasureChest.getLaunchAtLogin().then((state) => {
       setLaunchAtLogin(state.configured)
@@ -74,6 +79,18 @@ export function SettingsPage(): React.JSX.Element {
     })
   }
 
+  const onHexagramSchool = (school: HexagramSchool): void => {
+    void window.treasureChest.setFortuneSettings({ hexagramSchool: school }).then((next) => {
+      setHexagramSchool(next.hexagramSchool)
+    })
+  }
+
+  const onFortuneAiPolish = (aiPolish: boolean): void => {
+    void window.treasureChest.setFortuneSettings({ aiPolish }).then((next) => {
+      setFortuneAiPolish(next.aiPolish)
+    })
+  }
+
   const onExportBackup = (): void => {
     void window.treasureChest.exportBackup().then((result) => {
       if (result.ok && result.path) {
@@ -91,6 +108,8 @@ export function SettingsPage(): React.JSX.Element {
         const snap = await window.treasureChest.getSettingsSnapshot()
         setLaunchBehavior(snap.launchBehavior)
         setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
+        setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
+        setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
         const login = await window.treasureChest.getLaunchAtLogin()
         setLaunchAtLogin(login.configured)
         const w = await window.treasureChest.getDesktopWidget()
@@ -237,6 +256,40 @@ export function SettingsPage(): React.JSX.Element {
               />
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className={styles.group}>
+        <h2 className={styles.label}>{t('settings.fortune')}</h2>
+
+        <div className={styles.faceBlock}>
+          <div className={styles.settingTitle}>{t('settings.hexagramSchool')}</div>
+          <div className={styles.settingHint}>{t('settings.hexagramSchoolHint')}</div>
+          <div className={styles.row}>
+            {hexagramSchools.map((school) => (
+              <IconButton
+                key={school}
+                icon={<span className={styles.localeMark}>{school.slice(0, 1).toUpperCase()}</span>}
+                label={t(`settings.hexagramSchool.${school}`)}
+                showLabel
+                variant="ghost"
+                active={hexagramSchool === school}
+                onClick={() => onHexagramSchool(school)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.fortuneAiPolish')}</div>
+            <div className={styles.settingHint}>{t('settings.fortuneAiPolishHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={fortuneAiPolish}
+            label={t('settings.fortuneAiPolish')}
+            onChange={onFortuneAiPolish}
+          />
         </div>
       </div>
 

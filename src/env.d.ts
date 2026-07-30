@@ -7,6 +7,7 @@ import type {
   DesktopWidgetView,
   LaunchBehavior,
   NotificationSettings,
+  FortuneSettings,
   ThemeMode,
 } from '@shared'
 
@@ -38,6 +39,7 @@ interface TreasureChestApi {
   setLaunchAtLogin: (enabled: boolean) => Promise<{ configured: boolean; system: boolean }>
   setLaunchBehavior: (behavior: LaunchBehavior) => Promise<LaunchBehavior>
   setNotifications: (partial: Partial<NotificationSettings>) => Promise<NotificationSettings>
+  setFortuneSettings: (partial: Partial<FortuneSettings>) => Promise<FortuneSettings>
 }
 
 declare global {

@@ -1,11 +1,13 @@
 import type {
-  BaZiSnapshot,
   BirthProfile,
   DailyFortune,
   FortuneAspect,
   FortuneAspectKey,
   FortuneLevel,
+  FortuneSettings,
+  HexagramSchool,
 } from '@shared'
+import { DEFAULT_FORTUNE_SETTINGS } from '@shared'
 import { Solar } from 'lunar-javascript'
 import { computeBaZiFromProfile } from './BaZiService'
 import { getHexagramById } from './hexagrams'
@@ -166,19 +168,39 @@ function formatDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+function hexagramIdForSchool(
+  school: HexagramSchool,
+  profileId: string,
+  bazi: { dayMaster: string; day: string },
+  dayGz: string,
+  dateStr: string,
+): number {
+  if (school === 'meihua') {
+    const seed = hashSeed('meihua', dateStr, bazi.dayMaster, dayGz)
+    return (seed % 64) + 1
+  }
+  if (school === 'liuyao') {
+    const seed = hashSeed('liuyao', profileId, bazi.day, dayGz, dateStr)
+    return (seed % 64) + 1
+  }
+  const seed = hashSeed(profileId, bazi.dayMaster, bazi.day, dayGz, dateStr)
+  return (seed % 64) + 1
+}
+
 export function computeDailyFortune(
   profile: BirthProfile,
   date: Date = new Date(),
   locale = 'zh-CN',
+  options: Partial<FortuneSettings> = {},
 ): DailyFortune | null {
   const bazi = computeBaZiFromProfile(profile)
   if (!bazi) return null
 
+  const settings = { ...DEFAULT_FORTUNE_SETTINGS, ...options }
   const dateStr = formatDate(date)
   const dayGz = todayGanZhi(date)
-  const seed = hashSeed(profile.id, bazi.dayMaster, bazi.day, dayGz, dateStr)
-
-  const hexId = (seed % 64) + 1
+  const hexId = hexagramIdForSchool(settings.hexagramSchool, profile.id, bazi, dayGz, dateStr)
+  const seed = hashSeed(settings.hexagramSchool, profile.id, bazi.dayMaster, bazi.day, dayGz, dateStr)
   const hex = getHexagramById(hexId)
   const copy = hexagramCopy(hexId, hex.tendency, locale)
 
@@ -214,7 +236,7 @@ export function computeDailyFortune(
     disclaimer: locale.startsWith('en')
       ? 'For cultural entertainment only; not professional advice.'
       : '仅供传统文化娱乐参考，不构成任何现实决策建议。',
-    source: { engine: 'local-v1', aiPolished: false },
+    source: { engine: `local-v1/${settings.hexagramSchool}`, aiPolished: settings.aiPolish },
   }
 }
 
@@ -224,5 +246,3 @@ export function fortuneSummaryLine(fortune: DailyFortune, locale: string): strin
     : `${fortune.hexagram.nameFull} · ${fortune.overall.blurb.slice(0, 12)}`
   return hexLabel
 }
-
-export type { BaZiSnapshot }

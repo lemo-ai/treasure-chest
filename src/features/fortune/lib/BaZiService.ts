@@ -3,6 +3,7 @@ import type { BaZiSnapshot, BirthCalendar, BirthHourBranch, BirthProfile } from 
 
 const GAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'] as const
 const ZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'] as const
+const ANIMALS = ['鼠', '牛', '虎', '兔', '龙', '蛇', '马', '羊', '猴', '鸡', '狗', '猪'] as const
 
 const ELEMENT_BY_GAN: Record<string, string> = {
   甲: '木',
@@ -38,6 +39,12 @@ function isValidGanZhi(value: string): boolean {
   return GAN.includes(value[0] as (typeof GAN)[number]) && ZHI.includes(value[1] as (typeof ZHI)[number])
 }
 
+function animalFromYearPillar(year: string): string {
+  const zhi = year[1]
+  const idx = ZHI.indexOf(zhi as (typeof ZHI)[number])
+  return idx >= 0 ? ANIMALS[idx]! : ''
+}
+
 function dayMasterMeta(dayMaster: string): Pick<BaZiSnapshot, 'yinYang' | 'element'> {
   const yangGan = ['甲', '丙', '戊', '庚', '壬']
   return {
@@ -66,24 +73,23 @@ function snapshotFromPillars(
   }
 }
 
-function eightCharFromBirth(
+function lunarFromBirth(
   y: number,
   m: number,
   d: number,
   calendar: BirthCalendar,
   hourBranch: BirthHourBranch,
-): ReturnType<Lunar['getEightChar']> {
+): ReturnType<typeof Lunar.fromYmdHms> {
   const [hh, mm] =
     hourBranch !== 'unknown' ? HOUR_BRANCH_TIME[hourBranch] : ([12, 0] as [number, number])
   const hasHour = hourBranch !== 'unknown'
 
   if (calendar === 'lunar') {
-    const lunar = hasHour ? Lunar.fromYmdHms(y, m, d, hh, mm, 0) : Lunar.fromYmdHms(y, m, d, 12, 0, 0)
-    return lunar.getEightChar()
+    return hasHour ? Lunar.fromYmdHms(y, m, d, hh, mm, 0) : Lunar.fromYmdHms(y, m, d, 12, 0, 0)
   }
 
   const solar = hasHour ? Solar.fromYmdHms(y, m, d, hh, mm, 0) : Solar.fromYmd(y, m, d)
-  return solar.getLunar().getEightChar()
+  return solar.getLunar()
 }
 
 export function computeBaZiFromProfile(profile: BirthProfile): BaZiSnapshot | null {
@@ -95,12 +101,7 @@ export function computeBaZiFromProfile(profile: BirthProfile): BaZiSnapshot | nu
     if (!isValidGanZhi(year) || !isValidGanZhi(month) || !isValidGanZhi(day)) return null
     const hourKnown = Boolean(hourRaw && isValidGanZhi(hourRaw))
     const hour = hourKnown ? hourRaw! : null
-    const animal = ZHI.includes(year[1] as (typeof ZHI)[number])
-      ? ['鼠', '牛', '虎', '兔', '龙', '蛇', '马', '羊', '猴', '鸡', '狗', '猪'][
-          ZHI.indexOf(year[1] as (typeof ZHI)[number])
-        ]!
-      : ''
-    return snapshotFromPillars(year, month, day, hour, animal)
+    return snapshotFromPillars(year, month, day, hour, animalFromYearPillar(year))
   }
 
   if (!profile.birthDate) return null
@@ -109,7 +110,8 @@ export function computeBaZiFromProfile(profile: BirthProfile): BaZiSnapshot | nu
 
   const calendar = profile.birthCalendar ?? 'solar'
   const hourBranch = profile.hourBranch ?? 'unknown'
-  const eight = eightCharFromBirth(y, m, d, calendar, hourBranch)
+  const lunar = lunarFromBirth(y, m, d, calendar, hourBranch)
+  const eight = lunar.getEightChar()
   const hourKnown = hourBranch !== 'unknown'
 
   return snapshotFromPillars(
@@ -117,7 +119,7 @@ export function computeBaZiFromProfile(profile: BirthProfile): BaZiSnapshot | nu
     eight.getMonth(),
     eight.getDay(),
     hourKnown ? eight.getTime() : null,
-    eight.getYearShengXiao(),
+    lunar.getYearShengXiao(),
   )
 }
 

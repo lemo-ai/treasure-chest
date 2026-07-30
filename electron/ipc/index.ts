@@ -7,6 +7,7 @@ import {
   type DesktopWidgetSettings,
   type LaunchBehavior,
   type NotificationSettings,
+  type FortuneSettings,
   type ThemeMode,
 } from '@shared'
 import { settingsStore } from '../modules/settings/SettingsStore'
@@ -158,5 +159,8 @@ export function registerAllIpc(): void {
   })
   ipcMain.handle(IpcChannels.settings.setNotifications, (_e, partial: Partial<NotificationSettings>) =>
     settingsStore.setNotifications(partial),
+  )
+  ipcMain.handle(IpcChannels.settings.setFortuneSettings, (_e, partial: Partial<FortuneSettings>) =>
+    settingsStore.setFortuneSettings(partial),
   )
 }

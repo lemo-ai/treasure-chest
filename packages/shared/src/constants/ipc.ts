@@ -15,6 +15,7 @@ export const IpcChannels = {
     clearDialBackground: 'settings:clearDialBackground',
     setLaunchBehavior: 'settings:setLaunchBehavior',
     setNotifications: 'settings:setNotifications',
+    setFortuneSettings: 'settings:setFortuneSettings',
   },
   window: {
     openCalendar: 'window:openCalendar',

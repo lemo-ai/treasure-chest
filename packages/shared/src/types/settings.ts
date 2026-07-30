@@ -1,5 +1,6 @@
 import type { AppLocale, ThemeMode } from '../constants/ipc'
 import type { CalendarMode } from './calendar'
+import type { FortuneSettings } from './fortune'
 
 export type { AppLocale, ThemeMode }
 
@@ -49,7 +50,10 @@ export interface AppSettingsSnapshot {
   launchAtLogin: boolean
   launchBehavior: LaunchBehavior
   notifications: NotificationSettings
+  fortune: FortuneSettings
 }
+
+export const DEFAULT_LAUNCH_AT_LOGIN = true
 
 export const DEFAULT_LAUNCH_BEHAVIOR: LaunchBehavior = 'main'
 

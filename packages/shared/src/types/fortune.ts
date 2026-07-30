@@ -33,6 +33,23 @@ export const BIRTH_HOUR_BRANCHES: BirthHourBranch[] = [
   'hai',
 ]
 
+/** Hexagram mapping school — all locally reproducible. */
+export type HexagramSchool = 'daymaster' | 'meihua' | 'liuyao'
+
+export const HEXAGRAM_SCHOOLS: HexagramSchool[] = ['daymaster', 'meihua', 'liuyao']
+
+export interface FortuneSettings {
+  /** Recommended default: daymaster (日主 + 当日干支映射). */
+  hexagramSchool: HexagramSchool
+  /** Optional AI copy polish; default off. */
+  aiPolish: boolean
+}
+
+export const DEFAULT_FORTUNE_SETTINGS: FortuneSettings = {
+  hexagramSchool: 'daymaster',
+  aiPolish: false,
+}
+
 export type FortuneInputMode = 'birthDate' | 'bazi'
 
 export interface BirthProfile {

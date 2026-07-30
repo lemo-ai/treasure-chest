@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { BirthCalendar, BirthHourBranch, BirthProfile, FortuneAspectKey, FortuneInputMode } from '@shared'
 import { BIRTH_HOUR_BRANCHES } from '@shared'
 import { validateBaziPillars } from '../lib/BaZiService'
+import { BirthDatePicker } from '../components/BirthDatePicker'
 import { useFortune } from '../hooks/useFortune'
 import styles from './FortunePage.module.css'
 
@@ -127,15 +128,16 @@ export function FortunePage(): React.JSX.Element {
 
           {inputMode === 'birthDate' ? (
             <>
-              <label className={styles.field}>
+              <div className={styles.field}>
                 <span className={styles.label}>{t('fortune.birthDate')}</span>
-                <input
-                  className={styles.input}
-                  type="date"
+                <BirthDatePicker
                   value={birthDate}
-                  onChange={(e) => setBirthDate(e.target.value)}
+                  onChange={setBirthDate}
+                  yearLabel={t('fortune.date.year')}
+                  monthLabel={t('fortune.date.month')}
+                  dayLabel={t('fortune.date.day')}
                 />
-              </label>
+              </div>
               <label className={styles.field}>
                 <span className={styles.label}>{t('fortune.birthCalendar')}</span>
                 <select

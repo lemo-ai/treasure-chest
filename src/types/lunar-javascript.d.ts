@@ -51,7 +51,6 @@ declare module 'lunar-javascript' {
     getMonth(): string
     getDay(): string
     getTime(): string
-    getYearShengXiao(): string
   }
 
   export class JieQi {
