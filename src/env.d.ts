@@ -59,6 +59,10 @@ interface TreasureChestApi {
   generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string) => Promise<FortuneAiResponse>
   testFortuneAiConnection: (payload: FortuneAiConnectionTestInput) => Promise<FortuneAiConnectionTestResponse>
   workbenchChat: (payload: LlmChatRequest) => Promise<LlmChatResponse>
+  workbenchChatStream: (
+    payload: LlmChatRequest,
+    onDelta: (text: string) => void,
+  ) => Promise<LlmChatResponse>
   getStocksWatchlist: () => Promise<WatchlistItem[]>
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }) => Promise<WatchlistItem>
   removeStocksWatchlistItem: (payload: { market: StockMarket; symbol: string }) => Promise<boolean>

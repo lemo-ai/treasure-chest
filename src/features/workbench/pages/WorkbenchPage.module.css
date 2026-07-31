@@ -38,6 +38,12 @@
   padding: 0 0.15rem;
 }
 
+.panelTopActions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 .panelTitle {
   font-size: 0.78rem;
   font-weight: 750;
@@ -248,7 +254,10 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-left: 0.35rem;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .sessionRow {
@@ -494,6 +503,12 @@
   border-bottom-right-radius: 10px;
 }
 
+.assistantMessage {
+  max-width: min(92%, 44rem);
+  padding: 0.15rem 0.1rem;
+  animation: bubbleIn 0.28s ease both;
+}
+
 .bubbleAssistant {
   background: var(--color-bg-elevated);
   color: var(--color-ink);
@@ -504,6 +519,9 @@
 .bubbleThinking {
   opacity: 0.85;
   font-style: italic;
+  color: var(--color-ink-secondary);
+  font-size: 0.92rem;
+  padding: 0.35rem 0.1rem;
 }
 
 .localTag {
@@ -670,8 +688,8 @@
 }
 
 .modelSelect {
-  max-width: 10rem;
-  padding: 0.35rem 0.65rem;
+  max-width: 9.5rem;
+  padding: 0.35rem 1.6rem 0.35rem 0.65rem;
   border-radius: var(--radius-full);
   border: 1px solid var(--color-border);
   background: var(--color-bg);
@@ -679,6 +697,9 @@
   font-size: 0.72rem;
   font-weight: 650;
   cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .keyWarn {
@@ -722,10 +743,10 @@
 }
 
 .composerBar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  column-gap: var(--space-2);
   padding: 0 0.2rem;
   min-width: 0;
   overflow: visible;
@@ -733,13 +754,24 @@
   z-index: 3;
 }
 
+.capMeasure {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .composerLeft {
   display: flex;
   align-items: center;
   gap: 0.1rem;
   min-width: 0;
-  flex: 1;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .composerRight {
@@ -747,6 +779,10 @@
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  position: relative;
+  z-index: 4;
 }
 
 .toolBtn {

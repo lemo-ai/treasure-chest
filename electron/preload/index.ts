@@ -16,6 +16,7 @@ import {
   type FortuneAiResponse,
   type LlmChatRequest,
   type LlmChatResponse,
+  type LlmChatStreamEvent,
   type StockMarket,
   type ScannerPoolItem,
   type StocksReport,
@@ -96,6 +97,48 @@ const api = {
     ipcRenderer.invoke(IpcChannels.fortune.testAiConnection, payload),
   workbenchChat: (payload: LlmChatRequest): Promise<LlmChatResponse> =>
     ipcRenderer.invoke(IpcChannels.workbench.chat, payload),
+  workbenchChatStream: (
+    payload: LlmChatRequest,
+    onDelta: (text: string) => void,
+  ): Promise<LlmChatResponse> => {
+    const streamId = `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    return new Promise((resolve, reject) => {
+      const finish = (response: LlmChatResponse): void => {
+        ipcRenderer.removeListener(IpcChannels.workbench.chatStreamEvent, handler)
+        resolve(response)
+      }
+      const handler = (_event: IpcRendererEvent, ev: LlmChatStreamEvent): void => {
+        if (ev.streamId !== streamId) return
+        if (ev.type === 'delta') {
+          onDelta(ev.text)
+          return
+        }
+        if (ev.type === 'done') {
+          finish({
+            ok: true,
+            text: ev.text,
+            model: ev.model,
+            providerName: ev.providerName,
+          })
+          return
+        }
+        finish({
+          ok: false,
+          error: ev.error,
+          model: ev.model,
+          providerName: ev.providerName,
+        })
+      }
+
+      ipcRenderer.on(IpcChannels.workbench.chatStreamEvent, handler)
+      void ipcRenderer
+        .invoke(IpcChannels.workbench.chatStream, { ...payload, streamId })
+        .catch((err: unknown) => {
+          ipcRenderer.removeListener(IpcChannels.workbench.chatStreamEvent, handler)
+          reject(err)
+        })
+    })
+  },
   getStocksWatchlist: (): Promise<WatchlistItem[]> => ipcRenderer.invoke(IpcChannels.stocks.getWatchlist),
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }): Promise<WatchlistItem> =>
     ipcRenderer.invoke(IpcChannels.stocks.addWatchlistItem, payload),

@@ -2,12 +2,15 @@ export type AgentTone = 'brand' | 'accent' | 'highlight'
 
 export type BuiltinAgentId = 'fortune' | 'stocks'
 
-/** Builtin ids or custom ids like `custom_xxx`. */
-export type AgentId = BuiltinAgentId | (string & {})
+/** Direct model chat without a domain agent persona. */
+export const DIRECT_CHAT_ID = 'direct' as const
+
+/** Builtin ids, direct mode, or custom ids like `custom_xxx`. */
+export type AgentId = BuiltinAgentId | typeof DIRECT_CHAT_ID | (string & {})
 
 export interface AgentDef {
   id: AgentId
-  /** i18n key when builtin; plain text when custom */
+  /** i18n key when builtin/direct; plain text when custom */
   name: string
   description: string
   tone: AgentTone
@@ -21,6 +24,17 @@ export interface AgentDef {
 }
 
 const STORAGE_KEY = 'qiankun.agents.v1'
+
+export const DIRECT_CHAT_DEF: AgentDef = {
+  id: DIRECT_CHAT_ID,
+  name: 'workbench.agent.direct.name',
+  description: 'workbench.agent.direct.desc',
+  tone: 'brand',
+  systemPrompt: '',
+  builtin: true,
+  createdAt: '1970-01-01T00:00:00.000Z',
+  updatedAt: '1970-01-01T00:00:00.000Z',
+}
 
 const BUILTIN_AGENTS: AgentDef[] = [
   {
@@ -78,11 +92,22 @@ function writeCustom(agents: AgentDef[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ agents }))
 }
 
+export function isDirectChatId(id: string): boolean {
+  return id === DIRECT_CHAT_ID || id === 'none' || id === ''
+}
+
+/** Domain agents only (excludes direct chat). */
 export function listAgents(): AgentDef[] {
   return [...BUILTIN_AGENTS, ...readCustom()]
 }
 
+/** Direct chat + domain agents — for workbench session panels. */
+export function listChatTargets(): AgentDef[] {
+  return [DIRECT_CHAT_DEF, ...listAgents()]
+}
+
 export function getAgent(id: string): AgentDef | undefined {
+  if (isDirectChatId(id)) return DIRECT_CHAT_DEF
   return listAgents().find((a) => a.id === id)
 }
 
@@ -106,6 +131,7 @@ export function createAgent(input: CreateAgentInput): AgentDef {
 }
 
 export function updateAgent(id: string, patch: Partial<CreateAgentInput>): AgentDef | null {
+  if (isDirectChatId(id) || isBuiltinAgentId(id)) return null
   const list = readCustom()
   const hit = list.find((a) => a.id === id)
   if (!hit) return null
@@ -119,6 +145,7 @@ export function updateAgent(id: string, patch: Partial<CreateAgentInput>): Agent
 }
 
 export function deleteAgent(id: string): boolean {
+  if (isDirectChatId(id) || isBuiltinAgentId(id)) return false
   const list = readCustom()
   const next = list.filter((a) => a.id !== id)
   if (next.length === list.length) return false
@@ -132,9 +159,9 @@ export function isBuiltinAgentId(id: string): id is BuiltinAgentId {
 
 /** Resolve display name (pass through i18n outside for builtin keys). */
 export function agentDisplayName(agent: AgentDef, t: (key: string) => string): string {
-  return agent.builtin ? t(agent.name) : agent.name
+  return agent.builtin || isDirectChatId(String(agent.id)) ? t(agent.name) : agent.name
 }
 
 export function agentDisplayDesc(agent: AgentDef, t: (key: string) => string): string {
-  return agent.builtin ? t(agent.description) : agent.description
+  return agent.builtin || isDirectChatId(String(agent.id)) ? t(agent.description) : agent.description
 }

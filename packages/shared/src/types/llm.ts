@@ -15,6 +15,8 @@ export interface LlmChatRequest {
   /** Optional extra system prompt (custom agent persona) */
   systemPrompt?: string
   locale?: string
+  /** Set by preload for streaming; ignored by non-stream chat */
+  streamId?: string
 }
 
 export interface LlmChatResponse {
@@ -24,3 +26,29 @@ export interface LlmChatResponse {
   model?: string
   providerName?: string
 }
+
+/** Renderer ↔ main stream handshake id */
+export interface LlmChatStreamStart {
+  streamId: string
+}
+
+export type LlmChatStreamEvent =
+  | {
+      streamId: string
+      type: 'delta'
+      text: string
+    }
+  | {
+      streamId: string
+      type: 'done'
+      text: string
+      model?: string
+      providerName?: string
+    }
+  | {
+      streamId: string
+      type: 'error'
+      error: string
+      model?: string
+      providerName?: string
+    }

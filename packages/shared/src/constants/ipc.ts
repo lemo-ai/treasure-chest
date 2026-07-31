@@ -40,6 +40,8 @@ export const IpcChannels = {
   },
   workbench: {
     chat: 'workbench:chat',
+    chatStream: 'workbench:chatStream',
+    chatStreamEvent: 'workbench:chatStreamEvent',
   },
   stocks: {
     getWatchlist: 'stocks:getWatchlist',

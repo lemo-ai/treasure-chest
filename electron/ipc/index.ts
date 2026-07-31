@@ -8,6 +8,8 @@ import {
   type FortuneAiConnectionTestInput,
   type DailyFortune,
   type LlmChatRequest,
+  type LlmChatStreamEvent,
+  type LlmChatStreamStart,
   type StockMarket,
   type StocksReport,
   type LaunchBehavior,
@@ -27,7 +29,7 @@ import {
 } from '../modules/settings/DialBackground'
 import { fortuneStore } from '../modules/fortune/FortuneStore'
 import { generateFortuneAiAnalysis, testAiProviderConnection } from '../modules/fortune/FortuneAiService'
-import { runWorkbenchChat } from '../modules/llm/WorkbenchChatService'
+import { runWorkbenchChat, runWorkbenchChatStream } from '../modules/llm/WorkbenchChatService'
 import { exportBackup, importBackup } from '../modules/backup/BackupService'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
@@ -175,6 +177,51 @@ export function registerAllIpc(): void {
     const fortuneSettings = settingsStore.getFortuneSettings()
     return runWorkbenchChat(payload, fortuneSettings)
   })
+  ipcMain.handle(
+    IpcChannels.workbench.chatStream,
+    async (event, payload: LlmChatRequest): Promise<LlmChatStreamStart> => {
+      const streamId =
+        payload.streamId?.trim() ||
+        `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+      const fortuneSettings = settingsStore.getFortuneSettings()
+      const send = (ev: LlmChatStreamEvent): void => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send(IpcChannels.workbench.chatStreamEvent, ev)
+        }
+      }
+
+      // Kick off stream without blocking the invoke return.
+      void (async () => {
+        try {
+          const result = await runWorkbenchChatStream(payload, fortuneSettings, (delta) => {
+            send({ streamId, type: 'delta', text: delta })
+          })
+          if (result.ok && result.text?.trim()) {
+            send({
+              streamId,
+              type: 'done',
+              text: result.text.trim(),
+              model: result.model,
+              providerName: result.providerName,
+            })
+          } else {
+            send({
+              streamId,
+              type: 'error',
+              error: result.error || 'Empty AI response.',
+              model: result.model,
+              providerName: result.providerName,
+            })
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          send({ streamId, type: 'error', error: msg })
+        }
+      })()
+
+      return { streamId }
+    },
+  )
 
   ipcMain.handle(IpcChannels.stocks.getWatchlist, () => stocksStore.getWatchlist())
   ipcMain.handle(

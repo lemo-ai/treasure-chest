@@ -14,17 +14,13 @@ import {
 import appLogo from '@renderer/assets/app-logo.png'
 import {
   agentDisplayName,
+  isDirectChatId,
   listAgents,
   type AgentDef,
 } from '@renderer/features/agents/lib/agentRegistry'
 import { CreateAgentModal } from '@renderer/features/agents/components/CreateAgentModal'
 import { ChangelogModal } from './ChangelogModal'
 import styles from './AppLayout.module.css'
-
-const primaryNav: { to: string; end?: boolean; labelKey: string; icon: ReactNode }[] = [
-  { to: '/', end: true, labelKey: 'nav.workbench', icon: <IconWorkbench /> },
-  { to: '/knowledge', labelKey: 'nav.knowledge', icon: <IconBook /> },
-]
 
 function agentNavIcon(agent: AgentDef): ReactNode {
   if (agent.id === 'fortune') return <IconFortune />
@@ -47,6 +43,10 @@ export function AppLayout(): React.JSX.Element {
     location.pathname.startsWith('/settings')
 
   const activeAgentParam = new URLSearchParams(location.search).get('agent')
+  const onWorkbench =
+    location.pathname === '/' || location.pathname.startsWith('/workbench')
+  const workbenchActive =
+    onWorkbench && (activeAgentParam === null || isDirectChatId(activeAgentParam))
 
   useEffect(() => {
     void window.treasureChest.getVersion().then(setVersion)
@@ -70,19 +70,29 @@ export function AppLayout(): React.JSX.Element {
         </div>
 
         <nav className={styles.links}>
-          {primaryNav.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
-              <span className={styles.linkIcon}>{item.icon}</span>
-              <span className={styles.linkLabel}>{t(item.labelKey)}</span>
-            </NavLink>
-          ))}
+          <NavLink
+            to="/"
+            end
+            className={() =>
+              workbenchActive ? `${styles.link} ${styles.linkActive}` : styles.link
+            }
+          >
+            <span className={styles.linkIcon}>
+              <IconWorkbench />
+            </span>
+            <span className={styles.linkLabel}>{t('nav.workbench')}</span>
+          </NavLink>
+          <NavLink to="/knowledge" className={navClass}>
+            <span className={styles.linkIcon}>
+              <IconBook />
+            </span>
+            <span className={styles.linkLabel}>{t('nav.knowledge')}</span>
+          </NavLink>
 
           <div className={styles.sectionLabel}>{t('nav.sectionAgents')}</div>
           {agents.map((agent) => {
             const to = `/?agent=${encodeURIComponent(agent.id)}`
-            const isActive =
-              (location.pathname === '/' || location.pathname.startsWith('/workbench')) &&
-              (activeAgentParam === agent.id || (!activeAgentParam && agent.id === 'fortune'))
+            const isActive = onWorkbench && activeAgentParam === agent.id
             return (
               <NavLink
                 key={agent.id}

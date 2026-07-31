@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
   IconBook,
   IconChatBubble,
-  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconClose,
@@ -29,16 +28,18 @@ import {
   IconTrash,
 } from '@renderer/shared/ui/icons'
 import {
-  agentDisplayDesc,
+  DIRECT_CHAT_DEF,
+  DIRECT_CHAT_ID,
   agentDisplayName,
   getAgent,
-  listAgents,
+  isDirectChatId,
   type AgentDef,
   type AgentId,
 } from '@renderer/features/agents/lib/agentRegistry'
-import { CreateAgentModal } from '@renderer/features/agents/components/CreateAgentModal'
 import {
+  WORKBENCH_PRIMARY_CAP_IDS,
   splitWorkbenchCapabilities,
+  type WorkbenchCapability,
   type WorkbenchCapabilityId,
 } from '../lib/capabilities'
 import {
@@ -46,13 +47,13 @@ import {
   createSession,
   deleteSession,
   getActiveSessionId,
-  getSession,
   listMessages,
   listSessions,
   setActiveSessionId,
   type WorkbenchMessage,
   type WorkbenchSession,
 } from '../lib/sessionStore'
+import { MarkdownMessage } from '../components/MarkdownMessage'
 import styles from './WorkbenchPage.module.css'
 
 const PANEL_KEY = 'qiankun.workbench.sessionPanelOpen'
@@ -103,6 +104,7 @@ function readPanelOpen(): boolean {
 }
 
 function agentIcon(agent: AgentDef): React.JSX.Element {
+  if (isDirectChatId(String(agent.id))) return <IconChatBubble />
   if (agent.id === 'fortune') return <IconFortune />
   if (agent.id === 'stocks') return <IconStocks />
   return <IconSparkles />
@@ -139,17 +141,11 @@ function capabilityIcon(id: WorkbenchCapabilityId): ReactNode {
 
 export function WorkbenchPage(): React.JSX.Element {
   const { t, i18n } = useTranslation()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [panelOpen, setPanelOpen] = useState(readPanelOpen)
-  const [agents, setAgents] = useState<AgentDef[]>(() => listAgents())
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    fortune: true,
-    stocks: true,
-  })
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [activeAgent, setActiveAgent] = useState<AgentId>('fortune')
-  const [createOpen, setCreateOpen] = useState(false)
+  const [activeAgent, setActiveAgent] = useState<AgentId>(DIRECT_CHAT_ID)
   const [sessions, setSessions] = useState<WorkbenchSession[]>([])
   const [messages, setMessages] = useState<WorkbenchMessage[]>([])
   const [draft, setDraft] = useState('')
@@ -158,36 +154,37 @@ export function WorkbenchPage(): React.JSX.Element {
   const [morePos, setMorePos] = useState<{ left: number; bottom: number } | null>(null)
   const [attachments, setAttachments] = useState<WorkbenchAttachment[]>([])
   const moreRef = useRef<HTMLDivElement>(null)
+  const composerBarRef = useRef<HTMLDivElement>(null)
+  const composerRightRef = useRef<HTMLDivElement>(null)
+  const capMeasureRef = useRef<HTMLDivElement>(null)
+  const [inlinePrimaryCount, setInlinePrimaryCount] = useState(WORKBENCH_PRIMARY_CAP_IDS.length)
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState('')
   const [aiBaseUrl, setAiBaseUrl] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
   const [sending, setSending] = useState(false)
+  const [streamText, setStreamText] = useState('')
+  const [streamSessionId, setStreamSessionId] = useState<string | null>(null)
+  const streamSessionRef = useRef<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const refreshAgents = (): void => {
-    const next = listAgents()
-    setAgents(next)
-    setExpanded((prev) => {
-      const merged = { ...prev }
-      for (const agent of next) {
-        if (merged[agent.id] === undefined) merged[agent.id] = false
-      }
-      return merged
-    })
-  }
-
-  const refresh = (preferSessionId?: string | null): void => {
+  const refresh = (preferSessionId?: string | null, forAgent?: AgentId): void => {
+    const agentId = forAgent ?? activeAgent
     const all = listSessions()
     setSessions(all)
-    const nextId = preferSessionId ?? getActiveSessionId() ?? all[0]?.id ?? null
+    const scoped = all.filter((s) => s.agentId === agentId)
+    const preferred =
+      preferSessionId && scoped.some((s) => s.id === preferSessionId)
+        ? preferSessionId
+        : null
+    const current = getActiveSessionId()
+    const keepCurrent = current && scoped.some((s) => s.id === current) ? current : null
+    const nextId = preferred ?? keepCurrent ?? scoped[0]?.id ?? null
     setActiveId(nextId)
     if (nextId) {
       setActiveSessionId(nextId)
-      const session = getSession(nextId)
-      if (session) setActiveAgent(session.agentId)
       setMessages(listMessages(nextId))
     } else {
       setMessages([])
@@ -195,8 +192,6 @@ export function WorkbenchPage(): React.JSX.Element {
   }
 
   useEffect(() => {
-    refresh()
-    refreshAgents()
     const applyAiSettings = (fortune: {
       aiModels?: string[]
       aiModel?: string
@@ -228,11 +223,14 @@ export function WorkbenchPage(): React.JSX.Element {
 
   useEffect(() => {
     const agentId = searchParams.get('agent')
-    if (!agentId) return
-    if (!getAgent(agentId)) return
-    setActiveAgent(agentId)
-    setExpanded((prev) => ({ ...prev, [agentId]: true }))
-    setPanelOpen(true)
+    const next: AgentId =
+      !agentId || isDirectChatId(agentId)
+        ? DIRECT_CHAT_ID
+        : getAgent(agentId)
+          ? agentId
+          : DIRECT_CHAT_ID
+    setActiveAgent(next)
+    refresh(null, next)
   }, [searchParams])
 
   useEffect(() => {
@@ -245,7 +243,7 @@ export function WorkbenchPage(): React.JSX.Element {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length, activeId, sending])
+  }, [messages.length, activeId, sending, streamText])
 
   const togglePanel = (): void => setPanelOpen((v) => !v)
 
@@ -254,49 +252,44 @@ export function WorkbenchPage(): React.JSX.Element {
     [sessions, activeId],
   )
 
-  const activeAgentDef = getAgent(activeAgent) ?? agents[0] ?? listAgents()[0]!
-  const activeAgentName = agentDisplayName(activeAgentDef, t)
+  const activeAgentDef = getAgent(activeAgent) ?? DIRECT_CHAT_DEF
+  const directMode = isDirectChatId(String(activeAgent))
+  const activeAgentName = directMode
+    ? t('nav.workbench')
+    : agentDisplayName(activeAgentDef, t)
 
-  const selectAgent = (agentId: AgentId): void => {
-    setActiveAgent(agentId)
-    setExpanded((prev) => ({ ...prev, [agentId]: true }))
-    setSearchParams({ agent: agentId }, { replace: true })
-  }
-
-  const filteredSessions = (agentId: AgentId): WorkbenchSession[] => {
+  const visibleSessions = useMemo(() => {
     const q = query.trim().toLowerCase()
     return sessions.filter((s) => {
-      if (s.agentId !== agentId) return false
+      if (s.agentId !== activeAgent) return false
       if (!q) return true
       return s.title.toLowerCase().includes(q)
     })
-  }
+  }, [sessions, activeAgent, query])
 
   const ensureSession = (agentId: AgentId): string => {
     if (activeSession && activeSession.agentId === agentId) return activeSession.id
     const title = i18n.language.startsWith('zh') ? '新会话' : 'New chat'
     const created = createSession(agentId, title)
-    refresh(created.id)
+    refresh(created.id, agentId)
     return created.id
   }
 
-  const onNewSession = (agentId: AgentId): void => {
+  const onNewSession = (): void => {
     const title = i18n.language.startsWith('zh') ? '新会话' : 'New chat'
-    const created = createSession(agentId, title)
-    setExpanded((prev) => ({ ...prev, [agentId]: true }))
-    selectAgent(agentId)
-    refresh(created.id)
+    const created = createSession(activeAgent, title)
+    refresh(created.id, activeAgent)
     inputRef.current?.focus()
   }
 
   const onSelectSession = (id: string): void => {
     setActiveSessionId(id)
-    refresh(id)
+    refresh(id, activeAgent)
   }
 
   const onDeleteSession = (id: string): void => {
     deleteSession(id)
-    refresh()
+    refresh(null, activeAgent)
   }
 
   const localEndpoint = isLocalLlmBaseUrl(aiBaseUrl)
@@ -326,6 +319,9 @@ export function WorkbenchPage(): React.JSX.Element {
     setDraft('')
     setAttachments([])
     setSending(true)
+    setStreamText('')
+    streamSessionRef.current = sessionId
+    setStreamSessionId(sessionId)
     refresh(sessionId)
 
     const history = listMessages(sessionId)
@@ -336,28 +332,48 @@ export function WorkbenchPage(): React.JSX.Element {
       }))
 
     try {
-      const res = await window.treasureChest.workbenchChat({
-        agentId: String(activeAgent),
-        model: selectedModel,
-        messages: history,
-        systemPrompt: activeAgentDef.builtin ? undefined : activeAgentDef.systemPrompt,
-        locale: i18n.language,
-      })
-      if (res.ok && res.text?.trim()) {
-        appendMessage(sessionId, 'assistant', res.text.trim())
-      } else {
-        appendMessage(
-          sessionId,
-          'system',
-          t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
-        )
+      const res = await window.treasureChest.workbenchChatStream(
+        {
+          agentId: directMode ? DIRECT_CHAT_ID : String(activeAgent),
+          model: selectedModel,
+          messages: history,
+          systemPrompt:
+            !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
+          locale: i18n.language,
+        },
+        (delta) => {
+          if (streamSessionRef.current !== sessionId) return
+          setStreamText((prev) => prev + delta)
+        },
+      )
+      if (streamSessionRef.current === sessionId) {
+        if (res.ok && res.text?.trim()) {
+          appendMessage(sessionId, 'assistant', res.text.trim())
+        } else {
+          appendMessage(
+            sessionId,
+            'system',
+            t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
+          )
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
+      if (streamSessionRef.current === sessionId) {
+        appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
+      }
     } finally {
-      setSending(false)
-      refresh(sessionId)
+      if (streamSessionRef.current === sessionId) {
+        streamSessionRef.current = null
+        setStreamSessionId(null)
+        setStreamText('')
+        setSending(false)
+        refresh(sessionId)
+      } else {
+        setSending(false)
+        setStreamText('')
+        setStreamSessionId(null)
+      }
     }
   }
 
@@ -445,16 +461,80 @@ export function WorkbenchPage(): React.JSX.Element {
     }
   }
 
-  const quickPrompts =
-    activeAgent === 'fortune'
+  const quickPrompts = directMode
+    ? ['workbench.chip.direct1', 'workbench.chip.direct2', 'workbench.chip.direct3']
+    : activeAgent === 'fortune'
       ? ['workbench.chip.fortune1', 'workbench.chip.fortune2', 'workbench.chip.fortune3']
       : activeAgent === 'stocks'
         ? ['workbench.chip.stocks1', 'workbench.chip.stocks2', 'workbench.chip.stocks3']
         : ['workbench.chip.custom1', 'workbench.chip.custom2', 'workbench.chip.custom3']
 
-  const { primary: primaryCaps, overflow: overflowCaps } = splitWorkbenchCapabilities()
+  const { primary: allPrimaryCaps, overflow: baseOverflowCaps } = useMemo(
+    () => splitWorkbenchCapabilities(),
+    [],
+  )
 
-  const renderCapButton = (cap: (typeof primaryCaps)[number], compact = false): ReactNode => (
+  const primaryCaps = allPrimaryCaps.slice(0, inlinePrimaryCount)
+  const overflowCaps: WorkbenchCapability[] = [
+    ...allPrimaryCaps.slice(inlinePrimaryCount),
+    ...baseOverflowCaps,
+  ]
+
+  useLayoutEffect(() => {
+    const bar = composerBarRef.current
+    const right = composerRightRef.current
+    const measure = capMeasureRef.current
+    if (!bar || !right || !measure) return
+
+    const sync = (): void => {
+      const kids = Array.from(measure.children) as HTMLElement[]
+      if (kids.length < 2) return
+      const moreEl = kids[kids.length - 1]!
+      const capEls = kids.slice(0, -1)
+      const gap = 4
+      const budget = Math.max(0, bar.clientWidth - right.offsetWidth - gap)
+      const moreW = moreEl.offsetWidth
+      // Always reserve「更多」when there are overflow-only caps, or when not all primary fit.
+      let count = 0
+      let used = moreW + gap
+      for (const el of capEls) {
+        const next = used + el.offsetWidth + gap
+        if (next > budget) break
+        used = next
+        count += 1
+      }
+      // If everything including overflow-only items fits without a menu, still OK to show more
+      // only when overflowCaps would be non-empty after slicing — handled in render.
+      // When base overflow is empty and all primary fit, try without reserving more width.
+      if (baseOverflowCaps.length === 0 && count === capEls.length) {
+        let fitAll = 0
+        let usedAll = 0
+        for (const el of capEls) {
+          const next = usedAll + el.offsetWidth + (usedAll > 0 ? gap : 0)
+          if (next > budget) {
+            fitAll = -1
+            break
+          }
+          usedAll = next
+          fitAll += 1
+        }
+        if (fitAll === capEls.length) count = capEls.length
+      }
+      setInlinePrimaryCount((prev) => (prev === count ? prev : count))
+    }
+
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(bar)
+    ro.observe(right)
+    window.addEventListener('resize', sync)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', sync)
+    }
+  }, [baseOverflowCaps.length, i18n.language])
+
+  const renderCapButton = (cap: WorkbenchCapability, compact = false): ReactNode => (
     <button
       key={cap.id}
       type="button"
@@ -489,15 +569,26 @@ export function WorkbenchPage(): React.JSX.Element {
           <>
             <div className={styles.panelTop}>
               <span className={styles.panelTitle}>{t('workbench.sessionHistory')}</span>
-              <button
-                type="button"
-                className={styles.iconGhost}
-                title={t('workbench.collapseSessions')}
-                aria-label={t('workbench.collapseSessions')}
-                onClick={togglePanel}
-              >
-                <IconChevronLeft />
-              </button>
+              <div className={styles.panelTopActions}>
+                <button
+                  type="button"
+                  className={styles.iconGhost}
+                  title={t('workbench.newSession')}
+                  aria-label={t('workbench.newSession')}
+                  onClick={onNewSession}
+                >
+                  <IconPlus />
+                </button>
+                <button
+                  type="button"
+                  className={styles.iconGhost}
+                  title={t('workbench.collapseSessions')}
+                  aria-label={t('workbench.collapseSessions')}
+                  onClick={togglePanel}
+                >
+                  <IconChevronLeft />
+                </button>
+              </div>
             </div>
 
             <label className={styles.searchWrap}>
@@ -509,101 +600,35 @@ export function WorkbenchPage(): React.JSX.Element {
               />
             </label>
 
-            <div className={styles.agentList}>
-              {agents.map((agent) => {
-                const open = expanded[agent.id]
-                const list = filteredSessions(agent.id)
-                const name = agentDisplayName(agent, t)
-                const desc = agentDisplayDesc(agent, t)
-                return (
-                  <section key={agent.id} className={styles.agentBlock}>
-                    <div className={styles.agentRow}>
-                      <button
-                        type="button"
-                        className={styles.agentSelect}
-                        onClick={() => selectAgent(agent.id)}
-                      >
-                        <span className={`${styles.agentIcon} ${styles[`agentIcon_${agent.tone}`]}`}>
-                          {agentIcon(agent)}
-                        </span>
-                        <span className={styles.agentMeta}>
-                          <span className={styles.agentName}>{name}</span>
-                          <span className={styles.agentDesc}>{desc || t('agents.noDescription')}</span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.iconGhost}
-                        title={t('workbench.newSession')}
-                        aria-label={t('workbench.newSession')}
-                        onClick={() => onNewSession(agent.id)}
-                      >
-                        <IconPlus />
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.iconGhost}
-                        aria-label={open ? t('workbench.collapse') : t('workbench.expand')}
-                        onClick={() =>
-                          setExpanded((prev) => ({ ...prev, [agent.id]: !prev[agent.id] }))
-                        }
-                      >
-                        <IconChevronDown
-                          style={{
-                            transform: open ? 'rotate(180deg)' : undefined,
-                            transition: '0.15s',
-                          }}
-                        />
-                      </button>
-                    </div>
-
-                    {open ? (
-                      <div className={styles.sessionList}>
-                        {list.length === 0 ? (
-                          <button
-                            type="button"
-                            className={styles.sessionItem}
-                            onClick={() => onNewSession(agent.id)}
-                          >
-                            <span className={styles.sessionTitle}>{t('workbench.startSession')}</span>
-                          </button>
-                        ) : (
-                          list.map((session) => (
-                            <div key={session.id} className={styles.sessionRow}>
-                              <button
-                                type="button"
-                                className={`${styles.sessionItem} ${
-                                  session.id === activeId ? styles.sessionItemActive : ''
-                                }`}
-                                onClick={() => onSelectSession(session.id)}
-                              >
-                                <span className={styles.sessionTitle}>{session.title}</span>
-                              </button>
-                              <button
-                                type="button"
-                                className={styles.iconGhost}
-                                title={t('workbench.deleteSession')}
-                                aria-label={t('workbench.deleteSession')}
-                                onClick={() => onDeleteSession(session.id)}
-                              >
-                                <IconTrash />
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    ) : null}
-                  </section>
-                )
-              })}
-              <button
-                type="button"
-                className={styles.addAgentRow}
-                onClick={() => setCreateOpen(true)}
-              >
-                <IconPlus />
-                {t('nav.addAgent')}
-              </button>
+            <div className={styles.sessionList}>
+              {visibleSessions.length === 0 ? (
+                <button type="button" className={styles.sessionItem} onClick={onNewSession}>
+                  <span className={styles.sessionTitle}>{t('workbench.startSession')}</span>
+                </button>
+              ) : (
+                visibleSessions.map((session) => (
+                  <div key={session.id} className={styles.sessionRow}>
+                    <button
+                      type="button"
+                      className={`${styles.sessionItem} ${
+                        session.id === activeId ? styles.sessionItemActive : ''
+                      }`}
+                      onClick={() => onSelectSession(session.id)}
+                    >
+                      <span className={styles.sessionTitle}>{session.title}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.iconGhost}
+                      title={t('workbench.deleteSession')}
+                      aria-label={t('workbench.deleteSession')}
+                      onClick={() => onDeleteSession(session.id)}
+                    >
+                      <IconTrash />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </>
         ) : (
@@ -617,29 +642,12 @@ export function WorkbenchPage(): React.JSX.Element {
             >
               <IconChevronRight />
             </button>
-            {agents.map((agent) => (
-              <button
-                key={agent.id}
-                type="button"
-                className={`${styles.railAgent} ${styles[`agentIcon_${agent.tone}`]} ${
-                  activeAgent === agent.id ? styles.railAgentActive : ''
-                }`}
-                title={agentDisplayName(agent, t)}
-                aria-label={agentDisplayName(agent, t)}
-                onClick={() => {
-                  selectAgent(agent.id)
-                  setPanelOpen(true)
-                }}
-              >
-                {agentIcon(agent)}
-              </button>
-            ))}
             <button
               type="button"
-              className={styles.railAgent}
-              title={t('nav.addAgent')}
-              aria-label={t('nav.addAgent')}
-              onClick={() => setCreateOpen(true)}
+              className={styles.expandRailBtn}
+              title={t('workbench.newSession')}
+              aria-label={t('workbench.newSession')}
+              onClick={onNewSession}
             >
               <IconPlus />
             </button>
@@ -695,12 +703,12 @@ export function WorkbenchPage(): React.JSX.Element {
         <div className={styles.messages}>
           {messages.length === 0 && !sending ? (
             <div className={styles.empty}>
-              <div className={styles.emptyMark}>
-                <IconChatBubble />
-              </div>
+              <div className={styles.emptyMark}>{agentIcon(activeAgentDef)}</div>
               <h1 className={styles.emptyTitle}>{activeAgentName}</h1>
               <p className={styles.emptySub}>
-                {t('workbench.welcome', { agent: activeAgentName })}
+                {directMode
+                  ? t('workbench.welcomeDirect')
+                  : t('workbench.welcome', { agent: activeAgentName })}
               </p>
               <div className={styles.chips}>
                 {quickPrompts.map((key) => (
@@ -725,19 +733,33 @@ export function WorkbenchPage(): React.JSX.Element {
                     </div>
                   )
                 }
-                const rowClass =
-                  msg.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAssistant
-                const bubbleClass = msg.role === 'user' ? styles.bubbleUser : styles.bubbleAssistant
+                if (msg.role === 'user') {
+                  return (
+                    <div key={msg.id} className={`${styles.bubbleRow} ${styles.bubbleRowUser}`}>
+                      <div className={`${styles.bubble} ${styles.bubbleUser}`}>{msg.content}</div>
+                    </div>
+                  )
+                }
                 return (
-                  <div key={msg.id} className={`${styles.bubbleRow} ${rowClass}`}>
-                    <div className={`${styles.bubble} ${bubbleClass}`}>{msg.content}</div>
+                  <div key={msg.id} className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
+                    <div className={styles.assistantMessage}>
+                      <MarkdownMessage content={msg.content} />
+                    </div>
                   </div>
                 )
               })}
-              {sending ? (
+              {sending && streamSessionId === activeId ? (
                 <div className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
-                  <div className={`${styles.bubble} ${styles.bubbleAssistant} ${styles.bubbleThinking}`}>
-                    {t('workbench.thinking')}
+                  <div
+                    className={`${styles.assistantMessage} ${
+                      streamText ? '' : styles.bubbleThinking
+                    }`}
+                  >
+                    {streamText ? (
+                      <MarkdownMessage content={streamText} streaming />
+                    ) : (
+                      t('workbench.thinking')
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -783,7 +805,26 @@ export function WorkbenchPage(): React.JSX.Element {
               placeholder={t('workbench.inputPlaceholder')}
               rows={2}
             />
-            <div className={styles.composerBar} role="toolbar" aria-label={t('workbench.capabilities')}>
+            <div
+              className={styles.composerBar}
+              role="toolbar"
+              aria-label={t('workbench.capabilities')}
+              ref={composerBarRef}
+            >
+              <div className={styles.capMeasure} ref={capMeasureRef} aria-hidden>
+                {allPrimaryCaps.map((cap) => (
+                  <span key={cap.id} className={styles.capItem}>
+                    <span className={styles.capIcon}>{capabilityIcon(cap.id)}</span>
+                    <span>{t(cap.labelKey)}</span>
+                  </span>
+                ))}
+                <span className={styles.capItem}>
+                  <span className={styles.capIcon}>
+                    <IconGrid />
+                  </span>
+                  <span>{t('workbench.cap.more')}</span>
+                </span>
+              </div>
               <div className={styles.composerLeft}>
                 {primaryCaps.map((cap) => renderCapButton(cap))}
                 {overflowCaps.length > 0 ? (
@@ -828,7 +869,7 @@ export function WorkbenchPage(): React.JSX.Element {
                   </div>
                 ) : null}
               </div>
-              <div className={styles.composerRight}>
+              <div className={styles.composerRight} ref={composerRightRef}>
                 {modelOptions.length > 0 ? (
                   <label className={styles.modelSelectWrap}>
                     <select
@@ -874,18 +915,6 @@ export function WorkbenchPage(): React.JSX.Element {
           <p className={styles.hint}>{t('workbench.inputHint')}</p>
         </div>
       </section>
-
-      {createOpen ? (
-        <CreateAgentModal
-          onClose={() => setCreateOpen(false)}
-          onCreated={(agent) => {
-            refreshAgents()
-            setCreateOpen(false)
-            selectAgent(agent.id)
-            onNewSession(agent.id)
-          }}
-        />
-      ) : null}
     </div>
   )
 }

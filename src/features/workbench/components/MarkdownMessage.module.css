@@ -1,0 +1,165 @@
+.root {
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.root :where(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4) {
+  margin: 0 0 0.85em;
+}
+
+.root :where(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4):last-child {
+  margin-bottom: 0;
+}
+
+.root :where(h1, h2, h3, h4) {
+  color: var(--color-ink);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.root h1 {
+  font-size: 1.28rem;
+}
+
+.root h2 {
+  font-size: 1.12rem;
+}
+
+.root h3,
+.root h4 {
+  font-size: 1.02rem;
+}
+
+.root :where(ul, ol) {
+  padding-left: 1.35em;
+}
+
+.root li {
+  margin: 0.28em 0;
+}
+
+.root li > :where(ul, ol) {
+  margin-top: 0.28em;
+  margin-bottom: 0.28em;
+}
+
+.root strong {
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.root em {
+  font-style: italic;
+}
+
+.root a {
+  color: var(--color-brand-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.root a:hover {
+  color: var(--color-brand-hover);
+}
+
+.root blockquote {
+  margin-left: 0;
+  padding: 0.15rem 0 0.15rem 0.9rem;
+  border-left: 3px solid color-mix(in srgb, var(--color-brand) 55%, var(--color-border));
+  color: var(--color-ink-secondary);
+}
+
+.root hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 1rem 0;
+}
+
+.root .pre {
+  margin: 0.75em 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-muted) 72%, var(--color-bg-elevated));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 35%, transparent);
+}
+
+.root .codeBlock {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--color-ink);
+  white-space: pre;
+}
+
+.root .codeInline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.86em;
+  padding: 0.12em 0.38em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-bg-muted) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  color: var(--color-ink);
+}
+
+.root .tableWrap {
+  overflow-x: auto;
+  margin: 0.75em 0;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+}
+
+.root table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.root th,
+.root td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.root th {
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-bg-muted) 65%, transparent);
+  color: var(--color-ink-secondary);
+}
+
+.root tr:last-child td {
+  border-bottom: none;
+}
+
+.streaming {
+  min-height: 1.4em;
+}
+
+.caret {
+  display: inline-block;
+  width: 0.42em;
+  height: 1.05em;
+  margin-left: 0.1em;
+  vertical-align: -0.18em;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--color-brand) 70%, var(--color-ink));
+  animation: caretBlink 0.95s steps(1, end) infinite;
+}
+
+@keyframes caretBlink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}

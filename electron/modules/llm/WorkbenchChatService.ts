@@ -1,5 +1,5 @@
 import type { FortuneSettings, LlmChatMessage, LlmChatRequest, LlmChatResponse } from '@shared'
-import { callLlmChat, settingsToLlmEndpoint } from './LlmClient'
+import { callLlmChat, callLlmChatStream, settingsToLlmEndpoint } from './LlmClient'
 
 const BUILTIN_SYSTEM: Record<string, { zh: string; en: string }> = {
   fortune: {
@@ -32,9 +32,18 @@ const BUILTIN_SYSTEM: Record<string, { zh: string; en: string }> = {
   },
 }
 
-function resolveSystemPrompt(req: LlmChatRequest): string {
+function resolveSystemPrompt(req: LlmChatRequest): string | null {
   const locale = (req.locale ?? 'zh-CN').toLowerCase()
   const isEn = locale.startsWith('en')
+  const agentId = (req.agentId ?? '').trim()
+
+  // Direct model chat: no domain persona — omit system or keep a tiny guardrail.
+  if (!agentId || agentId === 'direct' || agentId === 'none') {
+    return isEn
+      ? 'Answer the user directly and helpfully. Do not role-play as a fortune or stock specialist unless the user asks.'
+      : '直接、清楚地回答用户问题。除非用户明确要求，否则不要扮演运势或股票等垂直领域助手。'
+  }
+
   const custom = req.systemPrompt?.trim()
   if (custom) {
     return [
@@ -47,7 +56,7 @@ function resolveSystemPrompt(req: LlmChatRequest): string {
         : '回答务实简洁；不要编造你无法访问的工具结果。',
     ].join('\n')
   }
-  const builtin = BUILTIN_SYSTEM[req.agentId]
+  const builtin = BUILTIN_SYSTEM[agentId]
   if (builtin) return isEn ? builtin.en : builtin.zh
   return isEn
     ? 'You are a helpful local assistant in Qiankun workbench.'
@@ -63,29 +72,71 @@ function trimHistory(
   return messages.slice(-limit)
 }
 
-export async function runWorkbenchChat(
+function prepareChat(
   req: LlmChatRequest,
   settings: FortuneSettings,
-): Promise<LlmChatResponse> {
+):
+  | {
+      ok: true
+      messages: LlmChatMessage[]
+      model: string
+      endpoint: ReturnType<typeof settingsToLlmEndpoint>
+    }
+  | { ok: false; response: LlmChatResponse } {
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
   const history = trimHistory(req.messages).filter((m) => m.content.trim())
   if (history.length === 0) {
-    return { ok: false, error: 'Empty message.', providerName: endpoint.providerName }
+    return {
+      ok: false,
+      response: { ok: false, error: 'Empty message.', providerName: endpoint.providerName },
+    }
   }
 
+  const system = resolveSystemPrompt(req)
   const messages: LlmChatMessage[] = [
-    { role: 'system', content: resolveSystemPrompt(req) },
+    ...(system ? [{ role: 'system' as const, content: system }] : []),
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ]
+  return { ok: true, messages, model, endpoint }
+}
+
+export async function runWorkbenchChat(
+  req: LlmChatRequest,
+  settings: FortuneSettings,
+): Promise<LlmChatResponse> {
+  const prepared = prepareChat(req, settings)
+  if (!prepared.ok) return prepared.response
 
   return callLlmChat({
-    ...endpoint,
-    model,
-    messages,
+    ...prepared.endpoint,
+    model: prepared.model,
+    messages: prepared.messages,
     temperature: 0.7,
     maxTokens: 2048,
     timeoutMs: 120_000,
-    tag: `workbench-${req.agentId}`,
+    tag: `workbench-${req.agentId || 'direct'}`,
   })
+}
+
+export async function runWorkbenchChatStream(
+  req: LlmChatRequest,
+  settings: FortuneSettings,
+  onDelta: (text: string) => void,
+): Promise<LlmChatResponse> {
+  const prepared = prepareChat(req, settings)
+  if (!prepared.ok) return prepared.response
+
+  return callLlmChatStream(
+    {
+      ...prepared.endpoint,
+      model: prepared.model,
+      messages: prepared.messages,
+      temperature: 0.7,
+      maxTokens: 2048,
+      timeoutMs: 120_000,
+      tag: `workbench-stream-${req.agentId || 'direct'}`,
+    },
+    onDelta,
+  )
 }
