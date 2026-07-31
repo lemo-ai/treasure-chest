@@ -646,6 +646,20 @@
   color: var(--color-ink-tertiary);
 }
 
+.reembedBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.reembedBar em {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--color-ink-tertiary);
+}
+
 @media (max-width: 900px) {
   .shell {
     grid-template-columns: 1fr;

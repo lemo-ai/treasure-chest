@@ -20,6 +20,7 @@ import {
   IconPlus,
   IconSearch,
   IconSettings,
+  IconSparkles,
   IconTrash,
   IconUpload,
 } from '@renderer/shared/ui/icons'
@@ -104,7 +105,6 @@ export function KnowledgePage(): React.JSX.Element {
     void refreshAll().catch((err) => {
       setError(err instanceof Error ? err.message : String(err))
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -273,7 +273,11 @@ export function KnowledgePage(): React.JSX.Element {
     draft?.embeddingProvider === 'ollama' ||
     draft?.embeddingProvider === 'openai_compatible'
   const needsEmbedModel = Boolean(draft?.embeddingProvider && draft.embeddingProvider !== 'none')
-  const needsExternalStore = draft?.vectorStore === 'qdrant' || draft?.vectorStore === 'chroma'
+  const needsExternalStore =
+    draft?.vectorStore === 'qdrant' ||
+    draft?.vectorStore === 'chroma' ||
+    draft?.vectorStore === 'pinecone' ||
+    draft?.vectorStore === 'weaviate'
 
   const formatBytes = (n: number): string => {
     if (n < 1024) return `${n} B`
@@ -557,6 +561,27 @@ export function KnowledgePage(): React.JSX.Element {
                             <button
                               type="button"
                               className={styles.iconBtn}
+                              title={t('knowledge.reembed')}
+                              onClick={() => {
+                                void (async () => {
+                                  setBusy(true)
+                                  setError('')
+                                  try {
+                                    await window.treasureChest.reembedKnowledgeDocument(doc.id)
+                                    await refreshAll(activeCollectionId)
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : String(err))
+                                  } finally {
+                                    setBusy(false)
+                                  }
+                                })()
+                              }}
+                            >
+                              <IconSparkles />
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.iconBtn}
                               title={t('knowledge.download')}
                               onClick={() => void onDownloadDoc(doc.id)}
                             >
@@ -647,6 +672,42 @@ export function KnowledgePage(): React.JSX.Element {
                 {savedFlash ? <IconCheck /> : null}
                 {savedFlash ? t('knowledge.saved') : t('knowledge.saveSettings')}
               </button>
+            </div>
+
+            <div className={styles.reembedBar}>
+              <button
+                type="button"
+                className={styles.ghostBtn}
+                disabled={busy || saving}
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true)
+                    setError('')
+                    try {
+                      const res = await window.treasureChest.reembedKnowledgeCollection(
+                        activeCollectionId || undefined,
+                      )
+                      await refreshAll(activeCollectionId)
+                      if (res.failed) {
+                        setError(
+                          t('knowledge.reembedPartial', {
+                            ok: res.ok,
+                            failed: res.failed,
+                            detail: res.errors.slice(0, 2).join('; '),
+                          }),
+                        )
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : String(err))
+                    } finally {
+                      setBusy(false)
+                    }
+                  })()
+                }}
+              >
+                {t('knowledge.reembedCollection')}
+              </button>
+              <em>{t('knowledge.reembedHint')}</em>
             </div>
 
             <div className={styles.formGrid}>

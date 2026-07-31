@@ -7,7 +7,7 @@ export type KnowledgeEmbeddingProvider =
   | 'openai_compatible'
 
 /** Where computed vectors are stored / queried. */
-export type KnowledgeVectorStore = 'sqlite_json' | 'qdrant' | 'chroma'
+export type KnowledgeVectorStore = 'sqlite_json' | 'qdrant' | 'chroma' | 'pinecone' | 'weaviate'
 
 export interface KnowledgeCollection {
   id: string
@@ -132,6 +132,8 @@ export const KNOWLEDGE_VECTOR_STORES: KnowledgeVectorStore[] = [
   'sqlite_json',
   'qdrant',
   'chroma',
+  'pinecone',
+  'weaviate',
 ]
 
 export const KNOWLEDGE_ACCEPTED_EXTENSIONS = [
@@ -147,4 +149,9 @@ export const KNOWLEDGE_ACCEPTED_EXTENSIONS = [
   '.pptx',
   '.xlsx',
   '.xls',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+  '.gif',
 ] as const

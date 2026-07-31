@@ -63,6 +63,7 @@ interface TreasureChestApi {
     payload: LlmChatRequest,
     onDelta: (text: string) => void,
     onStatus?: (text: string) => void,
+    onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
   ) => Promise<LlmChatResponse>
   listKnowledgeDocuments: (collectionId?: string) => Promise<import('@shared').KnowledgeDocument[]>
   ingestKnowledgeText: (
@@ -99,6 +100,15 @@ interface TreasureChestApi {
     chunks: number
     embeddings: number
   }>
+  reembedKnowledgeDocument: (id: string) => Promise<import('@shared').KnowledgeDocument>
+  reembedKnowledgeCollection: (
+    collectionId?: string,
+  ) => Promise<{ ok: number; failed: number; errors: string[] }>
+  generateImage: (payload: {
+    prompt: string
+    size?: string
+    model?: string
+  }) => Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }>
   getMcpSettings: () => Promise<import('@shared').McpSettings>
   setMcpSettings: (next: import('@shared').McpSettings) => Promise<import('@shared').McpSettings>
   listMcpTools: () => Promise<import('@shared').LlmToolSpec[]>
@@ -117,6 +127,36 @@ interface TreasureChestApi {
   listStocksReports: (limit?: number) => Promise<StocksReportSummary[]>
   getStocksReportByDate: (date: string) => Promise<StocksReport | null>
   getStockQuote: (payload: { market: StockMarket; symbol: string; name?: string }) => Promise<StockQuoteDetail>
+  refreshStocksScanner: () => Promise<{
+    ok: boolean
+    added: number
+    scanned: number
+    errors: string[]
+  }>
+  listSkills: () => Promise<
+    Array<{
+      id: string
+      name: string
+      description: string
+      source: string
+      sourceRef?: string
+      prompt: string
+    }>
+  >
+  listSkillCatalogs: () => Promise<Array<{ id: string; name: string; url: string; hint: string }>>
+  installSkillFromGithub: (ref: string) => Promise<{
+    id: string
+    name: string
+    description: string
+    prompt: string
+  }>
+  installSkillFromMarkdown: (markdown: string) => Promise<{
+    id: string
+    name: string
+    description: string
+    prompt: string
+  }>
+  uninstallSkill: (id: string) => Promise<boolean>
 }
 
 declare global {

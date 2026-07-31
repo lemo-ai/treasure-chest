@@ -1,9 +1,12 @@
 import { app, dialog } from 'electron'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
-import type { AppSettingsSnapshot, BirthProfile } from '@shared'
+import type { AppSettingsSnapshot, BirthProfile, KnowledgeSettings, WatchlistItem } from '@shared'
+import { DEFAULT_KNOWLEDGE_SETTINGS } from '@shared'
 import { settingsStore } from '../settings/SettingsStore'
 import { fortuneStore } from '../fortune/FortuneStore'
+import { stocksStore } from '../stocks/StocksStore'
+import { getKnowledgeSettings, setKnowledgeSettings } from '../knowledge/KnowledgeStore'
 import { syncLaunchAtLogin } from '../system/LaunchService'
 import { logger } from '../../utils/logger'
 import { getMainWindow } from '../../windows/mainWindowRef'
@@ -13,7 +16,7 @@ import {
 } from '../../windows/createCalendarWindow'
 
 const BACKUP_MAGIC = 'treasure-chest-backup'
-const FORMAT_VERSION = 1
+const FORMAT_VERSION = 2
 
 export interface BackupPayload {
   magic: typeof BACKUP_MAGIC
@@ -24,6 +27,8 @@ export interface BackupPayload {
   sections: {
     app_settings: AppSettingsSnapshot
     bazi_profiles: BirthProfile[]
+    watchlist?: WatchlistItem[]
+    knowledge_settings?: KnowledgeSettings
   }
   checksum: string
 }
@@ -45,6 +50,8 @@ function buildPayload(): BackupPayload {
     sections: {
       app_settings: settingsStore.getSnapshot(),
       bazi_profiles: profile ? [profile] : [],
+      watchlist: stocksStore.getWatchlist(),
+      knowledge_settings: getKnowledgeSettings(),
     },
   } satisfies Omit<BackupPayload, 'checksum'>
   return { ...body, checksum: checksum(body) }
@@ -70,17 +77,14 @@ function validatePayload(raw: unknown): BackupPayload {
 export async function exportBackup(): Promise<{ ok: boolean; path?: string; error?: string }> {
   const parent = getMainWindow()
   const stamp = new Date().toISOString().slice(0, 10)
+  const opts = {
+    title: 'Export backup',
+    defaultPath: `treasure-chest-backup-${stamp}.tchest`,
+    filters: [{ name: 'Treasure Chest Backup', extensions: ['tchest', 'json'] }],
+  }
   const { canceled, filePath } = parent
-    ? await dialog.showSaveDialog(parent, {
-        title: 'Export backup',
-        defaultPath: `treasure-chest-backup-${stamp}.tchest`,
-        filters: [{ name: 'Treasure Chest Backup', extensions: ['tchest', 'json'] }],
-      })
-    : await dialog.showSaveDialog({
-        title: 'Export backup',
-        defaultPath: `treasure-chest-backup-${stamp}.tchest`,
-        filters: [{ name: 'Treasure Chest Backup', extensions: ['tchest', 'json'] }],
-      })
+    ? await dialog.showSaveDialog(parent, opts)
+    : await dialog.showSaveDialog(opts)
   if (canceled || !filePath) return { ok: false }
   try {
     const payload = buildPayload()
@@ -95,17 +99,14 @@ export async function exportBackup(): Promise<{ ok: boolean; path?: string; erro
 
 export async function importBackup(): Promise<{ ok: boolean; error?: string }> {
   const parent = getMainWindow()
+  const opts = {
+    title: 'Import backup',
+    filters: [{ name: 'Treasure Chest Backup', extensions: ['tchest', 'json'] }],
+    properties: ['openFile' as const],
+  }
   const { canceled, filePaths } = parent
-    ? await dialog.showOpenDialog(parent, {
-        title: 'Import backup',
-        filters: [{ name: 'Treasure Chest Backup', extensions: ['tchest', 'json'] }],
-        properties: ['openFile'],
-      })
-    : await dialog.showOpenDialog({
-        title: 'Import backup',
-        filters: [{ name: 'Treasure Chest Backup', extensions: ['tchest', 'json'] }],
-        properties: ['openFile'],
-      })
+    ? await dialog.showOpenDialog(parent, opts)
+    : await dialog.showOpenDialog(opts)
   if (canceled || !filePaths[0]) return { ok: false }
   try {
     const raw = JSON.parse(readFileSync(filePaths[0], 'utf8')) as unknown
@@ -117,6 +118,26 @@ export async function importBackup(): Promise<{ ok: boolean; error?: string }> {
       fortuneStore.saveProfile(profile)
     } else {
       fortuneStore.clearProfile()
+    }
+    if (Array.isArray(data.sections.watchlist)) {
+      for (const item of data.sections.watchlist) {
+        try {
+          stocksStore.upsertWatchlistItem({
+            market: item.market,
+            symbol: item.symbol,
+            name: item.name,
+            note: item.note,
+          })
+        } catch {
+          /* skip invalid */
+        }
+      }
+    }
+    if (data.sections.knowledge_settings) {
+      setKnowledgeSettings({
+        ...DEFAULT_KNOWLEDGE_SETTINGS,
+        ...data.sections.knowledge_settings,
+      })
     }
     syncLaunchAtLogin()
     syncDesktopWidgetFromSettings()

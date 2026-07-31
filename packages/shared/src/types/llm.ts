@@ -35,11 +35,26 @@ export interface LlmChatRequest {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>
   /** Optional extra system prompt (custom agent persona) */
   systemPrompt?: string
+  /** Capability mode overlay (write / translate / research / skills…) */
+  capabilityMode?: string
+  /** Extra instructions from a selected skill template */
+  skillPrompt?: string
   locale?: string
   /** Set by preload for streaming; ignored by non-stream chat */
   streamId?: string
   /** Prefer knowledge search when user @mentioned knowledge */
   useKnowledge?: boolean
+  /** Optional knowledge collection scope for search_knowledge */
+  knowledgeCollectionId?: string
+}
+
+export interface KnowledgeCitation {
+  documentId: string
+  title: string
+  chunkId: string
+  ordinal: number
+  text: string
+  score: number
 }
 
 export interface LlmChatResponse {
@@ -49,6 +64,7 @@ export interface LlmChatResponse {
   model?: string
   providerName?: string
   toolCalls?: LlmToolCall[]
+  citations?: KnowledgeCitation[]
 }
 
 /** Renderer ↔ main stream handshake id */
@@ -69,10 +85,16 @@ export type LlmChatStreamEvent =
     }
   | {
       streamId: string
+      type: 'citations'
+      citations: KnowledgeCitation[]
+    }
+  | {
+      streamId: string
       type: 'done'
       text: string
       model?: string
       providerName?: string
+      citations?: KnowledgeCitation[]
     }
   | {
       streamId: string

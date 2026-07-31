@@ -42,6 +42,16 @@ import {
   type WorkbenchCapability,
   type WorkbenchCapabilityId,
 } from '../lib/capabilities'
+import { WORKBENCH_SKILLS } from '../lib/capabilityModes'
+import type { KnowledgeCitation } from '@shared'
+
+type InstalledSkillRow = {
+  id: string
+  name: string
+  description: string
+  source: string
+  prompt: string
+}
 import {
   appendMessage,
   createSession,
@@ -150,6 +160,14 @@ export function WorkbenchPage(): React.JSX.Element {
   const [messages, setMessages] = useState<WorkbenchMessage[]>([])
   const [draft, setDraft] = useState('')
   const [activeCap, setActiveCap] = useState<WorkbenchCapabilityId | null>(null)
+  const [activeSkillId, setActiveSkillId] = useState<string | null>(null)
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false)
+  const [streamCitations, setStreamCitations] = useState<KnowledgeCitation[]>([])
+  const [installedSkills, setInstalledSkills] = useState<InstalledSkillRow[]>([])
+  const [skillInstallRef, setSkillInstallRef] = useState('')
+  const [skillCatalogs, setSkillCatalogs] = useState<
+    Array<{ id: string; name: string; url: string; hint: string }>
+  >([])
   const [moreOpen, setMoreOpen] = useState(false)
   const [morePos, setMorePos] = useState<{ left: number; bottom: number } | null>(null)
   const [attachments, setAttachments] = useState<WorkbenchAttachment[]>([])
@@ -334,37 +352,75 @@ export function WorkbenchPage(): React.JSX.Element {
       }))
 
     const useKnowledge = /@知识库|@knowledge/i.test(content) || activeCap === 'knowledge'
+    const skill =
+      installedSkills.find((s) => s.id === activeSkillId) ||
+      WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)
+    const skillPrompt = skill
+      ? 'prompt' in skill && typeof (skill as InstalledSkillRow).prompt === 'string'
+        ? (skill as InstalledSkillRow).prompt
+        : i18n.language.toLowerCase().startsWith('en')
+          ? (skill as (typeof WORKBENCH_SKILLS)[number]).promptEn
+          : (skill as (typeof WORKBENCH_SKILLS)[number]).promptZh
+      : undefined
 
     try {
-      const res = await window.treasureChest.workbenchChatStream(
-        {
-          agentId: directMode ? DIRECT_CHAT_ID : String(activeAgent),
-          model: selectedModel,
-          messages: history,
-          systemPrompt:
-            !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
-          locale: i18n.language,
-          useKnowledge,
-        },
-        (delta) => {
-          if (streamSessionRef.current !== sessionId) return
-          setStreamStatus('')
-          setStreamText((prev) => prev + delta)
-        },
-        (status) => {
-          if (streamSessionRef.current !== sessionId) return
-          setStreamStatus(status)
-        },
-      )
-      if (streamSessionRef.current === sessionId) {
-        if (res.ok && res.text?.trim()) {
-          appendMessage(sessionId, 'assistant', res.text.trim())
-        } else {
-          appendMessage(
-            sessionId,
-            'system',
-            t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
-          )
+      if (activeCap === 'image') {
+        setStreamStatus(t('workbench.imageGenerating'))
+        const img = await window.treasureChest.generateImage({ prompt: content })
+        if (streamSessionRef.current === sessionId) {
+          if (img.ok && img.url) {
+            const md = `![${content.slice(0, 40)}](${img.url})\n\n${t('workbench.imageDone')}`
+            appendMessage(sessionId, 'assistant', md)
+          } else {
+            appendMessage(
+              sessionId,
+              'system',
+              t('workbench.chatFailed', { error: img.error || t('workbench.chatUnknownError') }),
+            )
+          }
+        }
+      } else {
+        setStreamCitations([])
+        const capabilityMode =
+          activeCap && ['write', 'translate', 'research', 'skills'].includes(activeCap)
+            ? activeCap
+            : undefined
+        const res = await window.treasureChest.workbenchChatStream(
+          {
+            agentId: directMode ? DIRECT_CHAT_ID : String(activeAgent),
+            model: selectedModel,
+            messages: history,
+            systemPrompt:
+              !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
+            locale: i18n.language,
+            useKnowledge,
+            capabilityMode,
+            skillPrompt,
+          },
+          (delta) => {
+            if (streamSessionRef.current !== sessionId) return
+            setStreamStatus('')
+            setStreamText((prev) => prev + delta)
+          },
+          (status) => {
+            if (streamSessionRef.current !== sessionId) return
+            setStreamStatus(status)
+          },
+          (citations) => {
+            if (streamSessionRef.current !== sessionId) return
+            setStreamCitations(citations)
+          },
+        )
+        if (streamSessionRef.current === sessionId) {
+          if (res.ok && res.text?.trim()) {
+            appendMessage(sessionId, 'assistant', res.text.trim(), res.citations)
+          } else {
+            appendMessage(
+              sessionId,
+              'system',
+              t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
+            )
+          }
         }
       }
     } catch (err) {
@@ -378,6 +434,7 @@ export function WorkbenchPage(): React.JSX.Element {
         setStreamSessionId(null)
         setStreamText('')
         setStreamStatus('')
+        setStreamCitations([])
         setSending(false)
         refresh(sessionId)
       } else {
@@ -397,13 +454,14 @@ export function WorkbenchPage(): React.JSX.Element {
   }
 
   const onCapability = (id: WorkbenchCapabilityId): void => {
-    setActiveCap(id)
     setMoreOpen(false)
     if (id === 'upload') {
+      setActiveCap(id)
       fileRef.current?.click()
       return
     }
     if (id === 'knowledge') {
+      setActiveCap(id)
       inputRef.current?.focus()
       setDraft((prev) =>
         prev.includes('@知识库') || prev.includes('@knowledge')
@@ -413,8 +471,29 @@ export function WorkbenchPage(): React.JSX.Element {
       return
     }
     if (id === 'mcp') {
+      setActiveCap(id)
       const sessionId = ensureSession(activeAgent)
       appendMessage(sessionId, 'system', t('workbench.mcpHint'))
+      refresh(sessionId)
+      return
+    }
+    if (id === 'skills') {
+      setActiveCap('skills')
+      setSkillPickerOpen(true)
+      void Promise.all([
+        window.treasureChest.listSkills(),
+        window.treasureChest.listSkillCatalogs(),
+      ]).then(([skills, catalogs]) => {
+        setInstalledSkills(skills)
+        setSkillCatalogs(catalogs)
+      })
+      return
+    }
+    if (id === 'image' || id === 'write' || id === 'translate' || id === 'research') {
+      setActiveCap((prev) => (prev === id ? null : id))
+      inputRef.current?.focus()
+      const sessionId = ensureSession(activeAgent)
+      appendMessage(sessionId, 'system', t('workbench.capArmed', { name: t(`workbench.cap.${id}`) }))
       refresh(sessionId)
       return
     }
@@ -766,6 +845,20 @@ export function WorkbenchPage(): React.JSX.Element {
                   <div key={msg.id} className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
                     <div className={styles.assistantMessage}>
                       <MarkdownMessage content={msg.content} />
+                      {msg.citations?.length ? (
+                        <div className={styles.citations}>
+                          <div className={styles.citationsTitle}>{t('workbench.citations')}</div>
+                          {msg.citations.slice(0, 6).map((c) => (
+                            <details key={c.chunkId} className={styles.citationItem}>
+                              <summary>
+                                {c.title}
+                                <span>#{c.ordinal + 1}</span>
+                              </summary>
+                              <p>{c.text}</p>
+                            </details>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 )
@@ -782,14 +875,137 @@ export function WorkbenchPage(): React.JSX.Element {
                     ) : (
                       streamStatus || t('workbench.thinking')
                     )}
+                    {streamCitations.length > 0 && streamText ? (
+                      <div className={styles.citations}>
+                        <div className={styles.citationsTitle}>{t('workbench.citations')}</div>
+                        {streamCitations.slice(0, 4).map((c) => (
+                          <div key={c.chunkId} className={styles.citationItem}>
+                            <strong>{c.title}</strong>
+                            <span>#{c.ordinal + 1}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
+              <p className={styles.disclaimer}>{t('workbench.disclaimer')}</p>
               <div ref={bottomRef} />
             </div>
           )}
         </div>
 
+        {skillPickerOpen ? (
+          <div className={styles.skillPicker}>
+            <div className={styles.skillPickerHead}>
+              <strong>{t('workbench.skillPickerTitle')}</strong>
+              <button
+                type="button"
+                className={styles.ghostMini}
+                onClick={() => setSkillPickerOpen(false)}
+              >
+                {t('knowledge.cancel')}
+              </button>
+            </div>
+            <div className={styles.skillGrid}>
+              {(installedSkills.length
+                ? installedSkills.map((skill) => ({
+                    id: skill.id,
+                    label: skill.name,
+                    desc: skill.description,
+                  }))
+                : WORKBENCH_SKILLS.map((skill) => ({
+                    id: skill.id,
+                    label: t(skill.labelKey),
+                    desc: '',
+                  }))
+              ).map((skill) => (
+                <button
+                  key={skill.id}
+                  type="button"
+                  className={`${styles.skillCard} ${
+                    activeSkillId === skill.id ? styles.skillCardActive : ''
+                  }`}
+                  title={skill.desc}
+                  onClick={() => {
+                    setActiveSkillId(skill.id)
+                    setActiveCap('skills')
+                    setSkillPickerOpen(false)
+                    inputRef.current?.focus()
+                  }}
+                >
+                  {skill.label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.skillInstall}>
+              <input
+                value={skillInstallRef}
+                onChange={(e) => setSkillInstallRef(e.target.value)}
+                placeholder={t('workbench.skillInstallPlaceholder')}
+              />
+              <button
+                type="button"
+                className={styles.ghostMini}
+                disabled={!skillInstallRef.trim()}
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await window.treasureChest.installSkillFromGithub(skillInstallRef.trim())
+                      const skills = await window.treasureChest.listSkills()
+                      setInstalledSkills(skills)
+                      setSkillInstallRef('')
+                    } catch (err) {
+                      const sessionId = ensureSession(activeAgent)
+                      appendMessage(
+                        sessionId,
+                        'system',
+                        t('workbench.skillInstallFailed', {
+                          error: err instanceof Error ? err.message : String(err),
+                        }),
+                      )
+                      refresh(sessionId)
+                    }
+                  })()
+                }}
+              >
+                {t('workbench.skillInstall')}
+              </button>
+            </div>
+            {skillCatalogs.length ? (
+              <div className={styles.skillCatalogs}>
+                {skillCatalogs.map((c) => (
+                  <a key={c.id} href={c.url} target="_blank" rel="noreferrer">
+                    {c.name}
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {activeCap &&
+        ['write', 'translate', 'research', 'skills', 'image'].includes(activeCap) ? (
+          <div className={styles.modeChip}>
+            <span>
+              {t(`workbench.cap.${activeCap}`)}
+              {activeCap === 'skills' && activeSkillId
+                ? ` · ${
+                    installedSkills.find((s) => s.id === activeSkillId)?.name ||
+                    t(WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)?.labelKey || '')
+                  }`
+                : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCap(null)
+                setActiveSkillId(null)
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
         <div className={styles.composerWrap}>
           <div className={styles.composer}>
             {attachments.length > 0 ? (

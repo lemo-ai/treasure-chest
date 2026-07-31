@@ -57,6 +57,13 @@ export async function checkStocksAutoGenerate(): Promise<void> {
   running = true
   try {
     logger.info(`stocks auto-generate started (open=${open.join(',')})`)
+    try {
+      const { refreshScannerPool } = await import('./ScannerService')
+      const scan = await refreshScannerPool()
+      logger.info(`scanner pre-refresh added=${scan.added} scanned=${scan.scanned}`)
+    } catch (err) {
+      logger.warn('scanner pre-refresh failed', err)
+    }
     const report = await generateStocksReportFromWatchlist()
     setSetting('stocks.lastAutoReportDate', today)
     logger.info(`stocks auto-generate done count=${report.recommendations.length}`)

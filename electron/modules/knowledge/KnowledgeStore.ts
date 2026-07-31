@@ -22,11 +22,17 @@ import {
 } from './KnowledgeBlobs'
 import {
   deleteChromaByDocument,
+  deletePineconeByDocument,
   deleteQdrantByDocument,
+  deleteWeaviateByDocument,
   searchChroma,
+  searchPinecone,
   searchQdrant,
+  searchWeaviate,
   upsertChroma,
+  upsertPinecone,
   upsertQdrant,
+  upsertWeaviate,
   type VectorPoint,
 } from './VectorStores'
 
@@ -361,6 +367,14 @@ async function persistVectors(
     await upsertChroma(settings, points)
     return
   }
+  if (settings.vectorStore === 'pinecone') {
+    await upsertPinecone(settings, points)
+    return
+  }
+  if (settings.vectorStore === 'weaviate') {
+    await upsertWeaviate(settings, points)
+    return
+  }
   const db = getDb()
   const insertEmb = db.prepare(
     `INSERT INTO knowledge_chunk_embeddings (chunk_id, model, dims, embedding_json, created_at)
@@ -384,6 +398,10 @@ async function removeExternalVectors(settings: KnowledgeSettings, documentId: st
     await deleteQdrantByDocument(settings, documentId)
   } else if (settings.vectorStore === 'chroma') {
     await deleteChromaByDocument(settings, documentId)
+  } else if (settings.vectorStore === 'pinecone') {
+    await deletePineconeByDocument(settings, documentId)
+  } else if (settings.vectorStore === 'weaviate') {
+    await deleteWeaviateByDocument(settings, documentId)
   }
 }
 
@@ -661,6 +679,14 @@ async function vectorSearch(
     const raw = await searchChroma(settings, qVec, limit, collectionId)
     return hitsFromChunkIds(raw)
   }
+  if (settings.vectorStore === 'pinecone') {
+    const raw = await searchPinecone(settings, qVec, limit, collectionId)
+    return hitsFromChunkIds(raw)
+  }
+  if (settings.vectorStore === 'weaviate') {
+    const raw = await searchWeaviate(settings, qVec, limit, collectionId)
+    return hitsFromChunkIds(raw)
+  }
 
   const embRows = getDb()
     .prepare(
@@ -826,6 +852,100 @@ function ftsSearch(query: string, limit: number, collectionId?: string) {
       collectionId: row.collection_id,
     }))
   }
+}
+
+export async function reembedKnowledgeDocument(id: string): Promise<KnowledgeDocument> {
+  const db = getDb()
+  const row = db
+    .prepare(
+      `SELECT id, collection_id, title FROM knowledge_documents WHERE id = ?`,
+    )
+    .get(id) as { id: string; collection_id: string; title: string } | undefined
+  if (!row) throw new Error('document not found')
+
+  const chunks = db
+    .prepare(
+      `SELECT id, ordinal, text FROM knowledge_chunks WHERE document_id = ? ORDER BY ordinal ASC`,
+    )
+    .all(id) as Array<{ id: string; ordinal: number; text: string }>
+  if (!chunks.length) throw new Error('document has no chunks')
+
+  const settings = getKnowledgeSettings()
+  const now = new Date().toISOString()
+  db.prepare(
+    `UPDATE knowledge_documents SET status = 'pending', error_message = NULL, updated_at = ? WHERE id = ?`,
+  ).run(now, id)
+
+  await removeExternalVectors(settings, id).catch((err) => logger.warn('vector cleanup', err))
+  db.prepare(
+    'DELETE FROM knowledge_chunk_embeddings WHERE chunk_id IN (SELECT id FROM knowledge_chunks WHERE document_id = ?)',
+  ).run(id)
+
+  try {
+    const vectors = await embedTexts(
+      chunks.map((c) => c.text),
+      settings,
+    )
+    if (!vectors || vectors.length !== chunks.length) {
+      throw new Error(
+        settings.embeddingProvider === 'none'
+          ? 'embedding provider is off — enable one in vector settings'
+          : 'embedding failed',
+      )
+    }
+    const points: VectorPoint[] = vectors.map((vec, i) => ({
+      id: chunks[i]!.id,
+      vector: vec,
+      payload: {
+        documentId: id,
+        chunkId: chunks[i]!.id,
+        collectionId: row.collection_id,
+        title: row.title,
+        ordinal: chunks[i]!.ordinal,
+        text: chunks[i]!.text,
+      },
+    }))
+    await persistVectors(
+      settings,
+      points,
+      settings.embeddingModel || settings.embeddingProvider,
+      now,
+    )
+    db.prepare(
+      `UPDATE knowledge_documents
+       SET status = 'ready', embedded = 1, error_message = NULL, updated_at = ?
+       WHERE id = ?`,
+    ).run(new Date().toISOString(), id)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    db.prepare(
+      `UPDATE knowledge_documents
+       SET status = 'error', embedded = 0, error_message = ?, updated_at = ?
+       WHERE id = ?`,
+    ).run(msg, new Date().toISOString(), id)
+    throw err instanceof Error ? err : new Error(msg)
+  }
+
+  return listKnowledgeDocuments(row.collection_id).find((d) => d.id === id)!
+}
+
+export async function reembedKnowledgeCollection(
+  collectionId?: string,
+): Promise<{ ok: number; failed: number; errors: string[] }> {
+  const docs = listKnowledgeDocuments(collectionId)
+  let ok = 0
+  let failed = 0
+  const errors: string[] = []
+  for (const doc of docs) {
+    try {
+      await reembedKnowledgeDocument(doc.id)
+      ok += 1
+    } catch (err) {
+      failed += 1
+      errors.push(`${doc.title}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  return { ok, failed, errors }
 }
 
 export function knowledgeStats(): {

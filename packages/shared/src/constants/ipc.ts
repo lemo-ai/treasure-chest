@@ -57,6 +57,11 @@ export const IpcChannels = {
     getSettings: 'knowledge:getSettings',
     setSettings: 'knowledge:setSettings',
     stats: 'knowledge:stats',
+    reembedDocument: 'knowledge:reembedDocument',
+    reembedCollection: 'knowledge:reembedCollection',
+  },
+  image: {
+    generate: 'image:generate',
   },
   mcp: {
     getSettings: 'mcp:getSettings',
@@ -79,6 +84,14 @@ export const IpcChannels = {
     listReports: 'stocks:listReports',
     getReportByDate: 'stocks:getReportByDate',
     getQuote: 'stocks:getQuote',
+    refreshScanner: 'stocks:refreshScanner',
+  },
+  skills: {
+    list: 'skills:list',
+    catalogs: 'skills:catalogs',
+    installGithub: 'skills:installGithub',
+    installMarkdown: 'skills:installMarkdown',
+    uninstall: 'skills:uninstall',
   },
   backup: {
     export: 'backup:export',

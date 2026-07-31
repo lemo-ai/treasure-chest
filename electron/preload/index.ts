@@ -101,9 +101,11 @@ const api = {
     payload: LlmChatRequest,
     onDelta: (text: string) => void,
     onStatus?: (text: string) => void,
+    onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
   ): Promise<LlmChatResponse> => {
     const streamId = `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     return new Promise((resolve, reject) => {
+      let lastCitations: import('@shared').KnowledgeCitation[] | undefined
       const finish = (response: LlmChatResponse): void => {
         ipcRenderer.removeListener(IpcChannels.workbench.chatStreamEvent, handler)
         resolve(response)
@@ -112,6 +114,11 @@ const api = {
         if (ev.streamId !== streamId) return
         if (ev.type === 'status') {
           onStatus?.(ev.text)
+          return
+        }
+        if (ev.type === 'citations') {
+          lastCitations = ev.citations
+          onCitations?.(ev.citations)
           return
         }
         if (ev.type === 'delta') {
@@ -124,6 +131,7 @@ const api = {
             text: ev.text,
             model: ev.model,
             providerName: ev.providerName,
+            citations: ev.citations ?? lastCitations,
           })
           return
         }
@@ -144,6 +152,18 @@ const api = {
         })
     })
   },
+  reembedKnowledgeDocument: (id: string): Promise<import('@shared').KnowledgeDocument> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.reembedDocument, id),
+  reembedKnowledgeCollection: (
+    collectionId?: string,
+  ): Promise<{ ok: number; failed: number; errors: string[] }> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.reembedCollection, collectionId),
+  generateImage: (payload: {
+    prompt: string
+    size?: string
+    model?: string
+  }): Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }> =>
+    ipcRenderer.invoke(IpcChannels.image.generate, payload),
   listKnowledgeDocuments: (collectionId?: string): Promise<import('@shared').KnowledgeDocument[]> =>
     ipcRenderer.invoke(IpcChannels.knowledge.listDocuments, collectionId),
   ingestKnowledgeText: (
@@ -223,6 +243,38 @@ const api = {
     ipcRenderer.invoke(IpcChannels.stocks.getReportByDate, date),
   getStockQuote: (payload: { market: StockMarket; symbol: string; name?: string }): Promise<StockQuoteDetail> =>
     ipcRenderer.invoke(IpcChannels.stocks.getQuote, payload),
+  refreshStocksScanner: (): Promise<{
+    ok: boolean
+    added: number
+    scanned: number
+    errors: string[]
+  }> => ipcRenderer.invoke(IpcChannels.stocks.refreshScanner),
+  listSkills: (): Promise<
+    Array<{
+      id: string
+      name: string
+      description: string
+      source: string
+      sourceRef?: string
+      prompt: string
+    }>
+  > => ipcRenderer.invoke(IpcChannels.skills.list),
+  listSkillCatalogs: (): Promise<Array<{ id: string; name: string; url: string; hint: string }>> =>
+    ipcRenderer.invoke(IpcChannels.skills.catalogs),
+  installSkillFromGithub: (ref: string): Promise<{
+    id: string
+    name: string
+    description: string
+    prompt: string
+  }> => ipcRenderer.invoke(IpcChannels.skills.installGithub, ref),
+  installSkillFromMarkdown: (markdown: string): Promise<{
+    id: string
+    name: string
+    description: string
+    prompt: string
+  }> => ipcRenderer.invoke(IpcChannels.skills.installMarkdown, markdown),
+  uninstallSkill: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.skills.uninstall, id),
 }
 
 contextBridge.exposeInMainWorld('treasureChest', api)

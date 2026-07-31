@@ -52,11 +52,46 @@ function resolveSystemPrompt(req: LlmChatRequest, toolNames: string[]): string |
       : `可用工具：${toolNames.join('、')}。涉及实时或本地数据时请优先调用工具，不要臆造。`
     : ''
 
+  const modeHint = (() => {
+    const mode = (req.capabilityMode || '').trim()
+    if (!mode) return ''
+    const skill = req.skillPrompt?.trim()
+    const map: Record<string, { zh: string; en: string }> = {
+      write: {
+        zh: '当前模式：帮我写作。起草/改写/润色，结构清晰可直接使用。',
+        en: 'Mode: writing assistant. Draft/rewrite/polish clearly and usable.',
+      },
+      translate: {
+        zh: '当前模式：翻译。准确翻译，保留专有名词；默认只输出译文。',
+        en: 'Mode: translation. Translate accurately; default to translation only.',
+      },
+      research: {
+        zh: '当前模式：深入研究。分步骤论证；有知识库工具时先检索再总结，并标明来源标题。',
+        en: 'Mode: deep research. Prefer knowledge tools and cite source titles.',
+      },
+      skills: {
+        zh: '当前模式：技能助手。严格按技能模板输出。',
+        en: 'Mode: skills. Follow the skill template strictly.',
+      },
+    }
+    const pack = map[mode]
+    if (!pack) return skill || ''
+    return [isEn ? pack.en : pack.zh, skill].filter(Boolean).join('\n')
+  })()
+
+  const knowledgeHint = wantsKnowledge(req)
+    ? isEn
+      ? 'The user referenced the knowledge base. Call search_knowledge before answering factual questions about uploaded docs. After using hits, mention document titles you relied on.'
+      : '用户引用了知识库。回答上传文档相关事实前请先调用 search_knowledge；引用时注明文档标题。'
+    : ''
+
   if (!agentId || agentId === 'direct' || agentId === 'none') {
     return [
       isEn
         ? 'Answer the user directly and helpfully. Do not role-play as a fortune or stock specialist unless the user asks.'
         : '直接、清楚地回答用户问题。除非用户明确要求，否则不要扮演运势或股票等垂直领域助手。',
+      modeHint,
+      knowledgeHint,
       toolHint,
     ]
       .filter(Boolean)
@@ -70,6 +105,8 @@ function resolveSystemPrompt(req: LlmChatRequest, toolNames: string[]): string |
         ? 'You are a custom local agent in Qiankun workbench.'
         : '你是「袖里乾坤」工作台中的自定义智能体。',
       custom,
+      modeHint,
+      knowledgeHint,
       toolHint,
       isEn
         ? 'Stay helpful and concise. Do not invent tool results you cannot access.'
@@ -78,12 +115,16 @@ function resolveSystemPrompt(req: LlmChatRequest, toolNames: string[]): string |
   }
   const builtin = BUILTIN_SYSTEM[agentId]
   if (builtin) {
-    return [isEn ? builtin.en : builtin.zh, toolHint].filter(Boolean).join('\n')
+    return [isEn ? builtin.en : builtin.zh, modeHint, knowledgeHint, toolHint]
+      .filter(Boolean)
+      .join('\n')
   }
   return [
     isEn
       ? 'You are a helpful local assistant in Qiankun workbench.'
       : '你是「袖里乾坤」工作台助手，请用清晰务实的中文回答。',
+    modeHint,
+    knowledgeHint,
     toolHint,
   ]
     .filter(Boolean)
@@ -121,6 +162,7 @@ async function runToolLoop(
   req: LlmChatRequest,
   settings: FortuneSettings,
   onStatus?: (text: string) => void,
+  onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
 ): Promise<LlmChatResponse & { messages: LlmChatMessage[] }> {
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
@@ -144,8 +186,8 @@ async function runToolLoop(
   ]
 
   const maxRounds = 4
-  // Anthropic tool calling not wired yet — skip tools for that format.
   const canUseTools = endpoint.apiFormat !== 'anthropic' && tools.length > 0
+  const citations: import('@shared').KnowledgeCitation[] = []
 
   for (let round = 0; round < maxRounds; round++) {
     const result = await callLlmChat({
@@ -160,12 +202,12 @@ async function runToolLoop(
     })
 
     if (!result.ok) {
-      return { ...result, messages }
+      return { ...result, messages, citations }
     }
 
     const calls = result.toolCalls ?? []
     if (!calls.length) {
-      return { ...result, messages }
+      return { ...result, messages, citations }
     }
 
     messages.push({
@@ -177,11 +219,50 @@ async function runToolLoop(
     for (const call of calls) {
       const name = call.function.name
       onStatus?.(toolStatusLabel(name, locale))
+      let argsJson = call.function.arguments || '{}'
+      if (name === 'search_knowledge' && req.knowledgeCollectionId) {
+        try {
+          const parsed = JSON.parse(argsJson || '{}') as Record<string, unknown>
+          if (!parsed.collectionId) {
+            parsed.collectionId = req.knowledgeCollectionId
+            argsJson = JSON.stringify(parsed)
+          }
+        } catch {
+          /* keep original */
+        }
+      }
       let output: string
       if (name.startsWith('mcp__')) {
-        output = await callMcpTool(name, call.function.arguments || '{}')
+        output = await callMcpTool(name, argsJson)
       } else {
-        output = await executeBuiltinTool(name, call.function.arguments || '{}', { locale })
+        output = await executeBuiltinTool(name, argsJson, { locale })
+      }
+      if (name === 'search_knowledge') {
+        try {
+          const parsed = JSON.parse(output) as {
+            hits?: Array<{
+              documentId: string
+              title: string
+              chunkId: string
+              ordinal: number
+              text: string
+              score: number
+            }>
+          }
+          for (const hit of parsed.hits || []) {
+            citations.push({
+              documentId: hit.documentId,
+              title: hit.title,
+              chunkId: hit.chunkId,
+              ordinal: hit.ordinal,
+              text: hit.text,
+              score: hit.score,
+            })
+          }
+          if (citations.length) onCitations?.(citations)
+        } catch {
+          /* ignore */
+        }
       }
       messages.push({
         role: 'tool',
@@ -198,6 +279,7 @@ async function runToolLoop(
     providerName: endpoint.providerName,
     model,
     messages,
+    citations,
   }
 }
 
@@ -228,6 +310,7 @@ export async function runWorkbenchChatStream(
   settings: FortuneSettings,
   onDelta: (text: string) => void,
   onStatus?: (text: string) => void,
+  onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
 ): Promise<LlmChatResponse> {
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
@@ -236,12 +319,10 @@ export async function runWorkbenchChatStream(
     (req.locale ?? '').toLowerCase().startsWith('en') ? 'Thinking…' : '思考中…',
   )
 
-  const looped = await runToolLoop(req, settings, onStatus)
+  const looped = await runToolLoop(req, settings, onStatus, onCitations)
   if (!looped.ok && !looped.messages.length) return looped
 
-  // If the tool loop already returned final text without needing another call
   if (looped.ok && looped.text?.trim() && !(looped.toolCalls?.length)) {
-    // Stream-simulate for UI smoothness when model answered in the tool round
     onDelta(looped.text.trim())
     return looped
   }
@@ -252,7 +333,7 @@ export async function runWorkbenchChatStream(
     (req.locale ?? '').toLowerCase().startsWith('en') ? 'Writing reply…' : '正在生成回复…',
   )
 
-  return callLlmChatStream(
+  const streamed = await callLlmChatStream(
     {
       ...endpoint,
       model,
@@ -266,4 +347,5 @@ export async function runWorkbenchChatStream(
     },
     onDelta,
   )
+  return { ...streamed, citations: looped.citations }
 }

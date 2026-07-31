@@ -23,14 +23,14 @@ export const WORKBENCH_CAPABILITIES: WorkbenchCapability[] = [
   { id: 'upload', labelKey: 'workbench.cap.upload', status: 'ready' },
   { id: 'knowledge', labelKey: 'workbench.cap.knowledge', status: 'ready' },
   { id: 'mcp', labelKey: 'workbench.cap.mcp', status: 'ready' },
-  { id: 'skills', labelKey: 'workbench.cap.skills', status: 'soon' },
-  { id: 'image', labelKey: 'workbench.cap.image', status: 'soon' },
-  { id: 'write', labelKey: 'workbench.cap.write', status: 'soon' },
-  { id: 'translate', labelKey: 'workbench.cap.translate', status: 'soon' },
+  { id: 'skills', labelKey: 'workbench.cap.skills', status: 'ready' },
+  { id: 'image', labelKey: 'workbench.cap.image', status: 'ready' },
+  { id: 'write', labelKey: 'workbench.cap.write', status: 'ready' },
+  { id: 'translate', labelKey: 'workbench.cap.translate', status: 'ready' },
   { id: 'video', labelKey: 'workbench.cap.video', status: 'soon' },
   { id: 'music', labelKey: 'workbench.cap.music', status: 'soon' },
   { id: 'transcribe', labelKey: 'workbench.cap.transcribe', status: 'soon' },
-  { id: 'research', labelKey: 'workbench.cap.research', status: 'soon' },
+  { id: 'research', labelKey: 'workbench.cap.research', status: 'ready' },
 ]
 
 /** Shown inline on the same row as the model picker (keep short so it never wraps). */

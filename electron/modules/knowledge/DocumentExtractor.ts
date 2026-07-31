@@ -74,11 +74,54 @@ async function extractXlsx(buffer: Buffer): Promise<string> {
   return parts.join('\n\n')
 }
 
+async function ocrImageBuffer(buffer: Buffer, lang = 'chi_sim+eng'): Promise<string> {
+  const { createWorker } = await import('tesseract.js')
+  const worker = await createWorker(lang)
+  try {
+    const result = await worker.recognize(buffer)
+    return (result.data.text || '').trim()
+  } finally {
+    await worker.terminate()
+  }
+}
+
 async function extractPdf(buffer: Buffer): Promise<string> {
   const parser = new PDFParse({ data: new Uint8Array(buffer) })
   try {
     const result = await parser.getText()
-    return String((result as { text?: string }).text || '').trim()
+    const text = String((result as { text?: string }).text || '').trim()
+    if (text && text.length >= 40) return text
+
+    // Scanned / image-only PDF: screenshot first pages and OCR.
+    logger.info('PDF text thin — trying OCR via page screenshots')
+    const parts: string[] = []
+    const maxPages = 5
+    for (let page = 1; page <= maxPages; page++) {
+      try {
+        const shot = (await (
+          parser as unknown as {
+            getScreenshot: (opts: { partial?: number[] }) => Promise<{
+              pages?: Array<{ data?: Uint8Array | Buffer }>
+              data?: Uint8Array | Buffer
+            }>
+          }
+        ).getScreenshot({ partial: [page] })) as {
+          pages?: Array<{ data?: Uint8Array | Buffer }>
+          data?: Uint8Array | Buffer
+        }
+        const raw = shot.pages?.[0]?.data || shot.data
+        if (!raw) break
+        const imgBuf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw)
+        const ocr = await ocrImageBuffer(imgBuf)
+        if (ocr) parts.push(ocr)
+      } catch {
+        break
+      }
+    }
+    const ocrText = parts.join('\n\n').trim()
+    if (ocrText) return ocrText
+    if (text) return text
+    throw new Error('PDF has no extractable text (OCR also empty)')
   } finally {
     await parser.destroy().catch(() => undefined)
   }
@@ -93,6 +136,15 @@ export async function extractTextFromBuffer(
   const lowerMime = (mime || '').toLowerCase()
 
   try {
+    if (
+      ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tif', '.tiff'].includes(ext) ||
+      lowerMime.startsWith('image/')
+    ) {
+      const text = await ocrImageBuffer(buffer)
+      if (!text) throw new Error('OCR produced empty text')
+      return { text, mime: lowerMime || 'image/png' }
+    }
+
     if (ext === '.pdf' || lowerMime.includes('pdf')) {
       const text = await extractPdf(buffer)
       if (!text) throw new Error('PDF has no extractable text (may be scanned images)')
@@ -159,6 +211,6 @@ export async function extractTextFromBuffer(
   }
 
   throw new Error(
-    `Unsupported file type: ${ext || mime || 'unknown'}. Supported: txt/md/csv/json/html/pdf/docx/pptx/xlsx`,
+    `Unsupported file type: ${ext || mime || 'unknown'}. Supported: txt/md/csv/json/html/pdf/docx/pptx/xlsx/png/jpg`,
   )
 }

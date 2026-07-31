@@ -379,6 +379,32 @@ export function StocksPage(): React.JSX.Element {
         <div className={styles.cardHead}>
           <h2>{t('stocks.scannerTitle')}</h2>
           <div className={styles.toolbarRow}>
+            <button
+              type="button"
+              className={styles.ghostBtn}
+              disabled={running}
+              onClick={() => {
+                void (async () => {
+                  setRunning(true)
+                  setHint(null)
+                  try {
+                    const res = await window.treasureChest.refreshStocksScanner()
+                    await refresh()
+                    setHint(
+                      res.ok
+                        ? t('stocks.scannerRefreshOk', { count: res.added })
+                        : t('stocks.scannerRefreshFailed'),
+                    )
+                  } catch (err) {
+                    setHint(err instanceof Error ? err.message : String(err))
+                  } finally {
+                    setRunning(false)
+                  }
+                })()
+              }}
+            >
+              {t('stocks.refreshScanner')}
+            </button>
             <button type="button" className={styles.ghostBtn} onClick={() => void onImportScannerCsv()}>
               {t('stocks.importCsv')}
             </button>

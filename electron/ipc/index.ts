@@ -41,10 +41,13 @@ import {
   knowledgeStats,
   listKnowledgeCollections,
   listKnowledgeDocuments,
+  reembedKnowledgeCollection,
+  reembedKnowledgeDocument,
   renameKnowledgeCollection,
   searchKnowledge,
   setKnowledgeSettings,
 } from '../modules/knowledge/KnowledgeStore'
+import { generateImage } from '../modules/llm/ImageGenService'
 import { disposeAllMcpSessions, listMcpToolsAsSpecs } from '../modules/mcp/McpHub'
 import { exportBackup, importBackup } from '../modules/backup/BackupService'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
@@ -218,6 +221,9 @@ export function registerAllIpc(): void {
             (status) => {
               send({ streamId, type: 'status', text: status })
             },
+            (citations) => {
+              send({ streamId, type: 'citations', citations })
+            },
           )
           if (result.ok && result.text?.trim()) {
             send({
@@ -226,6 +232,7 @@ export function registerAllIpc(): void {
               text: result.text.trim(),
               model: result.model,
               providerName: result.providerName,
+              citations: result.citations,
             })
           } else {
             send({
@@ -260,6 +267,9 @@ export function registerAllIpc(): void {
     },
   )
   ipcMain.handle(IpcChannels.stocks.getScannerPool, () => stocksStore.getScannerPool())
+  ipcMain.handle(IpcChannels.stocks.refreshScanner, () =>
+    import('../modules/stocks/ScannerService').then((m) => m.refreshScannerPool()),
+  )
   ipcMain.handle(
     IpcChannels.stocks.addScannerPoolItem,
     (_e, payload: { market: StockMarket; symbol: string; name?: string }) =>
@@ -348,6 +358,22 @@ export function registerAllIpc(): void {
   })
   ipcMain.handle(IpcChannels.mcp.listTools, () => listMcpToolsAsSpecs())
 
+  ipcMain.handle(IpcChannels.skills.list, () =>
+    import('../modules/skills/SkillsStore').then((m) => m.listSkills()),
+  )
+  ipcMain.handle(IpcChannels.skills.catalogs, () =>
+    import('../modules/skills/SkillsStore').then((m) => m.SKILL_CATALOGS),
+  )
+  ipcMain.handle(IpcChannels.skills.installGithub, (_e, ref: string) =>
+    import('../modules/skills/SkillsStore').then((m) => m.installSkillFromGithub(ref)),
+  )
+  ipcMain.handle(IpcChannels.skills.installMarkdown, (_e, markdown: string) =>
+    import('../modules/skills/SkillsStore').then((m) => m.installSkillFromMarkdown(markdown)),
+  )
+  ipcMain.handle(IpcChannels.skills.uninstall, (_e, id: string) =>
+    import('../modules/skills/SkillsStore').then((m) => m.uninstallSkill(id)),
+  )
+
   ipcMain.handle(IpcChannels.knowledge.listDocuments, (_e, collectionId?: string) =>
     listKnowledgeDocuments(collectionId),
   )
@@ -389,4 +415,20 @@ export function registerAllIpc(): void {
     (_e, partial: Partial<import('@shared').KnowledgeSettings>) => setKnowledgeSettings(partial),
   )
   ipcMain.handle(IpcChannels.knowledge.stats, () => knowledgeStats())
+  ipcMain.handle(IpcChannels.knowledge.reembedDocument, (_e, id: string) =>
+    reembedKnowledgeDocument(id),
+  )
+  ipcMain.handle(IpcChannels.knowledge.reembedCollection, (_e, collectionId?: string) =>
+    reembedKnowledgeCollection(collectionId),
+  )
+  ipcMain.handle(
+    IpcChannels.image.generate,
+    async (_e, payload: { prompt: string; size?: string; model?: string }) => {
+      const fortuneSettings = settingsStore.getFortuneSettings()
+      return generateImage(payload.prompt, fortuneSettings, {
+        size: payload.size,
+        model: payload.model,
+      })
+    },
+  )
 }

@@ -270,3 +270,236 @@ export async function searchChroma(
     return []
   }
 }
+
+/** Pinecone serverless REST (host = index host URL). */
+export async function upsertPinecone(settings: KnowledgeSettings, points: VectorPoint[]): Promise<void> {
+  if (!points.length) return
+  const host = settings.vectorStoreUrl.replace(/\/$/, '')
+  const res = await fetch(`${host}/vectors/upsert`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Api-Key': settings.vectorStoreApiKey.trim(),
+    },
+    body: JSON.stringify({
+      namespace: settings.vectorCollection || '',
+      vectors: points.map((p) => ({
+        id: p.id,
+        values: p.vector,
+        metadata: {
+          documentId: p.payload.documentId,
+          chunkId: p.payload.chunkId,
+          collectionId: p.payload.collectionId,
+          title: p.payload.title,
+          ordinal: p.payload.ordinal,
+          text: p.payload.text.slice(0, 35000),
+        },
+      })),
+    }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Pinecone upsert failed: HTTP ${res.status} ${body}`)
+  }
+}
+
+export async function deletePineconeByDocument(
+  settings: KnowledgeSettings,
+  documentId: string,
+): Promise<void> {
+  const host = settings.vectorStoreUrl.replace(/\/$/, '')
+  const res = await fetch(`${host}/vectors/delete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Api-Key': settings.vectorStoreApiKey.trim(),
+    },
+    body: JSON.stringify({
+      namespace: settings.vectorCollection || '',
+      filter: { documentId: { $eq: documentId } },
+    }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!res.ok && res.status !== 404) {
+    logger.warn(`Pinecone delete failed HTTP ${res.status}`)
+  }
+}
+
+export async function searchPinecone(
+  settings: KnowledgeSettings,
+  vector: number[],
+  limit: number,
+  collectionId?: string,
+): Promise<VectorSearchHit[]> {
+  const host = settings.vectorStoreUrl.replace(/\/$/, '')
+  const filter = collectionId ? { collectionId: { $eq: collectionId } } : undefined
+  const res = await fetch(`${host}/query`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Api-Key': settings.vectorStoreApiKey.trim(),
+    },
+    body: JSON.stringify({
+      namespace: settings.vectorCollection || '',
+      vector,
+      topK: limit,
+      includeMetadata: true,
+      filter,
+    }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!res.ok) {
+    logger.warn(`Pinecone search failed HTTP ${res.status}`)
+    return []
+  }
+  const data = (await res.json()) as {
+    matches?: Array<{ score?: number; metadata?: { chunkId?: string }; id?: string }>
+  }
+  return (data.matches || [])
+    .map((m) => ({
+      chunkId: String(m.metadata?.chunkId || m.id || ''),
+      score: Number(m.score) || 0,
+    }))
+    .filter((h) => h.chunkId)
+}
+
+/** Weaviate v1 objects + graphql nearVector */
+export async function upsertWeaviate(settings: KnowledgeSettings, points: VectorPoint[]): Promise<void> {
+  if (!points.length) return
+  const base = settings.vectorStoreUrl.replace(/\/$/, '')
+  const className = settings.vectorCollection || 'TreasureChest'
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (settings.vectorStoreApiKey.trim()) {
+    headers.Authorization = `Bearer ${settings.vectorStoreApiKey.trim()}`
+  }
+  for (const p of points) {
+    const res = await fetch(`${base}/v1/objects`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        class: className,
+        id: toQdrantPointId(p.id),
+        vector: p.vector,
+        properties: {
+          documentId: p.payload.documentId,
+          chunkId: p.payload.chunkId,
+          collectionId: p.payload.collectionId,
+          title: p.payload.title,
+          ordinal: p.payload.ordinal,
+          text: p.payload.text,
+        },
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (!res.ok && res.status !== 422) {
+      // 422 often means already exists — try PUT
+      const put = await fetch(`${base}/v1/objects/${className}/${toQdrantPointId(p.id)}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          class: className,
+          id: toQdrantPointId(p.id),
+          vector: p.vector,
+          properties: {
+            documentId: p.payload.documentId,
+            chunkId: p.payload.chunkId,
+            collectionId: p.payload.collectionId,
+            title: p.payload.title,
+            ordinal: p.payload.ordinal,
+            text: p.payload.text,
+          },
+        }),
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (!put.ok) {
+        const body = await put.text().catch(() => '')
+        throw new Error(`Weaviate upsert failed: HTTP ${put.status} ${body}`)
+      }
+    }
+  }
+}
+
+export async function deleteWeaviateByDocument(
+  settings: KnowledgeSettings,
+  documentId: string,
+): Promise<void> {
+  const base = settings.vectorStoreUrl.replace(/\/$/, '')
+  const className = settings.vectorCollection || 'TreasureChest'
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (settings.vectorStoreApiKey.trim()) {
+    headers.Authorization = `Bearer ${settings.vectorStoreApiKey.trim()}`
+  }
+  const res = await fetch(`${base}/v1/batch/objects`, {
+    method: 'DELETE',
+    headers,
+    body: JSON.stringify({
+      match: {
+        class: className,
+        where: {
+          path: ['documentId'],
+          operator: 'Equal',
+          valueText: documentId,
+        },
+      },
+    }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!res.ok && res.status !== 404) {
+    logger.warn(`Weaviate delete failed HTTP ${res.status}`)
+  }
+}
+
+export async function searchWeaviate(
+  settings: KnowledgeSettings,
+  vector: number[],
+  limit: number,
+  collectionId?: string,
+): Promise<VectorSearchHit[]> {
+  const base = settings.vectorStoreUrl.replace(/\/$/, '')
+  const className = settings.vectorCollection || 'TreasureChest'
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (settings.vectorStoreApiKey.trim()) {
+    headers.Authorization = `Bearer ${settings.vectorStoreApiKey.trim()}`
+  }
+  const where = collectionId
+    ? `where: { path: ["collectionId"] operator: Equal valueText: "${collectionId}" }`
+    : ''
+  const query = `{
+    Get {
+      ${className}(
+        limit: ${limit}
+        nearVector: { vector: [${vector.join(',')}] }
+        ${where}
+      ) {
+        chunkId
+        _additional { distance }
+      }
+    }
+  }`
+  const res = await fetch(`${base}/v1/graphql`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  if (!res.ok) {
+    logger.warn(`Weaviate search failed HTTP ${res.status}`)
+    return []
+  }
+  const data = (await res.json()) as {
+    data?: {
+      Get?: Record<string, Array<{ chunkId?: string; _additional?: { distance?: number } }>>
+    }
+  }
+  const rows = data.data?.Get?.[className] || []
+  return rows
+    .map((r) => {
+      const dist = Number(r._additional?.distance) || 0
+      return {
+        chunkId: String(r.chunkId || ''),
+        score: 1 / (1 + Math.max(0, dist)),
+      }
+    })
+    .filter((h) => h.chunkId)
+}
