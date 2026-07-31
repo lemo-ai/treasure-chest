@@ -100,6 +100,7 @@ const api = {
   workbenchChatStream: (
     payload: LlmChatRequest,
     onDelta: (text: string) => void,
+    onStatus?: (text: string) => void,
   ): Promise<LlmChatResponse> => {
     const streamId = `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     return new Promise((resolve, reject) => {
@@ -109,6 +110,10 @@ const api = {
       }
       const handler = (_event: IpcRendererEvent, ev: LlmChatStreamEvent): void => {
         if (ev.streamId !== streamId) return
+        if (ev.type === 'status') {
+          onStatus?.(ev.text)
+          return
+        }
         if (ev.type === 'delta') {
           onDelta(ev.text)
           return
@@ -139,6 +144,59 @@ const api = {
         })
     })
   },
+  listKnowledgeDocuments: (collectionId?: string): Promise<import('@shared').KnowledgeDocument[]> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.listDocuments, collectionId),
+  ingestKnowledgeText: (
+    payload: import('@shared').KnowledgeIngestInput,
+  ): Promise<import('@shared').KnowledgeDocument> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.ingestText, payload),
+  ingestKnowledgeFile: (
+    payload: import('@shared').KnowledgeIngestFileInput,
+  ): Promise<import('@shared').KnowledgeDocument> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.ingestFile, payload),
+  deleteKnowledgeDocument: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.deleteDocument, id),
+  getKnowledgeDocumentFile: (id: string): Promise<import('@shared').KnowledgeDocumentFile | null> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.getDocumentFile, id),
+  searchKnowledge: (payload: {
+    query: string
+    limit?: number
+    collectionId?: string
+  }): Promise<import('@shared').KnowledgeSearchResult> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.search, payload),
+  listKnowledgeCollections: (): Promise<import('@shared').KnowledgeCollection[]> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.listCollections),
+  createKnowledgeCollection: (payload: {
+    name: string
+    description?: string
+    color?: string
+  }): Promise<import('@shared').KnowledgeCollection> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.createCollection, payload),
+  renameKnowledgeCollection: (payload: {
+    id: string
+    name: string
+  }): Promise<import('@shared').KnowledgeCollection | null> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.renameCollection, payload),
+  deleteKnowledgeCollection: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.deleteCollection, id),
+  getKnowledgeSettings: (): Promise<import('@shared').KnowledgeSettings> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.getSettings),
+  setKnowledgeSettings: (
+    partial: Partial<import('@shared').KnowledgeSettings>,
+  ): Promise<import('@shared').KnowledgeSettings> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.setSettings, partial),
+  getKnowledgeStats: (): Promise<{
+    collections: number
+    documents: number
+    chunks: number
+    embeddings: number
+  }> => ipcRenderer.invoke(IpcChannels.knowledge.stats),
+  getMcpSettings: (): Promise<import('@shared').McpSettings> =>
+    ipcRenderer.invoke(IpcChannels.mcp.getSettings),
+  setMcpSettings: (next: import('@shared').McpSettings): Promise<import('@shared').McpSettings> =>
+    ipcRenderer.invoke(IpcChannels.mcp.setSettings, next),
+  listMcpTools: (): Promise<import('@shared').LlmToolSpec[]> =>
+    ipcRenderer.invoke(IpcChannels.mcp.listTools),
   getStocksWatchlist: (): Promise<WatchlistItem[]> => ipcRenderer.invoke(IpcChannels.stocks.getWatchlist),
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }): Promise<WatchlistItem> =>
     ipcRenderer.invoke(IpcChannels.stocks.addWatchlistItem, payload),

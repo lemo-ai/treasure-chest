@@ -21,8 +21,8 @@ export interface WorkbenchCapability {
 /** All capabilities; primary row shows a subset, the rest live under「更多」. */
 export const WORKBENCH_CAPABILITIES: WorkbenchCapability[] = [
   { id: 'upload', labelKey: 'workbench.cap.upload', status: 'ready' },
-  { id: 'knowledge', labelKey: 'workbench.cap.knowledge', status: 'soon' },
-  { id: 'mcp', labelKey: 'workbench.cap.mcp', status: 'soon' },
+  { id: 'knowledge', labelKey: 'workbench.cap.knowledge', status: 'ready' },
+  { id: 'mcp', labelKey: 'workbench.cap.mcp', status: 'ready' },
   { id: 'skills', labelKey: 'workbench.cap.skills', status: 'soon' },
   { id: 'image', labelKey: 'workbench.cap.image', status: 'soon' },
   { id: 'write', labelKey: 'workbench.cap.write', status: 'soon' },

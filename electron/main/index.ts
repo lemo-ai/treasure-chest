@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { initDatabase, closeDatabase } from '../db/Database'
+import { disposeAllMcpSessions } from '../modules/mcp/McpHub'
 import { createMainWindow } from '../windows/createMainWindow'
 import { createCalendarWindow, getCalendarWindow } from '../windows/createCalendarWindow'
 import { getMainWindow, showMainWindow } from '../windows/mainWindowRef'
@@ -64,6 +65,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   stopFortuneNotificationScheduler()
   stopStocksScheduler()
+  disposeAllMcpSessions()
   closeDatabase()
   const main = getMainWindow()
   if (main && !main.isDestroyed()) {

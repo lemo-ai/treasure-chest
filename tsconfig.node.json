@@ -13,6 +13,8 @@
   "include": [
     "electron/**/*",
     "packages/shared/src/**/*",
+    "src/features/fortune/lib/**/*",
+    "src/types/lunar-javascript.d.ts",
     "electron.vite.config.ts"
   ]
 }

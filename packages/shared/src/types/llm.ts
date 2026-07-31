@@ -1,8 +1,29 @@
-export type LlmChatRole = 'system' | 'user' | 'assistant'
+export type LlmChatRole = 'system' | 'user' | 'assistant' | 'tool'
+
+export interface LlmToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
 
 export interface LlmChatMessage {
   role: LlmChatRole
-  content: string
+  content: string | null
+  name?: string
+  tool_call_id?: string
+  tool_calls?: LlmToolCall[]
+}
+
+export interface LlmToolSpec {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: Record<string, unknown>
+  }
 }
 
 export interface LlmChatRequest {
@@ -17,6 +38,8 @@ export interface LlmChatRequest {
   locale?: string
   /** Set by preload for streaming; ignored by non-stream chat */
   streamId?: string
+  /** Prefer knowledge search when user @mentioned knowledge */
+  useKnowledge?: boolean
 }
 
 export interface LlmChatResponse {
@@ -25,6 +48,7 @@ export interface LlmChatResponse {
   error?: string
   model?: string
   providerName?: string
+  toolCalls?: LlmToolCall[]
 }
 
 /** Renderer ↔ main stream handshake id */
@@ -36,6 +60,11 @@ export type LlmChatStreamEvent =
   | {
       streamId: string
       type: 'delta'
+      text: string
+    }
+  | {
+      streamId: string
+      type: 'status'
       text: string
     }
   | {

@@ -9,6 +9,8 @@ import type {
   DesktopWidgetView,
   DialFaceStyle,
   LaunchBehavior,
+  McpSettings,
+  McpServerConfig,
   NotificationSettings,
   ThemeMode,
   FortuneSettings,
@@ -22,6 +24,7 @@ import {
   DEFAULT_FORTUNE_SETTINGS,
   DEFAULT_LAUNCH_AT_LOGIN,
   DEFAULT_LAUNCH_BEHAVIOR,
+  DEFAULT_MCP_SETTINGS,
   DEFAULT_NOTIFICATION_SETTINGS,
   DEFAULT_STOCKS_SETTINGS,
   DIAL_FACE_STYLES,
@@ -41,6 +44,7 @@ interface PersistedSettings {
   notifications: NotificationSettings
   fortune: FortuneSettings
   stocks: StocksSettings
+  mcp: McpSettings
 }
 
 const memory: PersistedSettings = {
@@ -53,6 +57,7 @@ const memory: PersistedSettings = {
   notifications: { ...DEFAULT_NOTIFICATION_SETTINGS },
   fortune: { ...DEFAULT_FORTUNE_SETTINGS },
   stocks: { ...DEFAULT_STOCKS_SETTINGS },
+  mcp: { servers: [...DEFAULT_MCP_SETTINGS.servers] },
 }
 
 function settingsPath(): string {
@@ -76,6 +81,28 @@ function parseHexagramSchool(value: unknown): HexagramSchool {
     return value as HexagramSchool
   }
   return DEFAULT_FORTUNE_SETTINGS.hexagramSchool
+}
+
+function parseMcpSettings(raw: unknown): McpSettings {
+  const src = (raw ?? {}) as Partial<McpSettings>
+  const serversRaw = Array.isArray(src.servers) ? src.servers : []
+  const servers: McpServerConfig[] = serversRaw
+    .filter((s): s is McpServerConfig => Boolean(s && typeof s === 'object' && typeof (s as McpServerConfig).id === 'string'))
+    .map((s) => ({
+      id: String(s.id).trim(),
+      name: String(s.name || s.id).trim(),
+      enabled: Boolean(s.enabled),
+      command: String(s.command || '').trim(),
+      args: Array.isArray(s.args) ? s.args.map((a) => String(a)) : [],
+      env:
+        s.env && typeof s.env === 'object'
+          ? Object.fromEntries(
+              Object.entries(s.env).map(([k, v]) => [k, String(v)]),
+            )
+          : undefined,
+    }))
+    .filter((s) => s.id && s.command)
+  return { servers }
 }
 
 function parseStocksSettings(raw: unknown): StocksSettings {
@@ -230,6 +257,7 @@ function loadFromDb(): void {
   }
   memory.fortune = parseFortuneSettings(getSetting('fortune', DEFAULT_FORTUNE_SETTINGS))
   memory.stocks = parseStocksSettings(getSetting('stocks', DEFAULT_STOCKS_SETTINGS))
+  memory.mcp = parseMcpSettings(getSetting('mcp', DEFAULT_MCP_SETTINGS))
 }
 
 /** Fallback for dev runs before DB init: legacy settings.json */
@@ -259,6 +287,7 @@ function persist(): void {
   setSetting('notifications', memory.notifications)
   setSetting('fortune', memory.fortune)
   setSetting('stocks', memory.stocks)
+  setSetting('mcp', memory.mcp)
 }
 
 export function initSettingsStore(): void {
@@ -284,6 +313,7 @@ export const settingsStore = {
       notifications: { ...memory.notifications },
       fortune: { ...memory.fortune },
       stocks: { ...memory.stocks },
+      mcp: { servers: memory.mcp.servers.map((s) => ({ ...s, args: [...s.args], env: s.env ? { ...s.env } : undefined })) },
     }
   },
   getTheme(): ThemeMode {
@@ -458,6 +488,20 @@ export const settingsStore = {
     persist()
     return { ...memory.stocks }
   },
+  getMcpSettings(): McpSettings {
+    return {
+      servers: memory.mcp.servers.map((s) => ({
+        ...s,
+        args: [...s.args],
+        env: s.env ? { ...s.env } : undefined,
+      })),
+    }
+  },
+  setMcpSettings(next: McpSettings): McpSettings {
+    memory.mcp = parseMcpSettings(next)
+    persist()
+    return settingsStore.getMcpSettings()
+  },
   applySnapshot(snapshot: AppSettingsSnapshot): AppSettingsSnapshot {
     memory.theme = snapshot.theme
     memory.locale = snapshot.locale
@@ -471,6 +515,7 @@ export const settingsStore = {
     }
     memory.fortune = parseFortuneSettings(snapshot.fortune ?? DEFAULT_FORTUNE_SETTINGS)
     memory.stocks = parseStocksSettings(snapshot.stocks ?? DEFAULT_STOCKS_SETTINGS)
+    memory.mcp = parseMcpSettings(snapshot.mcp ?? DEFAULT_MCP_SETTINGS)
     persist()
     return settingsStore.getSnapshot()
   },
@@ -486,6 +531,7 @@ export const settingsStore = {
       notifications: memory.notifications,
       fortune: memory.fortune,
       stocks: memory.stocks,
+      mcp: memory.mcp,
     }
   },
   importSettingsMap(entries: Record<string, unknown>): void {
@@ -512,6 +558,9 @@ export const settingsStore = {
     }
     if (entries.stocks) {
       memory.stocks = parseStocksSettings(entries.stocks)
+    }
+    if (entries.mcp) {
+      memory.mcp = parseMcpSettings(entries.mcp)
     }
     persist()
   },

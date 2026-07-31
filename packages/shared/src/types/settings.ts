@@ -2,6 +2,7 @@ import type { AppLocale, ThemeMode } from '../constants/ipc'
 import type { CalendarMode } from './calendar'
 import type { FortuneSettings } from './fortune'
 import type { StocksSettings } from './stocks'
+import type { McpSettings } from './mcp'
 
 export type { AppLocale, ThemeMode }
 
@@ -64,6 +65,7 @@ export interface AppSettingsSnapshot {
   notifications: NotificationSettings
   fortune: FortuneSettings
   stocks: StocksSettings
+  mcp: McpSettings
 }
 
 export const DEFAULT_LAUNCH_AT_LOGIN = true

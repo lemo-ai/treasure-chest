@@ -30,6 +30,22 @@ import {
 import { fortuneStore } from '../modules/fortune/FortuneStore'
 import { generateFortuneAiAnalysis, testAiProviderConnection } from '../modules/fortune/FortuneAiService'
 import { runWorkbenchChat, runWorkbenchChatStream } from '../modules/llm/WorkbenchChatService'
+import {
+  createKnowledgeCollection,
+  deleteKnowledgeCollection,
+  deleteKnowledgeDocument,
+  getKnowledgeDocumentFile,
+  getKnowledgeSettings,
+  ingestKnowledgeFile,
+  ingestKnowledgeText,
+  knowledgeStats,
+  listKnowledgeCollections,
+  listKnowledgeDocuments,
+  renameKnowledgeCollection,
+  searchKnowledge,
+  setKnowledgeSettings,
+} from '../modules/knowledge/KnowledgeStore'
+import { disposeAllMcpSessions, listMcpToolsAsSpecs } from '../modules/mcp/McpHub'
 import { exportBackup, importBackup } from '../modules/backup/BackupService'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
@@ -193,9 +209,16 @@ export function registerAllIpc(): void {
       // Kick off stream without blocking the invoke return.
       void (async () => {
         try {
-          const result = await runWorkbenchChatStream(payload, fortuneSettings, (delta) => {
-            send({ streamId, type: 'delta', text: delta })
-          })
+          const result = await runWorkbenchChatStream(
+            payload,
+            fortuneSettings,
+            (delta) => {
+              send({ streamId, type: 'delta', text: delta })
+            },
+            (status) => {
+              send({ streamId, type: 'status', text: status })
+            },
+          )
           if (result.ok && result.text?.trim()) {
             send({
               streamId,
@@ -318,4 +341,52 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.settings.setStocksSettings, (_e, partial: Partial<StocksSettings>) =>
     settingsStore.setStocksSettings(partial),
   )
+  ipcMain.handle(IpcChannels.mcp.getSettings, () => settingsStore.getMcpSettings())
+  ipcMain.handle(IpcChannels.mcp.setSettings, (_e, next: import('@shared').McpSettings) => {
+    disposeAllMcpSessions()
+    return settingsStore.setMcpSettings(next)
+  })
+  ipcMain.handle(IpcChannels.mcp.listTools, () => listMcpToolsAsSpecs())
+
+  ipcMain.handle(IpcChannels.knowledge.listDocuments, (_e, collectionId?: string) =>
+    listKnowledgeDocuments(collectionId),
+  )
+  ipcMain.handle(
+    IpcChannels.knowledge.ingestText,
+    (_e, payload: import('@shared').KnowledgeIngestInput) => ingestKnowledgeText(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.knowledge.ingestFile,
+    (_e, payload: import('@shared').KnowledgeIngestFileInput) => ingestKnowledgeFile(payload),
+  )
+  ipcMain.handle(IpcChannels.knowledge.deleteDocument, (_e, id: string) =>
+    deleteKnowledgeDocument(id),
+  )
+  ipcMain.handle(IpcChannels.knowledge.getDocumentFile, (_e, id: string) =>
+    getKnowledgeDocumentFile(id),
+  )
+  ipcMain.handle(
+    IpcChannels.knowledge.search,
+    (_e, payload: { query: string; limit?: number; collectionId?: string }) =>
+      searchKnowledge(payload.query, payload.limit ?? 5, payload.collectionId),
+  )
+  ipcMain.handle(IpcChannels.knowledge.listCollections, () => listKnowledgeCollections())
+  ipcMain.handle(
+    IpcChannels.knowledge.createCollection,
+    (_e, payload: { name: string; description?: string; color?: string }) =>
+      createKnowledgeCollection(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.knowledge.renameCollection,
+    (_e, payload: { id: string; name: string }) => renameKnowledgeCollection(payload.id, payload.name),
+  )
+  ipcMain.handle(IpcChannels.knowledge.deleteCollection, (_e, id: string) =>
+    deleteKnowledgeCollection(id),
+  )
+  ipcMain.handle(IpcChannels.knowledge.getSettings, () => getKnowledgeSettings())
+  ipcMain.handle(
+    IpcChannels.knowledge.setSettings,
+    (_e, partial: Partial<import('@shared').KnowledgeSettings>) => setKnowledgeSettings(partial),
+  )
+  ipcMain.handle(IpcChannels.knowledge.stats, () => knowledgeStats())
 }

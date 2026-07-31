@@ -164,6 +164,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const [hasApiKey, setHasApiKey] = useState(false)
   const [sending, setSending] = useState(false)
   const [streamText, setStreamText] = useState('')
+  const [streamStatus, setStreamStatus] = useState('')
   const [streamSessionId, setStreamSessionId] = useState<string | null>(null)
   const streamSessionRef = useRef<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -320,6 +321,7 @@ export function WorkbenchPage(): React.JSX.Element {
     setAttachments([])
     setSending(true)
     setStreamText('')
+    setStreamStatus('')
     streamSessionRef.current = sessionId
     setStreamSessionId(sessionId)
     refresh(sessionId)
@@ -331,6 +333,8 @@ export function WorkbenchPage(): React.JSX.Element {
         content: m.content,
       }))
 
+    const useKnowledge = /@知识库|@knowledge/i.test(content) || activeCap === 'knowledge'
+
     try {
       const res = await window.treasureChest.workbenchChatStream(
         {
@@ -340,10 +344,16 @@ export function WorkbenchPage(): React.JSX.Element {
           systemPrompt:
             !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
           locale: i18n.language,
+          useKnowledge,
         },
         (delta) => {
           if (streamSessionRef.current !== sessionId) return
+          setStreamStatus('')
           setStreamText((prev) => prev + delta)
+        },
+        (status) => {
+          if (streamSessionRef.current !== sessionId) return
+          setStreamStatus(status)
         },
       )
       if (streamSessionRef.current === sessionId) {
@@ -367,11 +377,13 @@ export function WorkbenchPage(): React.JSX.Element {
         streamSessionRef.current = null
         setStreamSessionId(null)
         setStreamText('')
+        setStreamStatus('')
         setSending(false)
         refresh(sessionId)
       } else {
         setSending(false)
         setStreamText('')
+        setStreamStatus('')
         setStreamSessionId(null)
       }
     }
@@ -393,7 +405,17 @@ export function WorkbenchPage(): React.JSX.Element {
     }
     if (id === 'knowledge') {
       inputRef.current?.focus()
-      setDraft((prev) => (prev.includes('@知识库') || prev.includes('@knowledge') ? prev : `${prev}${prev ? ' ' : ''}@知识库 `))
+      setDraft((prev) =>
+        prev.includes('@知识库') || prev.includes('@knowledge')
+          ? prev
+          : `${prev}${prev ? ' ' : ''}@知识库 `,
+      )
+      return
+    }
+    if (id === 'mcp') {
+      const sessionId = ensureSession(activeAgent)
+      appendMessage(sessionId, 'system', t('workbench.mcpHint'))
+      refresh(sessionId)
       return
     }
     const sessionId = ensureSession(activeAgent)
@@ -758,7 +780,7 @@ export function WorkbenchPage(): React.JSX.Element {
                     {streamText ? (
                       <MarkdownMessage content={streamText} streaming />
                     ) : (
-                      t('workbench.thinking')
+                      streamStatus || t('workbench.thinking')
                     )}
                   </div>
                 </div>

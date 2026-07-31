@@ -2,6 +2,8 @@ import type {
   FortuneSettings,
   LlmChatMessage,
   LlmChatResponse,
+  LlmToolCall,
+  LlmToolSpec,
 } from '@shared'
 import { logger } from '../../utils/logger'
 
@@ -45,7 +47,13 @@ function shortText(value: unknown, limit = 240): string {
 }
 
 interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string } }>
+  choices?: Array<{
+    message?: {
+      content?: string | null
+      tool_calls?: LlmToolCall[]
+    }
+    finish_reason?: string
+  }>
   error?: { message?: string }
 }
 
@@ -61,6 +69,7 @@ export interface LlmCallOptions {
   model: string
   providerName?: string
   messages: LlmChatMessage[]
+  tools?: LlmToolSpec[]
   temperature?: number
   maxTokens?: number
   timeoutMs?: number
@@ -245,7 +254,19 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
         model,
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens ?? 2048,
-        messages: options.messages.map((m) => ({ role: m.role, content: m.content })),
+        messages: options.messages.map((m) => {
+          const row: Record<string, unknown> = {
+            role: m.role,
+            content: m.content,
+          }
+          if (m.tool_calls?.length) row.tool_calls = m.tool_calls
+          if (m.tool_call_id) row.tool_call_id = m.tool_call_id
+          if (m.name) row.name = m.name
+          return row
+        }),
+        ...(options.tools?.length
+          ? { tools: options.tools, tool_choice: 'auto' }
+          : {}),
       }),
     })
     const data = (await safeJson(response)) as ChatCompletionResponse
@@ -254,7 +275,19 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
       logger.warn(`[${tag}] failed status=${response.status} body=${shortText(data)} err=${err}`)
       return { ok: false, error: err, providerName, model }
     }
-    const text = data.choices?.[0]?.message?.content?.trim() ?? ''
+    const message = data.choices?.[0]?.message
+    const toolCalls = message?.tool_calls?.filter((c) => c?.function?.name) ?? []
+    if (toolCalls.length > 0) {
+      logger.info(`[${tag}] tool_calls=${toolCalls.map((c) => c.function.name).join(',')}`)
+      return {
+        ok: true,
+        text: message?.content?.trim() || undefined,
+        toolCalls,
+        providerName,
+        model,
+      }
+    }
+    const text = message?.content?.trim() ?? ''
     if (!text) {
       logger.warn(`[${tag}] empty openai response body=${shortText(data)}`)
       return { ok: false, error: 'Empty AI response.', providerName, model }

@@ -62,7 +62,46 @@ interface TreasureChestApi {
   workbenchChatStream: (
     payload: LlmChatRequest,
     onDelta: (text: string) => void,
+    onStatus?: (text: string) => void,
   ) => Promise<LlmChatResponse>
+  listKnowledgeDocuments: (collectionId?: string) => Promise<import('@shared').KnowledgeDocument[]>
+  ingestKnowledgeText: (
+    payload: import('@shared').KnowledgeIngestInput,
+  ) => Promise<import('@shared').KnowledgeDocument>
+  ingestKnowledgeFile: (
+    payload: import('@shared').KnowledgeIngestFileInput,
+  ) => Promise<import('@shared').KnowledgeDocument>
+  deleteKnowledgeDocument: (id: string) => Promise<boolean>
+  getKnowledgeDocumentFile: (id: string) => Promise<import('@shared').KnowledgeDocumentFile | null>
+  searchKnowledge: (payload: {
+    query: string
+    limit?: number
+    collectionId?: string
+  }) => Promise<import('@shared').KnowledgeSearchResult>
+  listKnowledgeCollections: () => Promise<import('@shared').KnowledgeCollection[]>
+  createKnowledgeCollection: (payload: {
+    name: string
+    description?: string
+    color?: string
+  }) => Promise<import('@shared').KnowledgeCollection>
+  renameKnowledgeCollection: (payload: {
+    id: string
+    name: string
+  }) => Promise<import('@shared').KnowledgeCollection | null>
+  deleteKnowledgeCollection: (id: string) => Promise<boolean>
+  getKnowledgeSettings: () => Promise<import('@shared').KnowledgeSettings>
+  setKnowledgeSettings: (
+    partial: Partial<import('@shared').KnowledgeSettings>,
+  ) => Promise<import('@shared').KnowledgeSettings>
+  getKnowledgeStats: () => Promise<{
+    collections: number
+    documents: number
+    chunks: number
+    embeddings: number
+  }>
+  getMcpSettings: () => Promise<import('@shared').McpSettings>
+  setMcpSettings: (next: import('@shared').McpSettings) => Promise<import('@shared').McpSettings>
+  listMcpTools: () => Promise<import('@shared').LlmToolSpec[]>
   getStocksWatchlist: () => Promise<WatchlistItem[]>
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }) => Promise<WatchlistItem>
   removeStocksWatchlistItem: (payload: { market: StockMarket; symbol: string }) => Promise<boolean>

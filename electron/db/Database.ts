@@ -130,6 +130,88 @@ function runMigrations(database: Database.Database): void {
     `)
     database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(3)
   }
+  if (current < 4) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS knowledge_documents (
+        id          TEXT PRIMARY KEY NOT NULL,
+        title       TEXT NOT NULL,
+        source      TEXT NOT NULL,
+        mime        TEXT NOT NULL,
+        bytes       INTEGER NOT NULL,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS knowledge_chunks (
+        id           TEXT PRIMARY KEY NOT NULL,
+        document_id  TEXT NOT NULL,
+        ordinal      INTEGER NOT NULL,
+        text         TEXT NOT NULL,
+        created_at   TEXT NOT NULL,
+        FOREIGN KEY (document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+      );
+      CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunks_fts USING fts5(
+        text,
+        title,
+        document_id UNINDEXED,
+        chunk_id UNINDEXED,
+        tokenize = 'unicode61'
+      );
+    `)
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(4)
+  }
+  if (current < 5) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS knowledge_collections (
+        id          TEXT PRIMARY KEY NOT NULL,
+        name        TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        color       TEXT NOT NULL DEFAULT '#0fbea8',
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS knowledge_chunk_embeddings (
+        chunk_id        TEXT PRIMARY KEY NOT NULL,
+        model           TEXT NOT NULL,
+        dims            INTEGER NOT NULL,
+        embedding_json  TEXT NOT NULL,
+        created_at      TEXT NOT NULL
+      );
+    `)
+    // Add columns to knowledge_documents if missing
+    const cols = database.prepare(`PRAGMA table_info(knowledge_documents)`).all() as Array<{ name: string }>
+    const names = new Set(cols.map((c) => c.name))
+    if (!names.has('collection_id')) {
+      database.exec(`ALTER TABLE knowledge_documents ADD COLUMN collection_id TEXT NOT NULL DEFAULT 'default'`)
+    }
+    if (!names.has('status')) {
+      database.exec(`ALTER TABLE knowledge_documents ADD COLUMN status TEXT NOT NULL DEFAULT 'ready'`)
+    }
+    if (!names.has('error_message')) {
+      database.exec(`ALTER TABLE knowledge_documents ADD COLUMN error_message TEXT`)
+    }
+    const now = new Date().toISOString()
+    database
+      .prepare(
+        `INSERT OR IGNORE INTO knowledge_collections (id, name, description, color, created_at, updated_at)
+         VALUES ('default', '默认知识库', '系统默认分区', '#0fbea8', ?, ?)`,
+      )
+      .run(now, now)
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(5)
+  }
+  if (current < 6) {
+    const cols = database.prepare(`PRAGMA table_info(knowledge_documents)`).all() as Array<{ name: string }>
+    const names = new Set(cols.map((c) => c.name))
+    if (!names.has('file_name')) {
+      database.exec(`ALTER TABLE knowledge_documents ADD COLUMN file_name TEXT`)
+    }
+    if (!names.has('has_original')) {
+      database.exec(`ALTER TABLE knowledge_documents ADD COLUMN has_original INTEGER NOT NULL DEFAULT 0`)
+    }
+    if (!names.has('embedded')) {
+      database.exec(`ALTER TABLE knowledge_documents ADD COLUMN embedded INTEGER NOT NULL DEFAULT 0`)
+    }
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(6)
+  }
 }
 
 function setSetting(database: Database.Database, key: string, value: unknown): void {
