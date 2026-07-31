@@ -190,6 +190,121 @@ export function StocksPage(): React.JSX.Element {
         <p className={styles.disclaimer}>{t('stocks.disclaimer')}</p>
       </header>
 
+      <div className={`${styles.card} ${styles.reportCard}`}>
+        <div className={styles.reportHead}>
+          <div>
+            <h2>{t('stocks.reportTitle')}</h2>
+            {report ? (
+              <p className={styles.reportMeta}>
+                {t('stocks.generatedAt', { time: new Date(report.generatedAt).toLocaleString() })}
+              </p>
+            ) : null}
+          </div>
+          <button type="button" className={styles.primaryBtn} disabled={running || loading} onClick={() => void onGenerate()}>
+            {running ? t('stocks.generating') : t('stocks.generateNow')}
+          </button>
+        </div>
+
+        <div className={styles.marketStatusRow}>
+          {(['CN', 'US'] as const).map((m) => {
+            const st = report?.marketStatus?.[m] ?? getMarketSessionStatus(m)
+            return (
+              <span
+                key={m}
+                className={`${styles.marketStatusChip} ${st.open ? styles.marketStatusOpen : styles.marketStatusClosed}`}
+                title={st.reason}
+              >
+                {m} · {st.open ? t('stocks.marketStatus.open') : t('stocks.marketStatus.closed')}
+                {!st.open && st.reason ? ` · ${st.reason}` : ''}
+              </span>
+            )
+          })}
+        </div>
+
+        {history.length > 0 ? (
+          <div className={styles.historyBlock}>
+            <span className={styles.historyLabel}>{t('stocks.historyTitle')}</span>
+            <div className={styles.historyList}>
+              {history.map((item) => (
+                <button
+                  key={item.date}
+                  type="button"
+                  className={`${styles.historyChip} ${selectedDate === item.date ? styles.historyChipActive : ''}`}
+                  onClick={() => void onSelectHistory(item.date)}
+                >
+                  <strong>{item.date}</strong>
+                  <span>{t('stocks.historyCount', { count: item.count })}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {report ? (
+          <div className={styles.statusPanel}>
+            <div className={styles.statusItem}>
+              <span className={styles.statusKey}>{t('stocks.status.total', { count: sourceStatus.total })}</span>
+            </div>
+            <div className={styles.statusItem}>
+              <span className={styles.statusKey}>{t('stocks.status.quoteFallback', { count: sourceStatus.quoteFallbackCount })}</span>
+            </div>
+            <div className={styles.statusItem}>
+              <span className={styles.statusKey}>{t('stocks.status.newsHit', { count: sourceStatus.newsHitCount })}</span>
+            </div>
+            <div className={styles.statusItem}>
+              <span className={styles.statusKey}>{t('stocks.status.cacheHit', { count: sourceStatus.cacheHitCount })}</span>
+            </div>
+            <div className={`${styles.statusItem} ${styles[`statusAi_${sourceStatus.ai}`]}`}>
+              <span className={styles.statusKey}>{t(`stocks.status.ai.${sourceStatus.ai}`)}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {report ? (
+          <div className={styles.marketTabs}>
+            {(['all', 'CN', 'US'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={`${styles.marketTab} ${reportMarket === tab ? styles.marketTabActive : ''}`}
+                onClick={() => setReportMarket(tab)}
+              >
+                {tab === 'all' ? t('stocks.marketAll') : tab}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {report ? (
+          <div className={styles.reportList}>
+            {filteredRecommendations.length === 0 ? (
+              <p className={styles.empty}>{t('stocks.emptyReportFiltered')}</p>
+            ) : (
+              filteredRecommendations.map((rec, idx) => (
+                <StockRecommendationCard
+                  key={`${rec.market}-${rec.symbol}`}
+                  rec={rec}
+                  rank={idx + 1}
+                  visibleRanges={visibleRanges}
+                  onViewTrend={() =>
+                    setTrendItem({
+                      market: rec.market,
+                      symbol: rec.symbol,
+                      name: rec.name,
+                      enabled: true,
+                      updatedAt: new Date().toISOString(),
+                    })
+                  }
+                />
+              ))
+            )}
+            <p className={styles.reportDisclaimer}>{report.disclaimer}</p>
+          </div>
+        ) : (
+          <p className={styles.empty}>{t('stocks.emptyReport')}</p>
+        )}
+      </div>
+
       <div className={styles.card}>
         <div className={styles.cardHead}>
           <h2>{t('stocks.watchlistTitle')}</h2>
@@ -336,121 +451,6 @@ export function StocksPage(): React.JSX.Element {
             ))}
           </div>
         </div>
-      </div>
-
-      <div className={`${styles.card} ${styles.reportCard}`}>
-        <div className={styles.reportHead}>
-          <div>
-            <h2>{t('stocks.reportTitle')}</h2>
-            {report ? (
-              <p className={styles.reportMeta}>
-                {t('stocks.generatedAt', { time: new Date(report.generatedAt).toLocaleString() })}
-              </p>
-            ) : null}
-          </div>
-          <button type="button" className={styles.primaryBtn} disabled={running || loading} onClick={() => void onGenerate()}>
-            {running ? t('stocks.generating') : t('stocks.generateNow')}
-          </button>
-        </div>
-
-        <div className={styles.marketStatusRow}>
-          {(['CN', 'US'] as const).map((m) => {
-            const st = report?.marketStatus?.[m] ?? getMarketSessionStatus(m)
-            return (
-              <span
-                key={m}
-                className={`${styles.marketStatusChip} ${st.open ? styles.marketStatusOpen : styles.marketStatusClosed}`}
-                title={st.reason}
-              >
-                {m} · {st.open ? t('stocks.marketStatus.open') : t('stocks.marketStatus.closed')}
-                {!st.open && st.reason ? ` · ${st.reason}` : ''}
-              </span>
-            )
-          })}
-        </div>
-
-        {history.length > 0 ? (
-          <div className={styles.historyBlock}>
-            <span className={styles.historyLabel}>{t('stocks.historyTitle')}</span>
-            <div className={styles.historyList}>
-              {history.map((item) => (
-                <button
-                  key={item.date}
-                  type="button"
-                  className={`${styles.historyChip} ${selectedDate === item.date ? styles.historyChipActive : ''}`}
-                  onClick={() => void onSelectHistory(item.date)}
-                >
-                  <strong>{item.date}</strong>
-                  <span>{t('stocks.historyCount', { count: item.count })}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {report ? (
-          <div className={styles.statusPanel}>
-            <div className={styles.statusItem}>
-              <span className={styles.statusKey}>{t('stocks.status.total', { count: sourceStatus.total })}</span>
-            </div>
-            <div className={styles.statusItem}>
-              <span className={styles.statusKey}>{t('stocks.status.quoteFallback', { count: sourceStatus.quoteFallbackCount })}</span>
-            </div>
-            <div className={styles.statusItem}>
-              <span className={styles.statusKey}>{t('stocks.status.newsHit', { count: sourceStatus.newsHitCount })}</span>
-            </div>
-            <div className={styles.statusItem}>
-              <span className={styles.statusKey}>{t('stocks.status.cacheHit', { count: sourceStatus.cacheHitCount })}</span>
-            </div>
-            <div className={`${styles.statusItem} ${styles[`statusAi_${sourceStatus.ai}`]}`}>
-              <span className={styles.statusKey}>{t(`stocks.status.ai.${sourceStatus.ai}`)}</span>
-            </div>
-          </div>
-        ) : null}
-
-        {report ? (
-          <div className={styles.marketTabs}>
-            {(['all', 'CN', 'US'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={`${styles.marketTab} ${reportMarket === tab ? styles.marketTabActive : ''}`}
-                onClick={() => setReportMarket(tab)}
-              >
-                {tab === 'all' ? t('stocks.marketAll') : tab}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {report ? (
-          <div className={styles.reportList}>
-            {filteredRecommendations.length === 0 ? (
-              <p className={styles.empty}>{t('stocks.emptyReportFiltered')}</p>
-            ) : (
-              filteredRecommendations.map((rec, idx) => (
-                <StockRecommendationCard
-                  key={`${rec.market}-${rec.symbol}`}
-                  rec={rec}
-                  rank={idx + 1}
-                  visibleRanges={visibleRanges}
-                  onViewTrend={() =>
-                    setTrendItem({
-                      market: rec.market,
-                      symbol: rec.symbol,
-                      name: rec.name,
-                      enabled: true,
-                      updatedAt: new Date().toISOString(),
-                    })
-                  }
-                />
-              ))
-            )}
-            <p className={styles.reportDisclaimer}>{report.disclaimer}</p>
-          </div>
-        ) : (
-          <p className={styles.empty}>{t('stocks.emptyReport')}</p>
-        )}
       </div>
 
       {hint ? <p className={styles.hint}>{hint}</p> : null}

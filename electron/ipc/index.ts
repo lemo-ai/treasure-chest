@@ -19,8 +19,10 @@ import {
 } from '@shared'
 import { settingsStore } from '../modules/settings/SettingsStore'
 import {
-  clearDialBackgroundFile,
+  clearActiveDialBackground,
+  deleteDialBackground,
   pickDialBackground,
+  selectDialBackground,
 } from '../modules/settings/DialBackground'
 import { fortuneStore } from '../modules/fortune/FortuneStore'
 import { generateFortuneAiAnalysis, testAiProviderConnection } from '../modules/fortune/FortuneAiService'
@@ -83,14 +85,22 @@ export function registerAllIpc(): void {
     const parent = BrowserWindow.fromWebContents(event.sender) ?? getMainWindow()
     const path = await pickDialBackground(parent)
     if (!path) return settingsStore.getDesktopWidgetView()
-    settingsStore.setDesktopWidget({ backgroundImagePath: path })
     afterWidgetChange({ backgroundImagePath: path })
     return settingsStore.getDesktopWidgetView()
   })
   ipcMain.handle(IpcChannels.settings.clearDialBackground, () => {
-    clearDialBackgroundFile()
-    settingsStore.setDesktopWidget({ backgroundImagePath: null })
+    clearActiveDialBackground()
     afterWidgetChange({ backgroundImagePath: null })
+    return settingsStore.getDesktopWidgetView()
+  })
+  ipcMain.handle(IpcChannels.settings.selectDialBackground, (_e, path: string) => {
+    selectDialBackground(path)
+    afterWidgetChange({ backgroundImagePath: path })
+    return settingsStore.getDesktopWidgetView()
+  })
+  ipcMain.handle(IpcChannels.settings.deleteDialBackground, (_e, path: string) => {
+    deleteDialBackground(path)
+    afterWidgetChange({ backgroundImagePath: path })
     return settingsStore.getDesktopWidgetView()
   })
 

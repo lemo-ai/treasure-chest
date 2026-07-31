@@ -1,7 +1,7 @@
 {
   "name": "treasure-chest",
   "version": "0.1.0",
-  "description": "跨平台桌面百宝箱：万年历、运势、股票推荐",
+  "description": "袖里乾坤：本机智能体工作台（运势、股票、知识库）",
   "main": "./out/main/index.js",
   "author": "edy",
   "license": "UNLICENSED",

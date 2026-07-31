@@ -1,32 +1,60 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Outlet, NavLink } from 'react-router'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
+  IconBook,
   IconCalendar,
   IconFortune,
-  IconHome,
+  IconPlus,
   IconSettings,
+  IconSkill,
   IconStocks,
+  IconWorkbench,
 } from '@renderer/shared/ui/icons'
 import appLogo from '@renderer/assets/app-logo.png'
+import {
+  agentDisplayName,
+  listAgents,
+  type AgentDef,
+} from '@renderer/features/agents/lib/agentRegistry'
+import { CreateAgentModal } from '@renderer/features/agents/components/CreateAgentModal'
 import { ChangelogModal } from './ChangelogModal'
 import styles from './AppLayout.module.css'
 
-const navItems: { to: string; end?: boolean; labelKey: string; icon: ReactNode }[] = [
-  { to: '/', end: true, labelKey: 'nav.home', icon: <IconHome /> },
-  { to: '/calendar', labelKey: 'nav.calendar', icon: <IconCalendar /> },
-  { to: '/fortune', labelKey: 'nav.fortune', icon: <IconFortune /> },
-  { to: '/stocks', labelKey: 'nav.stocks', icon: <IconStocks /> },
+const primaryNav: { to: string; end?: boolean; labelKey: string; icon: ReactNode }[] = [
+  { to: '/', end: true, labelKey: 'nav.workbench', icon: <IconWorkbench /> },
+  { to: '/knowledge', labelKey: 'nav.knowledge', icon: <IconBook /> },
 ]
+
+function agentNavIcon(agent: AgentDef): ReactNode {
+  if (agent.id === 'fortune') return <IconFortune />
+  if (agent.id === 'stocks') return <IconStocks />
+  return <IconSkill />
+}
 
 export function AppLayout(): React.JSX.Element {
   const { t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [version, setVersion] = useState('')
   const [changelogOpen, setChangelogOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [agents, setAgents] = useState<AgentDef[]>(() => listAgents())
+  const flushMain =
+    location.pathname === '/' ||
+    location.pathname.startsWith('/workbench') ||
+    location.pathname.startsWith('/knowledge') ||
+    location.pathname.startsWith('/settings')
+
+  const activeAgentParam = new URLSearchParams(location.search).get('agent')
 
   useEffect(() => {
     void window.treasureChest.getVersion().then(setVersion)
   }, [])
+
+  useEffect(() => {
+    setAgents(listAgents())
+  }, [location.pathname, location.search, createOpen])
 
   return (
     <div className={styles.shell}>
@@ -42,12 +70,48 @@ export function AppLayout(): React.JSX.Element {
         </div>
 
         <nav className={styles.links}>
-          {navItems.map((item) => (
+          {primaryNav.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
               <span className={styles.linkIcon}>{item.icon}</span>
               <span className={styles.linkLabel}>{t(item.labelKey)}</span>
             </NavLink>
           ))}
+
+          <div className={styles.sectionLabel}>{t('nav.sectionAgents')}</div>
+          {agents.map((agent) => {
+            const to = `/?agent=${encodeURIComponent(agent.id)}`
+            const isActive =
+              (location.pathname === '/' || location.pathname.startsWith('/workbench')) &&
+              (activeAgentParam === agent.id || (!activeAgentParam && agent.id === 'fortune'))
+            return (
+              <NavLink
+                key={agent.id}
+                to={to}
+                className={() => (isActive ? `${styles.link} ${styles.linkActive}` : styles.link)}
+              >
+                <span className={styles.linkIcon}>{agentNavIcon(agent)}</span>
+                <span className={styles.linkLabel}>{agentDisplayName(agent, t)}</span>
+              </NavLink>
+            )
+          })}
+          <button
+            type="button"
+            className={styles.addAgentBtn}
+            onClick={() => setCreateOpen(true)}
+          >
+            <span className={styles.linkIcon}>
+              <IconPlus />
+            </span>
+            <span className={styles.linkLabel}>{t('nav.addAgent')}</span>
+          </button>
+
+          <div className={styles.sectionLabel}>{t('nav.sectionTools')}</div>
+          <NavLink to="/calendar" className={navClass}>
+            <span className={styles.linkIcon}>
+              <IconCalendar />
+            </span>
+            <span className={styles.linkLabel}>{t('nav.calendar')}</span>
+          </NavLink>
         </nav>
 
         <div className={styles.navFooter}>
@@ -71,12 +135,23 @@ export function AppLayout(): React.JSX.Element {
           ) : null}
         </div>
       </aside>
-      <main className={styles.main}>
+      <main className={flushMain ? styles.mainFlush : styles.main}>
         <Outlet />
       </main>
 
       {changelogOpen ? (
         <ChangelogModal version={version} onClose={() => setChangelogOpen(false)} />
+      ) : null}
+
+      {createOpen ? (
+        <CreateAgentModal
+          onClose={() => setCreateOpen(false)}
+          onCreated={(agent) => {
+            setAgents(listAgents())
+            setCreateOpen(false)
+            void navigate(`/?agent=${encodeURIComponent(agent.id)}`)
+          }}
+        />
       ) : null}
     </div>
   )

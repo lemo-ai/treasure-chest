@@ -75,6 +75,15 @@ function runMigrations(database: Database.Database): void {
       fetched_at TEXT NOT NULL,
       PRIMARY KEY (market, symbol)
     );
+    CREATE TABLE IF NOT EXISTS stocks_company_profiles (
+      market        TEXT NOT NULL,
+      symbol        TEXT NOT NULL,
+      name          TEXT,
+      company_intro TEXT NOT NULL,
+      source        TEXT NOT NULL,
+      updated_at    TEXT NOT NULL,
+      PRIMARY KEY (market, symbol)
+    );
   `)
 
   const row = database.prepare('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1').get() as
@@ -106,6 +115,20 @@ function runMigrations(database: Database.Database): void {
       );
     `)
     database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(2)
+  }
+  if (current < 3) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS stocks_company_profiles (
+        market        TEXT NOT NULL,
+        symbol        TEXT NOT NULL,
+        name          TEXT,
+        company_intro TEXT NOT NULL,
+        source        TEXT NOT NULL,
+        updated_at    TEXT NOT NULL,
+        PRIMARY KEY (market, symbol)
+      );
+    `)
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(3)
   }
 }
 

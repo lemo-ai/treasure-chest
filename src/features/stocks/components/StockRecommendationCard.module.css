@@ -299,6 +299,38 @@
   line-height: 1.55;
 }
 
+.infoBlock {
+  margin-top: var(--space-3);
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg-elevated) 88%, var(--color-bg-muted));
+}
+
+.infoBlock h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-tertiary);
+}
+
+.infoBlock p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--color-ink-secondary);
+}
+
+.outlookBlock {
+  border-color: color-mix(in srgb, var(--color-highlight) 28%, var(--color-border));
+  background: color-mix(in srgb, var(--color-highlight-soft) 45%, var(--color-bg));
+}
+
+.outlookBlock h4 {
+  color: var(--color-highlight);
+}
+
 .insightGrid {
   margin-top: var(--space-3);
   display: grid;
@@ -341,15 +373,14 @@
 }
 
 .newsItem {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.5rem;
-  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
   padding: 0.45rem 0.55rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-bg);
-  text-decoration: none;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -369,6 +400,18 @@
   white-space: nowrap;
 }
 
+.newsSource {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-ink-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.12rem 0.35rem;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--color-bg-elevated) 80%, var(--color-bg));
+}
+
 .sentiment_positive {
   color: var(--color-success);
   border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
@@ -384,9 +427,38 @@
 }
 
 .newsTitle {
+  flex: 1 1 12rem;
   font-size: 0.8rem;
   line-height: 1.4;
   color: var(--color-ink);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.newsTitle:hover {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.copyLinkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-elevated);
+  color: var(--color-ink-secondary);
+  font-size: 0.68rem;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.copyLinkBtn:hover {
+  color: var(--color-brand);
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
 }
 
 @media (max-width: 880px) {

@@ -10,6 +10,8 @@ SRC_PNG="$ROOT/resources/icon.png"
 ELECTRON_APP="$ROOT/node_modules/electron/dist/Electron.app"
 DEST_ICNS="$ELECTRON_APP/Contents/Resources/electron.icns"
 BACKUP_ICNS="$ELECTRON_APP/Contents/Resources/electron.icns.original"
+INFO_PLIST="$ELECTRON_APP/Contents/Info.plist"
+DISPLAY_NAME="袖里乾坤"
 
 if [[ ! -d "$ELECTRON_APP" ]]; then
   echo "[patch-electron-icon] Electron.app not found, skip"
@@ -42,19 +44,31 @@ if [[ -f "$DEST_ICNS" && ! -f "$BACKUP_ICNS" ]]; then
   cp "$DEST_ICNS" "$BACKUP_ICNS"
 fi
 
-# Skip if already patched to the same bytes.
-if [[ -f "$DEST_ICNS" ]] && cmp -s "$SRC_ICNS" "$DEST_ICNS"; then
-  echo "[patch-electron-icon] already up to date"
-  exit 0
+ICON_CHANGED=0
+if [[ ! -f "$DEST_ICNS" ]] || ! cmp -s "$SRC_ICNS" "$DEST_ICNS"; then
+  cp "$SRC_ICNS" "$DEST_ICNS"
+  ICON_CHANGED=1
 fi
 
-cp "$SRC_ICNS" "$DEST_ICNS"
+# Dev Dock still shows "Electron" unless display name is patched.
+if [[ -f "$INFO_PLIST" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $DISPLAY_NAME" "$INFO_PLIST" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string $DISPLAY_NAME" "$INFO_PLIST"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleName $DISPLAY_NAME" "$INFO_PLIST" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Add :CFBundleName string $DISPLAY_NAME" "$INFO_PLIST"
+fi
+
 # Bump mtime so LaunchServices / Dock pick up the new icon.
 touch "$ELECTRON_APP"
-touch "$ELECTRON_APP/Contents/Info.plist"
+touch "$INFO_PLIST"
+touch "$DEST_ICNS"
 
 # Best-effort refresh of icon services (ignore failures).
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
   -f "$ELECTRON_APP" >/dev/null 2>&1 || true
 
-echo "[patch-electron-icon] patched Electron.app icon -> treasure-chest"
+if [[ "$ICON_CHANGED" -eq 1 ]]; then
+  echo "[patch-electron-icon] patched Electron.app icon -> $DISPLAY_NAME"
+else
+  echo "[patch-electron-icon] icon up to date; display name -> $DISPLAY_NAME"
+fi

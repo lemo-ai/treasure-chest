@@ -94,7 +94,21 @@ export interface StockRecommendation {
     title: string
     url: string
     sentiment: 'positive' | 'negative' | 'neutral'
+    /** Origin outlet used for multi-source aggregation. */
+    source?:
+      | 'eastmoney'
+      | 'sina'
+      | 'wallstreetcn'
+      | 'google'
+      | 'yahoo'
+      | 'nasdaq'
+      | 'seekingalpha'
+      | 'announcement'
   }>
+  /** What the company does / business overview. */
+  companyIntro?: string
+  /** Short market / price outlook (informational, not advice). */
+  outlook?: string
   summary: string
   reasons: string[]
   risks: string[]

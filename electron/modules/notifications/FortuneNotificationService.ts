@@ -14,12 +14,12 @@ function notifyCopy(locale: string): { title: string; body: string } {
   if (locale.startsWith('en')) {
     return {
       title: 'Daily fortune updated',
-      body: 'Open Treasure Chest to read today’s hexagram and scores.',
+      body: 'Open Qiankun to read today’s hexagram and scores.',
     }
   }
   return {
     title: '今日运势已更新',
-    body: '打开百宝箱查看今日卦象与分项运势。',
+    body: '打开袖里乾坤查看今日卦象与分项运势。',
   }
 }
 

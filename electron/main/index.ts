@@ -13,7 +13,7 @@ import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/Tra
 import { applyAppDockIcon } from '../utils/appIcon'
 import { logger } from '../utils/logger'
 
-app.setName('百宝箱')
+app.setName('袖里乾坤')
 
 app.whenReady().then(() => {
   logger.info('app ready')

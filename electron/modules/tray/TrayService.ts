@@ -42,7 +42,7 @@ function buildContextMenu(): Menu {
     },
     { type: 'separator' },
     {
-      label: '退出百宝箱',
+      label: '退出袖里乾坤',
       click: () => {
         app.quit()
       },
@@ -60,7 +60,7 @@ export function ensureTray(): void {
     return
   }
   tray = new Tray(trayIcon())
-  tray.setToolTip('百宝箱')
+  tray.setToolTip('袖里乾坤')
   tray.on('click', () => {
     const main = getMainWindow()
     if (main && !main.isDestroyed()) {

@@ -15,7 +15,7 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: '百宝箱',
+    title: '袖里乾坤',
     ...(icon ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

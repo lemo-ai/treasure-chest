@@ -15,12 +15,12 @@ function notifyCopy(locale: string, count: number): { title: string; body: strin
   if (locale.startsWith('en')) {
     return {
       title: 'Daily stock report ready',
-      body: `${count} pick(s) generated. Open Treasure Chest to review.`,
+      body: `${count} pick(s) generated. Open Qiankun to review.`,
     }
   }
   return {
     title: '今日荐股报告已生成',
-    body: `共 ${count} 条推荐，打开百宝箱查看详情。`,
+    body: `共 ${count} 条推荐，打开袖里乾坤查看详情。`,
   }
 }
 

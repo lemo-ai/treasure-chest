@@ -112,13 +112,14 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
   const parsedModels = Array.isArray(src.aiModels)
     ? src.aiModels.filter((m): m is string => typeof m === 'string').map((m) => m.trim()).filter(Boolean)
     : []
-  const fallbackModel = typeof src.aiModel === 'string' && src.aiModel.trim()
-    ? src.aiModel.trim()
-    : DEFAULT_FORTUNE_SETTINGS.aiModel
-  const modelList = parsedModels.length > 0
-    ? Array.from(new Set(parsedModels))
-    : [fallbackModel]
-  const selectedModel = modelList.includes(fallbackModel) ? fallbackModel : modelList[0]!
+  const fallbackModel = typeof src.aiModel === 'string' && src.aiModel.trim() ? src.aiModel.trim() : ''
+  const modelList =
+    parsedModels.length > 0
+      ? Array.from(new Set(parsedModels))
+      : fallbackModel
+        ? [fallbackModel]
+        : []
+  const selectedModel = modelList.includes(fallbackModel) ? fallbackModel : (modelList[0] ?? '')
   const providersRaw = Array.isArray(src.aiProviders) ? src.aiProviders : []
   const parsedProviders: FortuneAiProviderConfig[] = providersRaw
     .map((item, idx) => {
@@ -131,15 +132,26 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
           : DEFAULT_FORTUNE_SETTINGS.aiBaseUrl
       const apiFormat: 'openai' | 'anthropic' = r.apiFormat === 'anthropic' ? 'anthropic' : 'openai'
       const models = Array.isArray(r.models)
-        ? Array.from(new Set(r.models.filter((m): m is string => typeof m === 'string').map((m) => m.trim()).filter(Boolean)))
+        ? Array.from(
+            new Set(
+              r.models
+                .filter((m): m is string => typeof m === 'string')
+                .map((m) => m.trim())
+                .filter(Boolean),
+            ),
+          )
         : []
       const apiKey = typeof r.apiKey === 'string' ? r.apiKey.trim() : ''
+      const scrubbedModels =
+        !apiKey && id === 'default-openai' && models.length === 1 && models[0] === 'gpt-4o-mini'
+          ? []
+          : models
       return {
         id,
         name,
         baseUrl,
         apiFormat,
-        models: models.length > 0 ? models : [DEFAULT_FORTUNE_SETTINGS.aiModel],
+        models: scrubbedModels,
         apiKey,
       }
     })
@@ -166,7 +178,9 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
   const providers = parsedProviders.length > 0 ? parsedProviders : [fallbackProvider]
   const activeIdRaw = typeof src.aiActiveProviderId === 'string' ? src.aiActiveProviderId.trim() : ''
   const activeProvider = providers.find((p) => p.id === activeIdRaw) ?? providers[0]!
-  const activeModel = activeProvider.models.includes(selectedModel) ? selectedModel : activeProvider.models[0]!
+  const activeModel = activeProvider.models.includes(selectedModel)
+    ? selectedModel
+    : (activeProvider.models[0] ?? '')
 
   return {
     hexagramSchool: parseHexagramSchool(src.hexagramSchool),
@@ -185,11 +199,20 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
 function parseDesktopWidget(raw: unknown): DesktopWidgetSettings {
   const src = (raw ?? {}) as Partial<DesktopWidgetSettings>
   const bg = typeof src.backgroundImagePath === 'string' ? src.backgroundImagePath : null
+  const active = bg && existsSync(bg) ? bg : null
+  const historyRaw = Array.isArray(src.backgroundImageHistory) ? src.backgroundImageHistory : []
+  const history = historyRaw.filter(
+    (item): item is string => typeof item === 'string' && item.length > 0 && existsSync(item),
+  )
+  if (active && !history.includes(active)) {
+    history.unshift(active)
+  }
   return {
     enabled: Boolean(src.enabled),
     keepAlive: src.keepAlive === undefined ? DEFAULT_DESKTOP_WIDGET.keepAlive : Boolean(src.keepAlive),
     dialFace: parseDialFace(src.dialFace),
-    backgroundImagePath: bg && existsSync(bg) ? bg : null,
+    backgroundImagePath: active,
+    backgroundImageHistory: history,
     showTicks: src.showTicks === undefined ? DEFAULT_DESKTOP_WIDGET.showTicks : Boolean(src.showTicks),
   }
 }
@@ -292,9 +315,16 @@ export const settingsStore = {
   },
   getDesktopWidgetView(): DesktopWidgetView {
     const base = { ...memory.desktopWidget }
+    const backgroundHistory = base.backgroundImageHistory
+      .map((path) => {
+        const url = resolveDialBackgroundUrl(path)
+        return url ? { path, url } : null
+      })
+      .filter((item): item is { path: string; url: string } => Boolean(item))
     return {
       ...base,
       backgroundImageUrl: resolveDialBackgroundUrl(base.backgroundImagePath),
+      backgroundHistory,
     }
   },
   setDesktopWidget(partial: Partial<DesktopWidgetSettings>): DesktopWidgetSettings {
@@ -308,6 +338,12 @@ export const settingsStore = {
         partial.backgroundImagePath !== undefined
           ? partial.backgroundImagePath
           : memory.desktopWidget.backgroundImagePath,
+      backgroundImageHistory:
+        partial.backgroundImageHistory !== undefined
+          ? partial.backgroundImageHistory.filter(
+              (item): item is string => typeof item === 'string' && item.length > 0,
+            )
+          : memory.desktopWidget.backgroundImageHistory,
       showTicks:
         partial.showTicks !== undefined
           ? Boolean(partial.showTicks)
@@ -353,11 +389,13 @@ export const settingsStore = {
           .filter(Boolean),
       ),
     )
-    const fallbackModel = partial.aiModel !== undefined ? partial.aiModel.trim() : memory.fortune.aiModel
-    const normalizedModels = nextModels.length > 0 ? nextModels : [fallbackModel || DEFAULT_FORTUNE_SETTINGS.aiModel]
+    const fallbackModel =
+      partial.aiModel !== undefined ? partial.aiModel.trim() : memory.fortune.aiModel
+    const normalizedModels =
+      nextModels.length > 0 ? nextModels : fallbackModel ? [fallbackModel] : []
     const nextSelectedModel = normalizedModels.includes(fallbackModel)
       ? fallbackModel
-      : normalizedModels[0]!
+      : (normalizedModels[0] ?? '')
 
     const nextProvidersRaw = partial.aiProviders !== undefined ? partial.aiProviders : memory.fortune.aiProviders
     const nextProviders: FortuneAiProviderConfig[] = (Array.isArray(nextProvidersRaw) ? nextProvidersRaw : [])
@@ -382,7 +420,7 @@ export const settingsStore = {
           name,
           baseUrl,
           apiFormat,
-          models: models.length > 0 ? models : [DEFAULT_FORTUNE_SETTINGS.aiModel],
+          models,
           apiKey,
         }
       })
@@ -401,8 +439,10 @@ export const settingsStore = {
       aiBaseUrl: activeProvider.baseUrl,
       aiProviderName: activeProvider.name,
       aiApiFormat: activeProvider.apiFormat,
-      aiModels: normalizedModels,
-      aiModel: activeProvider.models.includes(nextSelectedModel) ? nextSelectedModel : activeProvider.models[0]!,
+      aiModels: activeProvider.models.length > 0 ? activeProvider.models : normalizedModels,
+      aiModel: activeProvider.models.includes(nextSelectedModel)
+        ? nextSelectedModel
+        : (activeProvider.models[0] ?? ''),
       aiApiKey: activeProvider.apiKey,
       aiProviders: safeProviders,
       aiActiveProviderId: activeProvider.id,

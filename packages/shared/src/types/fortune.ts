@@ -76,8 +76,8 @@ export const DEFAULT_FORTUNE_SETTINGS: FortuneSettings = {
   aiBaseUrl: 'https://api.openai.com/v1',
   aiProviderName: 'OpenAI',
   aiApiFormat: 'openai',
-  aiModels: ['gpt-4o-mini'],
-  aiModel: 'gpt-4o-mini',
+  aiModels: [],
+  aiModel: '',
   aiApiKey: '',
   aiProviders: [
     {
@@ -85,7 +85,7 @@ export const DEFAULT_FORTUNE_SETTINGS: FortuneSettings = {
       name: 'OpenAI',
       baseUrl: 'https://api.openai.com/v1',
       apiFormat: 'openai',
-      models: ['gpt-4o-mini'],
+      models: [],
       apiKey: '',
     },
   ],

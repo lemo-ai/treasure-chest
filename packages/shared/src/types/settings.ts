@@ -17,15 +17,23 @@ export interface DesktopWidgetSettings {
   keepAlive: boolean
   /** Selected dial face style. */
   dialFace: DialFaceStyle
-  /** Absolute path to a custom dial background image (copied under userData). */
+  /** Absolute path to the active custom dial background image (under userData). */
   backgroundImagePath: string | null
+  /** Absolute paths of previously used dial backgrounds (newest first). */
+  backgroundImageHistory: string[]
   /** Whether to draw tick marks / hour numbers on the dial. */
   showTicks: boolean
+}
+
+export interface DialBackgroundHistoryItem {
+  path: string
+  url: string
 }
 
 /** Runtime view of widget settings, with a renderable background URL. */
 export interface DesktopWidgetView extends DesktopWidgetSettings {
   backgroundImageUrl: string | null
+  backgroundHistory: DialBackgroundHistoryItem[]
 }
 
 /** What to show right after the app launches. */
@@ -67,5 +75,6 @@ export const DEFAULT_DESKTOP_WIDGET: DesktopWidgetSettings = {
   keepAlive: true,
   dialFace: 'teal',
   backgroundImagePath: null,
+  backgroundImageHistory: [],
   showTicks: true,
 }

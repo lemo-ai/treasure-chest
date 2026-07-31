@@ -1,11 +1,11 @@
-import { BrowserWindow, dialog } from 'electron'
+import { BrowserWindow, dialog, app } from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
-import { basename, extname, join } from 'node:path'
-import { app } from 'electron'
+import { basename, extname, join, resolve } from 'node:path'
 import { settingsStore } from '../settings/SettingsStore'
 import { logger } from '../../utils/logger'
 
 const ALLOWED = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+const MAX_HISTORY = 24
 
 function assetsDir(): string {
   const dir = join(app.getPath('userData'), 'dial-assets')
@@ -26,6 +26,12 @@ function mimeFor(ext: string): string {
   }
 }
 
+function isManagedAsset(path: string): boolean {
+  const root = resolve(assetsDir())
+  const target = resolve(path)
+  return target === root || target.startsWith(`${root}/`) || target.startsWith(`${root}\\`)
+}
+
 export function resolveDialBackgroundUrl(path: string | null | undefined): string | null {
   if (!path || !existsSync(path)) return null
   try {
@@ -36,6 +42,12 @@ export function resolveDialBackgroundUrl(path: string | null | undefined): strin
     logger.warn('failed to read dial background', err)
     return null
   }
+}
+
+function pushHistory(path: string): string[] {
+  const current = settingsStore.getDesktopWidget().backgroundImageHistory
+  const next = [path, ...current.filter((item) => item !== path)].slice(0, MAX_HISTORY)
+  return next
 }
 
 export async function pickDialBackground(parent?: BrowserWindow | null): Promise<string | null> {
@@ -54,29 +66,56 @@ export async function pickDialBackground(parent?: BrowserWindow | null): Promise
   const ext = extname(source).toLowerCase()
   if (!ALLOWED.has(ext)) return null
 
-  const prev = settingsStore.getDesktopWidget().backgroundImagePath
-  const dest = join(assetsDir(), `background${ext}`)
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const dest = join(assetsDir(), `bg-${stamp}${ext}`)
   copyFileSync(source, dest)
 
-  if (prev && prev !== dest && existsSync(prev)) {
-    try {
-      unlinkSync(prev)
-    } catch {
-      /* ignore */
-    }
-  }
+  const history = pushHistory(dest)
+  settingsStore.setDesktopWidget({
+    backgroundImagePath: dest,
+    backgroundImageHistory: history,
+  })
 
-  logger.info(`dial background set ${basename(dest)}`)
+  logger.info(`dial background set ${basename(dest)} (history=${history.length})`)
   return dest
 }
 
-export function clearDialBackgroundFile(): void {
-  const prev = settingsStore.getDesktopWidget().backgroundImagePath
-  if (prev && existsSync(prev)) {
+/** Stop using a background on the dial; keep the file in history. */
+export function clearActiveDialBackground(): void {
+  settingsStore.setDesktopWidget({ backgroundImagePath: null })
+}
+
+export function selectDialBackground(path: string): boolean {
+  if (!path || !existsSync(path) || !isManagedAsset(path)) return false
+  const history = pushHistory(path)
+  settingsStore.setDesktopWidget({
+    backgroundImagePath: path,
+    backgroundImageHistory: history,
+  })
+  return true
+}
+
+/** Remove one history entry and delete its file. */
+export function deleteDialBackground(path: string): boolean {
+  if (!path || !isManagedAsset(path)) return false
+  const widget = settingsStore.getDesktopWidget()
+  const history = widget.backgroundImageHistory.filter((item) => item !== path)
+  const backgroundImagePath = widget.backgroundImagePath === path ? null : widget.backgroundImagePath
+
+  if (existsSync(path)) {
     try {
-      unlinkSync(prev)
-    } catch {
-      /* ignore */
+      unlinkSync(path)
+    } catch (err) {
+      logger.warn('failed to delete dial background file', err)
     }
   }
+
+  settingsStore.setDesktopWidget({ backgroundImagePath, backgroundImageHistory: history })
+  logger.info(`dial background deleted ${basename(path)}`)
+  return true
+}
+
+/** @deprecated kept for call sites that still import the old name */
+export function clearDialBackgroundFile(): void {
+  clearActiveDialBackground()
 }

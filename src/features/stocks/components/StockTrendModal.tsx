@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { StockQuoteDetail, StocksRangeKey, WatchlistItem } from '@shared'
 import { useTranslation } from 'react-i18next'
+import { IconClose } from '@renderer/shared/ui/icons'
 import { TrendChart } from './TrendChart'
 import styles from './StockTrendModal.module.css'
 
@@ -62,8 +63,13 @@ export function StockTrendModal({ item, onClose }: StockTrendModalProps): React.
             </h2>
             <p className={styles.sub}>{t('stocks.trendSubtitle')}</p>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose}>
-            {t('stocks.trendClose')}
+          <button
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label={t('stocks.trendClose')}
+          >
+            <IconClose />
           </button>
         </header>
 

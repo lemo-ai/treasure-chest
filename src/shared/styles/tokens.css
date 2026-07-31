@@ -1,66 +1,70 @@
-/* tokens.css —— 全应用唯一色板（霜灰 · 潮青）。改肤只改本文件。 */
+/* tokens.css —— 袖里乾坤视觉系统。改肤只改本文件。 */
 
 :root,
 [data-theme='light'] {
-  --color-bg: #f4f6f8;
+  --color-bg: #f4fbfa;
   --color-bg-elevated: #ffffff;
-  --color-bg-muted: #e8ecf0;
-  --color-ink: #14181f;
-  --color-ink-secondary: #5b6573;
-  --color-ink-tertiary: #8b95a5;
-  --color-border: #d5dbe3;
-  --color-brand: #0d9488;
-  --color-brand-hover: #0f766e;
-  --color-brand-soft: #ccfbf1;
+  --color-bg-muted: #e7f4f1;
+  --color-sidebar: #e7f7f4;
+  --color-ink: #12201e;
+  --color-ink-secondary: #4d635f;
+  --color-ink-tertiary: #7a918c;
+  --color-border: #cfe4df;
+  --color-brand: #0fbea8;
+  --color-brand-hover: #0b9f8c;
+  --color-brand-strong: #0b9f8c;
+  --color-brand-soft: #d5f7f1;
   --color-on-brand: #ffffff;
-  --color-accent: #f97316;
-  --color-accent-hover: #ea580c;
-  --color-accent-soft: #ffedd5;
-  --color-highlight: #3b82f6;
-  --color-highlight-soft: #dbeafe;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-overlay: rgba(20, 24, 31, 0.45);
+  --color-accent: #ff7a59;
+  --color-accent-hover: #f06342;
+  --color-accent-soft: #ffe6df;
+  --color-highlight: #4c8dff;
+  --color-highlight-soft: #dce8ff;
+  --color-success: #12b886;
+  --color-warning: #f59f00;
+  --color-danger: #f03e3e;
+  --color-overlay: rgba(18, 32, 30, 0.42);
 
-  --color-quote-up: #ef4444;
-  --color-quote-down: #10b981;
-  --color-quote-flat: #8b95a5;
-  --color-news-positive: #0d9488;
-  --color-news-negative: #ef4444;
-  --color-fortune-good: #3b82f6;
-  --color-fortune-mid: #5b6573;
-  --color-fortune-caution: #f59e0b;
+  --color-quote-up: #f03e3e;
+  --color-quote-down: #12b886;
+  --color-quote-flat: #7a918c;
+  --color-news-positive: #0fbea8;
+  --color-news-negative: #f03e3e;
+  --color-fortune-good: #4c8dff;
+  --color-fortune-mid: #4d635f;
+  --color-fortune-caution: #f59f00;
 
-  --gradient-calendar-morning: linear-gradient(165deg, #e8f4f8 0%, #f4f6f8 50%, #eef2ff 100%);
-  --gradient-calendar-noon: linear-gradient(165deg, #dff5f0 0%, #f4f6f8 45%, #e0f2fe 100%);
-  --gradient-calendar-dusk: linear-gradient(165deg, #fdeee3 0%, #f4f6f8 40%, #e8f4f8 100%);
-  --gradient-calendar-night: linear-gradient(165deg, #dbeafe 0%, #1a1f27 55%, #134e4a 100%);
+  --gradient-calendar-morning: linear-gradient(165deg, #e4f8f4 0%, #f4fbfa 48%, #e8f1ff 100%);
+  --gradient-calendar-noon: linear-gradient(165deg, #d8f5ef 0%, #f4fbfa 45%, #dff0ff 100%);
+  --gradient-calendar-dusk: linear-gradient(165deg, #ffe8df 0%, #f4fbfa 42%, #e4f8f4 100%);
+  --gradient-calendar-night: linear-gradient(165deg, #dbeafe 0%, #152422 55%, #0b524a 100%);
+  --gradient-workbench: linear-gradient(180deg, #f7fffd 0%, #f0faf8 45%, #eef6ff 100%);
+  --gradient-sidebar: linear-gradient(180deg, #ecfaf7 0%, #e7f7f4 55%, #e3f3f8 100%);
 
   --color-flip-face: #1c2430;
   --color-flip-face-top: #252e3c;
   --color-flip-face-bottom: #151b24;
-  --color-flip-num: #f4f6f8;
+  --color-flip-num: #f4fbfa;
   --color-flip-hinge: #0a0e14;
-  --color-flip-pair: #e8ecf0;
-  --color-widget-glass: rgba(255, 255, 255, 0.82);
-  --color-wave-mid: rgba(13, 148, 136, 0.28);
-  --color-wave-front: rgba(13, 148, 136, 0.42);
+  --color-flip-pair: #e7f4f1;
+  --color-widget-glass: rgba(255, 255, 255, 0.86);
+  --color-wave-mid: rgba(15, 190, 168, 0.28);
+  --color-wave-front: rgba(15, 190, 168, 0.42);
 
-  --dial-teal-bezel: #0f766e;
+  --dial-teal-bezel: #0b9f8c;
   --dial-teal-face: #ecfdf8;
   --dial-teal-ring: #99f6e4;
-  --dial-teal-tick: #0f766e;
+  --dial-teal-tick: #0b9f8c;
   --dial-teal-ink: #134e4a;
-  --dial-teal-muted: #5b6573;
-  --dial-teal-accent: #0d9488;
+  --dial-teal-muted: #4d635f;
+  --dial-teal-accent: #0fbea8;
   --dial-teal-hand: #134e4a;
-  --dial-teal-second: #f97316;
+  --dial-teal-second: #ff7a59;
   --dial-teal-action-bg: #ffffff;
-  --dial-teal-action-ink: #0f766e;
+  --dial-teal-action-ink: #0b9f8c;
   --dial-teal-action-on: #ffffff;
-  --dial-teal-pattern: rgba(13, 148, 136, 0.14);
-  --dial-teal-pattern-strong: rgba(15, 118, 110, 0.18);
+  --dial-teal-pattern: rgba(15, 190, 168, 0.14);
+  --dial-teal-pattern-strong: rgba(11, 159, 140, 0.18);
 
   --dial-ink-bezel: #1c2430;
   --dial-ink-face: #14181f;
@@ -85,51 +89,53 @@
   --dial-dawn-muted: #9a3412;
   --dial-dawn-accent: #ea580c;
   --dial-dawn-hand: #9a3412;
-  --dial-dawn-second: #0d9488;
+  --dial-dawn-second: #0fbea8;
   --dial-dawn-action-bg: #ffffff;
   --dial-dawn-action-ink: #c2410c;
   --dial-dawn-action-on: #ffffff;
   --dial-dawn-pattern: rgba(234, 88, 12, 0.14);
   --dial-dawn-pattern-strong: rgba(194, 65, 12, 0.16);
 
-  --dial-minimal-bezel: #d5dbe3;
+  --dial-minimal-bezel: #cfe4df;
   --dial-minimal-face: #ffffff;
-  --dial-minimal-ring: #e8ecf0;
-  --dial-minimal-tick: #8b95a5;
-  --dial-minimal-ink: #14181f;
-  --dial-minimal-muted: #5b6573;
-  --dial-minimal-accent: #0d9488;
-  --dial-minimal-hand: #14181f;
-  --dial-minimal-second: #3b82f6;
-  --dial-minimal-action-bg: #f4f6f8;
-  --dial-minimal-action-ink: #5b6573;
+  --dial-minimal-ring: #e7f4f1;
+  --dial-minimal-tick: #7a918c;
+  --dial-minimal-ink: #12201e;
+  --dial-minimal-muted: #4d635f;
+  --dial-minimal-accent: #0fbea8;
+  --dial-minimal-hand: #12201e;
+  --dial-minimal-second: #4c8dff;
+  --dial-minimal-action-bg: #f4fbfa;
+  --dial-minimal-action-ink: #4d635f;
   --dial-minimal-action-on: #ffffff;
-  --dial-minimal-pattern: rgba(13, 148, 136, 0.1);
-  --dial-minimal-pattern-strong: rgba(91, 101, 115, 0.12);
-  --dial-photo-scrim: rgba(20, 24, 31, 0.42);
-  --dial-photo-tick: #f4f6f8;
-  --dial-photo-ink: #f4f6f8;
-  --dial-photo-muted: #e8ecf0;
+  --dial-minimal-pattern: rgba(15, 190, 168, 0.1);
+  --dial-minimal-pattern-strong: rgba(77, 99, 95, 0.12);
+  --dial-photo-scrim: rgba(18, 32, 30, 0.42);
+  --dial-photo-tick: #f4fbfa;
+  --dial-photo-ink: #f4fbfa;
+  --dial-photo-muted: #e7f4f1;
   --dial-photo-accent: #5eead4;
 }
 
 [data-theme='dark'] {
-  --color-bg: #0f1217;
-  --color-bg-elevated: #1a1f27;
-  --color-bg-muted: #242a33;
-  --color-ink: #e8ecf1;
-  --color-ink-secondary: #9aa3b2;
-  --color-ink-tertiary: #6b7382;
-  --color-border: #2e3642;
+  --color-bg: #0d1413;
+  --color-bg-elevated: #15201e;
+  --color-bg-muted: #1c2a27;
+  --color-sidebar: #11201d;
+  --color-ink: #e8f5f2;
+  --color-ink-secondary: #9bb5af;
+  --color-ink-tertiary: #6f8a84;
+  --color-border: #2a3d39;
   --color-brand: #2dd4bf;
   --color-brand-hover: #5eead4;
+  --color-brand-strong: #5eead4;
   --color-brand-soft: #134e4a;
-  --color-on-brand: #0f1217;
-  --color-accent: #fb923c;
-  --color-accent-hover: #fdba74;
-  --color-accent-soft: #431407;
-  --color-highlight: #60a5fa;
-  --color-highlight-soft: #1e3a5f;
+  --color-on-brand: #0d1413;
+  --color-accent: #ff8f73;
+  --color-accent-hover: #ffb09c;
+  --color-accent-soft: #4a2218;
+  --color-highlight: #74a4ff;
+  --color-highlight-soft: #1a2f55;
   --color-success: #34d399;
   --color-warning: #fbbf24;
   --color-danger: #f87171;
@@ -137,25 +143,27 @@
 
   --color-quote-up: #f87171;
   --color-quote-down: #34d399;
-  --color-quote-flat: #6b7382;
+  --color-quote-flat: #6f8a84;
   --color-news-positive: #2dd4bf;
   --color-news-negative: #f87171;
-  --color-fortune-good: #60a5fa;
-  --color-fortune-mid: #9aa3b2;
+  --color-fortune-good: #74a4ff;
+  --color-fortune-mid: #9bb5af;
   --color-fortune-caution: #fbbf24;
 
-  --gradient-calendar-morning: linear-gradient(165deg, #0f1217 0%, #1a1f27 55%, #134e4a 100%);
-  --gradient-calendar-noon: linear-gradient(165deg, #0f1217 0%, #1a2430 50%, #115e59 100%);
-  --gradient-calendar-dusk: linear-gradient(165deg, #1a1410 0%, #1a1f27 45%, #7c2d12 100%);
-  --gradient-calendar-night: linear-gradient(165deg, #080b10 0%, #0f1217 50%, #1e1b4b 100%);
+  --gradient-calendar-morning: linear-gradient(165deg, #0d1413 0%, #15201e 55%, #134e4a 100%);
+  --gradient-calendar-noon: linear-gradient(165deg, #0d1413 0%, #1a2430 50%, #115e59 100%);
+  --gradient-calendar-dusk: linear-gradient(165deg, #1a1410 0%, #15201e 45%, #7c2d12 100%);
+  --gradient-calendar-night: linear-gradient(165deg, #080b10 0%, #0d1413 50%, #1e1b4b 100%);
+  --gradient-workbench: linear-gradient(180deg, #101a18 0%, #0d1413 50%, #121a24 100%);
+  --gradient-sidebar: linear-gradient(180deg, #12221f 0%, #11201d 100%);
 
   --color-flip-face: #0c1016;
   --color-flip-face-top: #151b24;
   --color-flip-face-bottom: #080b10;
-  --color-flip-num: #e8ecf1;
+  --color-flip-num: #e8f5f2;
   --color-flip-hinge: #000000;
-  --color-flip-pair: #242a33;
-  --color-widget-glass: rgba(26, 31, 39, 0.86);
+  --color-flip-pair: #1c2a27;
+  --color-widget-glass: rgba(21, 32, 30, 0.88);
   --color-wave-mid: rgba(45, 212, 191, 0.28);
   --color-wave-front: rgba(45, 212, 191, 0.42);
 }
@@ -165,9 +173,11 @@
   --font-ui: 'Noto Sans SC', 'PingFang SC', 'HarmonyOS Sans', sans-serif;
   --font-mono-num: 'IBM Plex Sans', 'JetBrains Mono', var(--font-ui);
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -178,7 +188,9 @@
   --space-7: 32px;
   --space-8: 40px;
 
-  --shadow-soft: 0 1px 2px rgba(20, 24, 31, 0.06);
+  --shadow-soft: 0 1px 2px rgba(15, 100, 90, 0.05);
+  --shadow-card: 0 8px 28px rgba(15, 100, 90, 0.08);
+  --shadow-composer: 0 12px 40px rgba(15, 100, 90, 0.12);
 }
 
 *,

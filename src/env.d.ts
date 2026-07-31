@@ -33,6 +33,8 @@ interface TreasureChestApi {
   setDesktopWidget: (partial: Partial<DesktopWidgetSettings>) => Promise<DesktopWidgetView>
   pickDialBackground: () => Promise<DesktopWidgetView>
   clearDialBackground: () => Promise<DesktopWidgetView>
+  selectDialBackground: (path: string) => Promise<DesktopWidgetView>
+  deleteDialBackground: (path: string) => Promise<DesktopWidgetView>
   onDesktopWidgetUpdated: (listener: (settings: DesktopWidgetView) => void) => () => void
   openCalendarWindow: () => Promise<boolean>
   closeCalendarWindow: () => Promise<boolean>

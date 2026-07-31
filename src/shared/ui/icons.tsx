@@ -296,6 +296,24 @@ export function IconEraser(props: IconProps): React.JSX.Element {
   )
 }
 
+export function IconCopy(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <rect x="8" y="8" width="12" height="12" rx="1.5" />
+      <path d="M6 15.5V5.5A1.5 1.5 0 0 1 7.5 4H16" />
+    </svg>
+  )
+}
+
+export function IconTrash(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 8h14M9.5 8V6.5A1.5 1.5 0 0 1 11 5h2a1.5 1.5 0 0 1 1.5 1.5V8M10 11v6M14 11v6" />
+      <path d="M7 8l1 12.5A1.5 1.5 0 0 0 9.5 22h5a1.5 1.5 0 0 0 1.5-1.5L17 8" />
+    </svg>
+  )
+}
+
 export function IconCheck(props: IconProps): React.JSX.Element {
   return (
     <svg {...base} {...props}>
@@ -303,4 +321,193 @@ export function IconCheck(props: IconProps): React.JSX.Element {
     </svg>
   )
 }
+
+export function IconSend(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 19.5V5.5" />
+      <path d="M7.5 10 12 5.5 16.5 10" />
+    </svg>
+  )
+}
+
+export function IconSearch(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  )
+}
+
+export function IconPlus(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+export function IconBook(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v16.5H7.5A2.5 2.5 0 0 0 5 22V5.5z" />
+      <path d="M5 19.5A2.5 2.5 0 0 1 7.5 17H19" />
+    </svg>
+  )
+}
+
+export function IconWorkbench(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 7.5h14v11H5z" />
+      <path d="M5 11.5h14M10 7.5v11" />
+      <path d="M8 4.5h8" />
+    </svg>
+  )
+}
+
+export function IconChevronDown(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M7 10l5 5 5-5" />
+    </svg>
+  )
+}
+
+export function IconAt(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="7.5" />
+      <path d="M16.5 12a4.5 4.5 0 1 1-1.3-3.2" />
+      <path d="M16.5 12v1.2a2 2 0 0 0 3.5 1.3" />
+    </svg>
+  )
+}
+
+export function IconTools(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M14.5 5.5a3.5 3.5 0 0 0 4 4L15 13l-4-4 3.5-3.5z" />
+      <path d="M11 13 4.5 19.5" />
+      <path d="M8.5 10.5 5 7" />
+    </svg>
+  )
+}
+
+export function IconChatBubble(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 6.5h14a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 17.5h-5L9 21v-3.5H5A1.5 1.5 0 0 1 3.5 16V8A1.5 1.5 0 0 1 5 6.5z" />
+    </svg>
+  )
+}
+
+export function IconPaperclip(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M15.5 8.5 9 15a2.5 2.5 0 0 0 3.5 3.5l7.5-7.5a4 4 0 0 0-5.7-5.7L6 13.6a5.5 5.5 0 0 0 7.8 7.8l6.2-6.2" />
+    </svg>
+  )
+}
+
+export function IconMusic(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 18.5a2.5 2.5 0 1 0 0-0.01" />
+      <path d="M9 16V6.5l10-2V14" />
+      <path d="M19 16a2.5 2.5 0 1 0 0-0.01" />
+    </svg>
+  )
+}
+
+export function IconMic(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <rect x="9" y="3.5" width="6" height="11" rx="3" />
+      <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3.5" />
+    </svg>
+  )
+}
+
+export function IconVideo(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3.5" y="7" width="12" height="10" rx="2" />
+      <path d="m15.5 10.5 5-2.5v8l-5-2.5" />
+    </svg>
+  )
+}
+
+export function IconWrite(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 19.5h6" />
+      <path d="M14.5 4.5 19 9l-9.5 9.5H5v-4.5L14.5 4.5z" />
+    </svg>
+  )
+}
+
+export function IconTranslate(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 7h8M9 7c0 5-2 8-6 10" />
+      <path d="M7.5 11.5h5" />
+      <path d="M14 19l3.5-9L21 19M15.2 16h4.6" />
+    </svg>
+  )
+}
+
+export function IconMcp(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <path d="M16.5 13.5v3h3" />
+      <path d="M13.5 20.5 20.5 13.5" />
+    </svg>
+  )
+}
+
+export function IconSkill(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M8 4.5h8l1.5 4H6.5L8 4.5z" />
+      <path d="M6.5 8.5h11v3l-2 8.5H8.5l-2-8.5v-3z" />
+      <path d="M10 12h4" />
+    </svg>
+  )
+}
+
+export function IconResearch(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M6 18.5 11 8l2 4 2-6 3 12.5" />
+      <circle cx="17.5" cy="7.5" r="2" />
+    </svg>
+  )
+}
+
+export function IconGrid(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <rect x="4" y="4" width="6" height="6" rx="1.2" />
+      <rect x="14" y="4" width="6" height="6" rx="1.2" />
+      <rect x="4" y="14" width="6" height="6" rx="1.2" />
+      <rect x="14" y="14" width="6" height="6" rx="1.2" />
+    </svg>
+  )
+}
+
+export function IconKey(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="8.5" cy="12" r="3.5" />
+      <path d="M11.5 12H20v3M16 12v3" />
+    </svg>
+  )
+}
+
+
 

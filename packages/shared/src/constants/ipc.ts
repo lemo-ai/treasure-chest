@@ -13,6 +13,8 @@ export const IpcChannels = {
     desktopWidgetUpdated: 'settings:desktopWidgetUpdated',
     pickDialBackground: 'settings:pickDialBackground',
     clearDialBackground: 'settings:clearDialBackground',
+    selectDialBackground: 'settings:selectDialBackground',
+    deleteDialBackground: 'settings:deleteDialBackground',
     setLaunchBehavior: 'settings:setLaunchBehavior',
     setNotifications: 'settings:setNotifications',
     setFortuneSettings: 'settings:setFortuneSettings',

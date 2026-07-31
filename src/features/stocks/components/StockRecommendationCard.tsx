@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { StockRecommendation, StocksRangeKey } from '@shared'
 import { useTranslation } from 'react-i18next'
+import { IconCopy } from '@renderer/shared/ui/icons'
 import { Sparkline } from './Sparkline'
 import styles from './StockRecommendationCard.module.css'
 
@@ -19,6 +21,19 @@ function rangeValue(ranges: StockRecommendation['ranges'] | undefined, key: Stoc
   return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
 
+function cleanNewsTitle(title: string): string {
+  return title
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 interface StockRecommendationCardProps {
   rec: StockRecommendation
   rank: number
@@ -33,6 +48,7 @@ export function StockRecommendationCard({
   onViewTrend,
 }: StockRecommendationCardProps): React.JSX.Element {
   const { t } = useTranslation()
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const signalClass =
     rec.signal === 'buy' ? styles.signalBuy : rec.signal === 'watch' ? styles.signalWatch : styles.signalAvoid
 
@@ -46,6 +62,21 @@ export function StockRecommendationCard({
     key: t(`stocks.range.${key}`),
     value: rangeValue(rec.benchmark.excess, key),
   }))
+
+  const onCopyNewsLink = async (url: string, key: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedKey(key)
+      window.setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev))
+      }, 1600)
+    } catch {
+      setCopiedKey(`fail:${key}`)
+      window.setTimeout(() => {
+        setCopiedKey((prev) => (prev === `fail:${key}` ? null : prev))
+      }, 1600)
+    }
+  }
 
   return (
     <article className={styles.card}>
@@ -113,7 +144,17 @@ export function StockRecommendationCard({
         </div>
       </div>
 
+      <section className={styles.infoBlock}>
+        <h4>{t('stocks.companyIntroTitle')}</h4>
+        <p>{rec.companyIntro?.trim() || t('stocks.companyIntroMissing')}</p>
+      </section>
+
       <blockquote className={styles.summary}>{rec.summary}</blockquote>
+
+      <section className={`${styles.infoBlock} ${styles.outlookBlock}`}>
+        <h4>{t('stocks.outlookTitle')}</h4>
+        <p>{rec.outlook?.trim() || t('stocks.outlookMissing')}</p>
+      </section>
 
       <div className={styles.insightGrid}>
         <section className={styles.insightBlock}>
@@ -138,20 +179,50 @@ export function StockRecommendationCard({
         <section className={styles.newsSection}>
           <h4>{t('stocks.newsTitle')}</h4>
           <div className={styles.newsList}>
-            {rec.news.slice(0, 3).map((news, idx) => (
-              <a
-                key={`${rec.symbol}-n-${idx}`}
-                href={news.url}
-                target="_blank"
-                rel="noreferrer"
-                className={styles.newsItem}
-              >
-                <span className={`${styles.sentiment} ${styles[`sentiment_${news.sentiment}`]}`}>
-                  {t(`stocks.sentiment.${news.sentiment}`)}
-                </span>
-                <span className={styles.newsTitle}>{news.title}</span>
-              </a>
-            ))}
+            {rec.news.slice(0, 6).map((news, idx) => {
+              const key = `${rec.symbol}-n-${idx}`
+              const copied = copiedKey === key
+              const failed = copiedKey === `fail:${key}`
+              const title = cleanNewsTitle(news.title)
+              const sourceKey = news.source ? `stocks.newsSource.${news.source}` : null
+              return (
+                <div key={key} className={styles.newsItem}>
+                  <span className={`${styles.sentiment} ${styles[`sentiment_${news.sentiment}`]}`}>
+                    {t(`stocks.sentiment.${news.sentiment}`)}
+                  </span>
+                  {sourceKey ? (
+                    <span className={styles.newsSource} title={t(sourceKey)}>
+                      {t(sourceKey)}
+                    </span>
+                  ) : null}
+                  <a
+                    href={news.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.newsTitle}
+                    title={news.url}
+                  >
+                    {title}
+                  </a>
+                  <button
+                    type="button"
+                    className={styles.copyLinkBtn}
+                    onClick={() => void onCopyNewsLink(news.url, key)}
+                    title={t('stocks.copyNewsLink')}
+                    aria-label={t('stocks.copyNewsLink')}
+                  >
+                    <IconCopy />
+                    <span>
+                      {copied
+                        ? t('stocks.copyNewsLinkDone')
+                        : failed
+                          ? t('stocks.copyNewsLinkFail')
+                          : t('stocks.copyNewsLink')}
+                    </span>
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </section>
       ) : null}

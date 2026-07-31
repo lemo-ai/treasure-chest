@@ -13,7 +13,7 @@ import { FortuneDateChip } from './FortuneDateChip'
 import { FortuneLevelBadge } from './FortuneLevelBadge'
 import { HexagramScene3D } from './HexagramScene3D'
 import styles from './FortuneAnalysis.module.css'
-import { IconSparkles } from '@renderer/shared/ui/icons'
+import { IconClose, IconSparkles } from '@renderer/shared/ui/icons'
 
 const ASPECT_KEYS: FortuneAspectKey[] = ['career', 'wealth', 'relationship', 'health', 'mood']
 
@@ -498,7 +498,7 @@ export function FortuneAnalysis({ fortune, locale, aspectLabels }: FortuneAnalys
                 aria-label={t('fortune.source.close')}
                 onClick={() => setSourceOpen(false)}
               >
-                ×
+                <IconClose />
               </button>
             </div>
             <p className={styles.sourceLine}>

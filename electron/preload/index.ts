@@ -42,6 +42,10 @@ const api = {
     ipcRenderer.invoke(IpcChannels.settings.pickDialBackground),
   clearDialBackground: (): Promise<DesktopWidgetView> =>
     ipcRenderer.invoke(IpcChannels.settings.clearDialBackground),
+  selectDialBackground: (path: string): Promise<DesktopWidgetView> =>
+    ipcRenderer.invoke(IpcChannels.settings.selectDialBackground, path),
+  deleteDialBackground: (path: string): Promise<DesktopWidgetView> =>
+    ipcRenderer.invoke(IpcChannels.settings.deleteDialBackground, path),
   onDesktopWidgetUpdated: (listener: (settings: DesktopWidgetView) => void): (() => void) => {
     const handler = (_event: IpcRendererEvent, settings: DesktopWidgetView): void => {
       listener(settings)

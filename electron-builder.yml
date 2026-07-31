@@ -1,6 +1,6 @@
 {
   "appId": "com.lemo.treasure-chest",
-  "productName": "百宝箱",
+  "productName": "袖里乾坤",
   "directories": {
     "output": "release",
     "buildResources": "resources"

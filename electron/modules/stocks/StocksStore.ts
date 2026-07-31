@@ -5,6 +5,17 @@ function normSymbol(symbol: string): string {
   return symbol.trim().toUpperCase()
 }
 
+export type CompanyProfileSource = 'yahoo' | 'ai' | 'fallback'
+
+export interface CompanyProfileRecord {
+  market: StockMarket
+  symbol: string
+  name?: string
+  companyIntro: string
+  source: CompanyProfileSource
+  updatedAt: string
+}
+
 export const stocksStore = {
   getWatchlist(): WatchlistItem[] {
     const rows = getDb()
@@ -133,5 +144,60 @@ export const stocksStore = {
         aiEnhanced,
       }
     })
+  },
+
+  getCompanyProfile(market: StockMarket, symbol: string): CompanyProfileRecord | null {
+    const row = getDb()
+      .prepare('SELECT market, symbol, name, company_intro, source, updated_at FROM stocks_company_profiles WHERE market = ? AND symbol = ?')
+      .get(market, normSymbol(symbol)) as
+      | {
+          market: StockMarket
+          symbol: string
+          name: string | null
+          company_intro: string
+          source: string
+          updated_at: string
+        }
+      | undefined
+    if (!row) return null
+    const source: CompanyProfileSource =
+      row.source === 'ai' || row.source === 'yahoo' || row.source === 'fallback' ? row.source : 'fallback'
+    return {
+      market: row.market,
+      symbol: row.symbol,
+      name: row.name || undefined,
+      companyIntro: row.company_intro,
+      source,
+      updatedAt: row.updated_at,
+    }
+  },
+
+  upsertCompanyProfile(input: {
+    market: StockMarket
+    symbol: string
+    name?: string
+    companyIntro: string
+    source: CompanyProfileSource
+  }): CompanyProfileRecord {
+    const next: CompanyProfileRecord = {
+      market: input.market,
+      symbol: normSymbol(input.symbol),
+      name: input.name?.trim() || undefined,
+      companyIntro: input.companyIntro.trim(),
+      source: input.source,
+      updatedAt: new Date().toISOString(),
+    }
+    getDb()
+      .prepare(
+        `INSERT INTO stocks_company_profiles (market, symbol, name, company_intro, source, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(market, symbol) DO UPDATE SET
+           name = excluded.name,
+           company_intro = excluded.company_intro,
+           source = excluded.source,
+           updated_at = excluded.updated_at`,
+      )
+      .run(next.market, next.symbol, next.name ?? null, next.companyIntro, next.source, next.updatedAt)
+    return next
   },
 }

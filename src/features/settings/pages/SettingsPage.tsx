@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   AppLocale,
@@ -26,16 +26,21 @@ import { SettingActionButton } from '@renderer/shared/ui/SettingActionButton'
 import { SettingOption } from '@renderer/shared/ui/SettingOption'
 import { ToggleSwitch } from '@renderer/shared/ui/ToggleSwitch'
 import {
+  IconBell,
   IconDial,
   IconDownload,
   IconEraser,
   IconFlower,
   IconGlobe,
   IconImage,
+  IconKey,
   IconLayers,
   IconMonitor,
   IconMoon,
+  IconSettings,
+  IconStocks,
   IconSun,
+  IconTrash,
   IconTray,
   IconUpload,
   IconSparkles,
@@ -77,6 +82,7 @@ export function SettingsPage(): React.JSX.Element {
   const [widget, setWidget] = useState<DesktopWidgetView>({
     ...DEFAULT_DESKTOP_WIDGET,
     backgroundImageUrl: null,
+    backgroundHistory: [],
   })
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
   const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
@@ -98,6 +104,19 @@ export function SettingsPage(): React.JSX.Element {
   const [aiTesting, setAiTesting] = useState(false)
   const [aiTestHint, setAiTestHint] = useState<string | null>(null)
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
+
+  type SettingsSection = 'general' | 'display' | 'models' | 'fortune' | 'stocks' | 'notifications' | 'data'
+  const [section, setSection] = useState<SettingsSection>('models')
+
+  const navItems: { id: SettingsSection; labelKey: string; icon: ReactNode }[] = [
+    { id: 'general', labelKey: 'settings.nav.general', icon: <IconSettings /> },
+    { id: 'display', labelKey: 'settings.nav.display', icon: <IconMonitor /> },
+    { id: 'models', labelKey: 'settings.nav.models', icon: <IconKey /> },
+    { id: 'fortune', labelKey: 'settings.nav.fortune', icon: <IconSparkles /> },
+    { id: 'stocks', labelKey: 'settings.nav.stocks', icon: <IconStocks /> },
+    { id: 'notifications', labelKey: 'settings.nav.notifications', icon: <IconBell /> },
+    { id: 'data', labelKey: 'settings.nav.data', icon: <IconDownload /> },
+  ]
 
   useEffect(() => {
     void window.treasureChest.getDesktopWidget().then(setWidget)
@@ -225,8 +244,15 @@ export function SettingsPage(): React.JSX.Element {
   const onSaveAiConfig = (): void => {
     setAiSavedHint(null)
     const normalizedModels = Array.from(new Set(aiModels.map((m) => m.trim()).filter(Boolean)))
-    const resolvedModels = normalizedModels.length > 0 ? normalizedModels : [aiModel.trim() || 'gpt-4o-mini']
-    const resolvedModel = resolvedModels.includes(aiModel.trim()) ? aiModel.trim() : resolvedModels[0]!
+    const resolvedModels =
+      normalizedModels.length > 0
+        ? normalizedModels
+        : aiModel.trim()
+          ? [aiModel.trim()]
+          : []
+    const resolvedModel = resolvedModels.includes(aiModel.trim())
+      ? aiModel.trim()
+      : (resolvedModels[0] ?? '')
     const nextProviders = aiProviders.map((provider) =>
       provider.id === aiActiveProviderId
         ? {
@@ -266,7 +292,11 @@ export function SettingsPage(): React.JSX.Element {
 
   const onTestAiConnection = (): void => {
     const resolvedModels = Array.from(new Set(aiModels.map((m) => m.trim()).filter(Boolean)))
-    const model = aiModel.trim() || resolvedModels[0] || 'gpt-4o-mini'
+    const model = aiModel.trim() || resolvedModels[0] || ''
+    if (!model) {
+      setAiTestHint(t('settings.fortuneAiNeedModel'))
+      return
+    }
     const provider: FortuneAiProviderConfig = {
       id: aiActiveProviderId || 'temp-provider',
       name: aiProviderName.trim() || 'Provider',
@@ -323,7 +353,7 @@ export function SettingsPage(): React.JSX.Element {
       name: `Provider ${aiProviders.length + 1}`,
       baseUrl: 'https://api.example.com/v1',
       apiFormat: 'openai',
-      models: ['gpt-4o-mini'],
+      models: [],
       apiKey: '',
     }
     const nextProviders = [...aiProviders, next]
@@ -354,10 +384,29 @@ export function SettingsPage(): React.JSX.Element {
   }
 
   return (
-    <section className={styles.page}>
-      <h1 className={styles.title}>{t('settings.title')}</h1>
+    <div className={styles.shell}>
+      <aside className={styles.side}>
+        <h1 className={styles.sideTitle}>{t('settings.title')}</h1>
+        <p className={styles.sideHint}>{t('settings.subtitle')}</p>
+        <nav className={styles.sideNav}>
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`${styles.sideLink} ${section === item.id ? styles.sideLinkActive : ''}`}
+              onClick={() => setSection(item.id)}
+            >
+              <span className={styles.sideIcon}>{item.icon}</span>
+              {t(item.labelKey)}
+            </button>
+          ))}
+        </nav>
+      </aside>
 
-      <div className={styles.group}>
+      <section className={styles.page}>
+        <h2 className={styles.title}>{t(`settings.nav.${section}`)}</h2>
+
+      <div className={styles.group} hidden={section !== 'display'}>
         <h2 className={styles.label}>{t('settings.desktopWidget')}</h2>
         <p className={styles.desc}>{t('settings.desktopWidget.desc')}</p>
 
@@ -442,6 +491,46 @@ export function SettingsPage(): React.JSX.Element {
               />
             </div>
           </div>
+
+          {widget.backgroundHistory.length > 0 ? (
+            <div className={styles.bgHistory}>
+              <div className={styles.bgHistoryLabel}>{t('settings.desktopWidget.backgroundHistory')}</div>
+              <div className={styles.bgHistoryGrid}>
+                {widget.backgroundHistory.map((item) => {
+                  const active = widget.backgroundImagePath === item.path
+                  return (
+                    <div
+                      key={item.path}
+                      className={`${styles.bgHistoryItem} ${active ? styles.bgHistoryItemActive : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className={styles.bgHistoryThumb}
+                        style={{ backgroundImage: `url(${item.url})` }}
+                        aria-label={t('settings.desktopWidget.useBackground')}
+                        aria-pressed={active}
+                        onClick={() =>
+                          void window.treasureChest.selectDialBackground(item.path).then(setWidget)
+                        }
+                      />
+                      <button
+                        type="button"
+                        className={styles.bgHistoryDelete}
+                        aria-label={t('settings.desktopWidget.deleteBackground')}
+                        title={t('settings.desktopWidget.deleteBackground')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void window.treasureChest.deleteDialBackground(item.path).then(setWidget)
+                        }}
+                      >
+                        <IconTrash />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className={styles.settingRow}>
@@ -457,7 +546,7 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.group}>
+      <div className={styles.group} hidden={section !== 'general'}>
         <h2 className={styles.label}>{t('settings.system')}</h2>
 
         <div className={styles.settingRow}>
@@ -490,7 +579,7 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.group}>
+      <div className={styles.group} hidden={section !== 'fortune'}>
         <h2 className={styles.label}>{t('settings.fortune')}</h2>
 
         <div className={styles.faceBlock}>
@@ -529,9 +618,9 @@ export function SettingsPage(): React.JSX.Element {
 
       </div>
 
-      <div className={styles.group}>
-        <h2 className={styles.label}>{t('settings.fortuneAiConfigTitle')}</h2>
-        <p className={styles.desc}>{t('settings.fortuneAiConfigHint')}</p>
+      <div className={styles.group} hidden={section !== 'models'}>
+        <h2 className={styles.label}>{t('settings.modelsTitle')}</h2>
+        <p className={styles.desc}>{t('settings.modelsHint')}</p>
         <div className={styles.aiProviderRow}>
           <div className={styles.aiProviderList}>
             {aiProviders.map((provider) => (
@@ -644,7 +733,7 @@ export function SettingsPage(): React.JSX.Element {
         {aiTestHint ? <p className={styles.hint}>{aiTestHint}</p> : null}
       </div>
 
-      <div className={styles.group}>
+      <div className={styles.group} hidden={section !== 'stocks'}>
         <h2 className={styles.label}>{t('settings.stocks')}</h2>
         <p className={styles.groupHint}>{t('settings.stocksHint')}</p>
 
@@ -752,7 +841,7 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.group}>
+      <div className={styles.group} hidden={section !== 'notifications'}>
         <h2 className={styles.label}>{t('settings.notifications')}</h2>
 
         <div className={styles.settingRow}>
@@ -780,7 +869,7 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.group}>
+      <div className={styles.group} hidden={section !== 'display'}>
         <h2 className={styles.label}>{t('settings.theme')}</h2>
         <div className={styles.optionGrid}>
           {themes.map((mode) => (
@@ -797,7 +886,7 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.group}>
+      <div className={styles.group} hidden={section !== 'general'}>
         <h2 className={styles.label}>{t('settings.language')}</h2>
         <div className={styles.optionGrid}>
           {locales.map((locale) => (
@@ -814,7 +903,7 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.group}>
+      <div className={styles.group} hidden={section !== 'data'}>
         <h2 className={styles.label}>{t('settings.backup')}</h2>
         <p className={styles.desc}>{t('settings.backupDesc')}</p>
         <div className={styles.actionRow}>
@@ -833,6 +922,7 @@ export function SettingsPage(): React.JSX.Element {
         </div>
         {backupMsg ? <p className={styles.hint}>{backupMsg}</p> : null}
       </div>
-    </section>
+      </section>
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: 220px 1fr;
   height: 100vh;
   overflow: hidden;
   background: var(--color-bg);
@@ -9,11 +9,10 @@
 .nav {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-5) var(--space-3);
-  background: var(--color-bg-elevated);
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  background: var(--gradient-sidebar);
   border-right: 1px solid var(--color-border);
-  box-shadow: var(--shadow-soft);
   height: 100%;
   min-height: 0;
   overflow-y: auto;
@@ -29,19 +28,21 @@
 .brandMark {
   display: grid;
   place-items: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.55rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: var(--radius-md);
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-brand) 28%, transparent);
+  background: transparent;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-brand) 22%, transparent);
 }
 
 .brandMark img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  background: transparent;
 }
 
 .brandText {
@@ -53,14 +54,17 @@
 
 .brandName {
   font-family: var(--font-display);
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 0.98rem;
+  font-weight: 750;
   color: var(--color-ink);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brandTag {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--color-ink-tertiary);
   white-space: nowrap;
   overflow: hidden;
@@ -72,6 +76,16 @@
   flex-direction: column;
   gap: 2px;
   flex: 1;
+}
+
+.sectionLabel {
+  margin: var(--space-3) 0 var(--space-1);
+  padding: 0 var(--space-3);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-tertiary);
 }
 
 .navFooter {
@@ -91,7 +105,7 @@
   margin-top: 2px;
   padding: 0.5rem 0.75rem;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-ink-tertiary);
   cursor: pointer;
@@ -122,13 +136,14 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--radius-md);
+  padding: 0.62rem 0.8rem;
+  border-radius: var(--radius-full);
   color: var(--color-ink-secondary);
   text-decoration: none;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    box-shadow 0.15s ease;
   position: relative;
 }
 
@@ -137,40 +152,54 @@
   place-items: center;
   width: 1.35rem;
   height: 1.35rem;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   flex-shrink: 0;
   opacity: 0.9;
 }
 
 .linkLabel {
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.88rem;
+  font-weight: 560;
 }
 
 .link:hover {
   color: var(--color-ink);
-  background: var(--color-bg-muted);
+  background: color-mix(in srgb, var(--color-bg-elevated) 75%, transparent);
 }
 
 .linkActive {
-  color: var(--color-brand);
-  background: var(--color-brand-soft);
-  font-weight: 600;
+  color: var(--color-brand-strong);
+  background: var(--color-bg-elevated);
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
 }
 
 .linkActive .linkIcon {
   opacity: 1;
 }
 
-.linkActive::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 20%;
-  bottom: 20%;
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  background: var(--color-brand);
+.addAgentBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 0.62rem 0.8rem;
+  border: 1px dashed color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-brand-strong);
+  cursor: pointer;
+  text-align: left;
+  margin-top: 2px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.addAgentBtn:hover {
+  background: var(--color-brand-soft);
+  border-style: solid;
 }
 
 .main {
@@ -183,4 +212,20 @@
   overflow-y: auto;
   background-image: var(--gradient-calendar-morning);
   background-attachment: local;
+}
+
+.mainFlush {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.mainFlush > * {
+  flex: 1;
+  min-height: 0;
 }
