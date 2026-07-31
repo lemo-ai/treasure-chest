@@ -14,6 +14,8 @@ import {
   type FortuneAiConnectionTestInput,
   type FortuneAiConnectionTestResponse,
   type FortuneAiResponse,
+  type LlmChatRequest,
+  type LlmChatResponse,
   type StockMarket,
   type ScannerPoolItem,
   type StocksReport,
@@ -92,6 +94,8 @@ const api = {
     ipcRenderer.invoke(IpcChannels.fortune.generateAiAnalysis, { fortune, locale }),
   testFortuneAiConnection: (payload: FortuneAiConnectionTestInput): Promise<FortuneAiConnectionTestResponse> =>
     ipcRenderer.invoke(IpcChannels.fortune.testAiConnection, payload),
+  workbenchChat: (payload: LlmChatRequest): Promise<LlmChatResponse> =>
+    ipcRenderer.invoke(IpcChannels.workbench.chat, payload),
   getStocksWatchlist: (): Promise<WatchlistItem[]> => ipcRenderer.invoke(IpcChannels.stocks.getWatchlist),
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }): Promise<WatchlistItem> =>
     ipcRenderer.invoke(IpcChannels.stocks.addWatchlistItem, payload),

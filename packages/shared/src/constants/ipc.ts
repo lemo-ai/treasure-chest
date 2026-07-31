@@ -38,6 +38,9 @@ export const IpcChannels = {
     generateAiAnalysis: 'fortune:generateAiAnalysis',
     testAiConnection: 'fortune:testAiConnection',
   },
+  workbench: {
+    chat: 'workbench:chat',
+  },
   stocks: {
     getWatchlist: 'stocks:getWatchlist',
     addWatchlistItem: 'stocks:addWatchlistItem',

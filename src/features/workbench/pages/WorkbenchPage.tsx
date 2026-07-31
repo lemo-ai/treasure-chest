@@ -70,6 +70,28 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function isLocalLlmBaseUrl(baseUrl: string): boolean {
+  const raw = baseUrl.trim().toLowerCase()
+  if (!raw) return false
+  try {
+    const host = new URL(raw).hostname.toLowerCase()
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    )
+  } catch {
+    return (
+      raw.includes('localhost') ||
+      raw.includes('127.0.0.1') ||
+      raw.includes('0.0.0.0') ||
+      raw.includes('[::1]')
+    )
+  }
+}
+
 function readPanelOpen(): boolean {
   try {
     const raw = localStorage.getItem(PANEL_KEY)
@@ -138,8 +160,9 @@ export function WorkbenchPage(): React.JSX.Element {
   const moreRef = useRef<HTMLDivElement>(null)
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState('')
-  const [providerName, setProviderName] = useState('')
+  const [aiBaseUrl, setAiBaseUrl] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
+  const [sending, setSending] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -177,8 +200,8 @@ export function WorkbenchPage(): React.JSX.Element {
     const applyAiSettings = (fortune: {
       aiModels?: string[]
       aiModel?: string
-      aiProviderName?: string
       aiApiKey?: string
+      aiBaseUrl?: string
     } | undefined): void => {
       const models = (fortune?.aiModels ?? []).map((m) => m.trim()).filter(Boolean)
       setModelOptions(models)
@@ -187,7 +210,7 @@ export function WorkbenchPage(): React.JSX.Element {
           ? fortune.aiModel
           : (models[0] ?? '')
       setSelectedModel(selected)
-      setProviderName(fortune?.aiProviderName || '')
+      setAiBaseUrl(fortune?.aiBaseUrl || '')
       setHasApiKey(Boolean(fortune?.aiApiKey?.trim()))
     }
 
@@ -222,7 +245,7 @@ export function WorkbenchPage(): React.JSX.Element {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length, activeId])
+  }, [messages.length, activeId, sending])
 
   const togglePanel = (): void => setPanelOpen((v) => !v)
 
@@ -276,30 +299,72 @@ export function WorkbenchPage(): React.JSX.Element {
     refresh()
   }
 
-  const sendText = (text: string): void => {
+  const localEndpoint = isLocalLlmBaseUrl(aiBaseUrl)
+
+  const sendText = async (text: string): Promise<void> => {
     const content = text.trim()
-    if (!content && attachments.length === 0) return
+    if ((!content && attachments.length === 0) || sending) return
+    if (!selectedModel) {
+      const sessionId = ensureSession(activeAgent)
+      appendMessage(sessionId, 'system', t('workbench.needModel'))
+      refresh(sessionId)
+      return
+    }
+    if (!hasApiKey && !localEndpoint) {
+      const sessionId = ensureSession(activeAgent)
+      appendMessage(sessionId, 'system', t('workbench.needApiKey'))
+      refresh(sessionId)
+      return
+    }
+
     const sessionId = ensureSession(activeAgent)
     const fileLine =
       attachments.length > 0
         ? `\n${t('workbench.attachedFiles', { files: attachments.map((a) => a.name).join('、') })}`
         : ''
-    const modelLine = selectedModel ? `\n[${providerName || 'AI'} · ${selectedModel}]` : ''
     appendMessage(sessionId, 'user', `${content}${fileLine}`.trim())
-    appendMessage(
-      sessionId,
-      'assistant',
-      t('workbench.placeholderReply', { agent: activeAgentName }) + modelLine,
-    )
     setDraft('')
     setAttachments([])
+    setSending(true)
     refresh(sessionId)
+
+    const history = listMessages(sessionId)
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }))
+
+    try {
+      const res = await window.treasureChest.workbenchChat({
+        agentId: String(activeAgent),
+        model: selectedModel,
+        messages: history,
+        systemPrompt: activeAgentDef.builtin ? undefined : activeAgentDef.systemPrompt,
+        locale: i18n.language,
+      })
+      if (res.ok && res.text?.trim()) {
+        appendMessage(sessionId, 'assistant', res.text.trim())
+      } else {
+        appendMessage(
+          sessionId,
+          'system',
+          t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
+        )
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
+    } finally {
+      setSending(false)
+      refresh(sessionId)
+    }
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      sendText(draft)
+      void sendText(draft)
     }
   }
 
@@ -628,7 +693,7 @@ export function WorkbenchPage(): React.JSX.Element {
         </header>
 
         <div className={styles.messages}>
-          {messages.length === 0 ? (
+          {messages.length === 0 && !sending ? (
             <div className={styles.empty}>
               <div className={styles.emptyMark}>
                 <IconChatBubble />
@@ -643,7 +708,7 @@ export function WorkbenchPage(): React.JSX.Element {
                     key={key}
                     type="button"
                     className={styles.chip}
-                    onClick={() => sendText(t(key))}
+                    onClick={() => void sendText(t(key))}
                   >
                     {t(key)}
                   </button>
@@ -669,6 +734,13 @@ export function WorkbenchPage(): React.JSX.Element {
                   </div>
                 )
               })}
+              {sending ? (
+                <div className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
+                  <div className={`${styles.bubble} ${styles.bubbleAssistant} ${styles.bubbleThinking}`}>
+                    {t('workbench.thinking')}
+                  </div>
+                </div>
+              ) : null}
               <div ref={bottomRef} />
             </div>
           )}
@@ -777,16 +849,21 @@ export function WorkbenchPage(): React.JSX.Element {
                     {t('workbench.configureModel')}
                   </Link>
                 )}
-                {modelOptions.length > 0 && !hasApiKey ? (
+                {modelOptions.length > 0 && !hasApiKey && !localEndpoint ? (
                   <Link className={styles.keyWarn} to="/settings">
                     {t('workbench.missingApiKey')}
                   </Link>
                 ) : null}
+                {localEndpoint ? (
+                  <span className={styles.localTag} title={aiBaseUrl}>
+                    {t('workbench.localModel')}
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   className={styles.sendBtn}
-                  disabled={!draft.trim() && attachments.length === 0}
-                  onClick={() => sendText(draft)}
+                  disabled={sending || (!draft.trim() && attachments.length === 0)}
+                  onClick={() => void sendText(draft)}
                   aria-label={t('workbench.send')}
                 >
                   <IconSend />

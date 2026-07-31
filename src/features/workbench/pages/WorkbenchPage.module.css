@@ -501,14 +501,19 @@
   border-bottom-left-radius: 10px;
 }
 
-.bubbleSystem {
-  margin: 0 auto;
-  background: var(--color-highlight-soft);
-  color: var(--color-ink-secondary);
+.bubbleThinking {
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.localTag {
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: var(--color-brand-strong);
+  padding: 0.25rem 0.55rem;
   border-radius: var(--radius-full);
-  font-size: 0.78rem;
-  padding: 0.45rem 0.9rem;
-  box-shadow: none;
+  background: color-mix(in srgb, var(--color-brand) 14%, transparent);
+  white-space: nowrap;
 }
 
 .composerWrap {

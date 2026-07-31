@@ -7,6 +7,7 @@ import {
   type DesktopWidgetSettings,
   type FortuneAiConnectionTestInput,
   type DailyFortune,
+  type LlmChatRequest,
   type StockMarket,
   type StocksReport,
   type LaunchBehavior,
@@ -26,6 +27,7 @@ import {
 } from '../modules/settings/DialBackground'
 import { fortuneStore } from '../modules/fortune/FortuneStore'
 import { generateFortuneAiAnalysis, testAiProviderConnection } from '../modules/fortune/FortuneAiService'
+import { runWorkbenchChat } from '../modules/llm/WorkbenchChatService'
 import { exportBackup, importBackup } from '../modules/backup/BackupService'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
@@ -169,6 +171,10 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.fortune.testAiConnection, (_e, payload: FortuneAiConnectionTestInput) =>
     testAiProviderConnection(payload),
   )
+  ipcMain.handle(IpcChannels.workbench.chat, async (_e, payload: LlmChatRequest) => {
+    const fortuneSettings = settingsStore.getFortuneSettings()
+    return runWorkbenchChat(payload, fortuneSettings)
+  })
 
   ipcMain.handle(IpcChannels.stocks.getWatchlist, () => stocksStore.getWatchlist())
   ipcMain.handle(

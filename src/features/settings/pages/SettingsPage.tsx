@@ -367,6 +367,28 @@ export function SettingsPage(): React.JSX.Element {
     setAiApiKey(next.apiKey)
   }
 
+  const applyLocalPreset = (kind: 'ollama' | 'lmstudio'): void => {
+    if (kind === 'ollama') {
+      setAiProviderName('Ollama')
+      setAiBaseUrl('http://127.0.0.1:11434/v1')
+      setAiApiFormat('openai')
+      setAiApiKey('')
+      if (aiModels.length === 0) {
+        setAiModels(['qwen2.5:7b'])
+        setAiModel('qwen2.5:7b')
+      }
+      return
+    }
+    setAiProviderName('LM Studio')
+    setAiBaseUrl('http://127.0.0.1:1234/v1')
+    setAiApiFormat('openai')
+    setAiApiKey('')
+    if (aiModels.length === 0) {
+      setAiModels(['local-model'])
+      setAiModel('local-model')
+    }
+  }
+
   const onRemoveProvider = (id: string): void => {
     const next = aiProviders.filter((p) => p.id !== id)
     if (next.length === 0) return
@@ -621,6 +643,16 @@ export function SettingsPage(): React.JSX.Element {
       <div className={styles.group} hidden={section !== 'models'}>
         <h2 className={styles.label}>{t('settings.modelsTitle')}</h2>
         <p className={styles.desc}>{t('settings.modelsHint')}</p>
+        <div className={styles.localPresetRow}>
+          <span className={styles.localPresetLabel}>{t('settings.modelsLocalPresets')}</span>
+          <button type="button" className={styles.localPresetBtn} onClick={() => applyLocalPreset('ollama')}>
+            {t('settings.modelsPreset.ollama')}
+          </button>
+          <button type="button" className={styles.localPresetBtn} onClick={() => applyLocalPreset('lmstudio')}>
+            {t('settings.modelsPreset.lmstudio')}
+          </button>
+        </div>
+        <p className={styles.settingHint}>{t('settings.modelsLocalHint')}</p>
         <div className={styles.aiProviderRow}>
           <div className={styles.aiProviderList}>
             {aiProviders.map((provider) => (
@@ -659,7 +691,7 @@ export function SettingsPage(): React.JSX.Element {
               className={styles.aiInput}
               value={aiBaseUrl}
               onChange={(e) => setAiBaseUrl(e.target.value)}
-              placeholder="https://api.example.com/v1"
+              placeholder={t('settings.fortuneAiBaseUrlPlaceholder')}
             />
           </label>
           <label className={styles.aiField}>

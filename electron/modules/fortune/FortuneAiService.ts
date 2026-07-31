@@ -6,25 +6,7 @@ import type {
   FortuneAiResponse,
   FortuneSettings,
 } from '@shared'
-import { logger } from '../../utils/logger'
-
-function trimTrailingSlash(url: string): string {
-  return url.endsWith('/') ? url.slice(0, -1) : url
-}
-
-async function safeJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json()
-  } catch {
-    return {}
-  }
-}
-
-function shortText(value: unknown, limit = 240): string {
-  const raw = typeof value === 'string' ? value : JSON.stringify(value)
-  if (!raw) return ''
-  return raw.length > limit ? `${raw.slice(0, limit)}…` : raw
-}
+import { callLlmChat, isLocalLlmEndpoint } from '../llm/LlmClient'
 
 function buildPrompt(fortune: DailyFortune, locale: string): string {
   const aspectRows = [
@@ -90,38 +72,15 @@ function buildPrompt(fortune: DailyFortune, locale: string): string {
   ].join('\n')
 }
 
-interface ChatCompletionChoice {
-  message?: {
-    content?: string
-  }
-}
-
-interface ChatCompletionResponse {
-  choices?: ChatCompletionChoice[]
-  error?: {
-    message?: string
-  }
-}
-
-interface AnthropicResponse {
-  content?: Array<{
-    type?: string
-    text?: string
-  }>
-  error?: {
-    message?: string
-  }
-}
-
 function providerToSettings(provider: FortuneAiProviderConfig, model: string): FortuneSettings {
-  const safeModel = model.trim() || provider.models[0] || 'gpt-4o-mini'
+  const safeModel = model.trim() || provider.models[0] || ''
   return {
     hexagramSchool: 'daymaster',
     aiPolish: true,
     aiBaseUrl: provider.baseUrl,
     aiProviderName: provider.name,
     aiApiFormat: provider.apiFormat,
-    aiModels: provider.models.length > 0 ? provider.models : [safeModel],
+    aiModels: provider.models.length > 0 ? provider.models : safeModel ? [safeModel] : [],
     aiModel: safeModel,
     aiApiKey: provider.apiKey,
     aiProviders: [provider],
@@ -134,166 +93,71 @@ export async function generateFortuneAiAnalysis(
   locale: string,
   settings: FortuneSettings,
 ): Promise<FortuneAiResponse> {
-  if (!settings.aiApiKey.trim()) {
+  const baseUrl = settings.aiBaseUrl.trim() || 'https://api.openai.com/v1'
+  const local = isLocalLlmEndpoint(baseUrl)
+  if (!settings.aiApiKey.trim() && !local) {
     return { ok: false, error: 'AI API key is empty.' }
   }
-  const baseUrl = trimTrailingSlash(settings.aiBaseUrl.trim() || 'https://api.openai.com/v1')
-  const model = settings.aiModel.trim() || 'gpt-4o-mini'
-  const prompt = buildPrompt(fortune, locale)
-  const format = settings.aiApiFormat === 'anthropic' ? 'anthropic' : 'openai'
-  const requestTag = `fortune-ai-${Date.now().toString(36)}`
-  logger.info(
-    `[${requestTag}] start provider=${settings.aiProviderName} format=${format} model=${model} base=${baseUrl}`,
-  )
-
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 20000)
-    try {
-      if (format === 'anthropic') {
-        const response = await fetch(`${baseUrl}/messages`, {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': settings.aiApiKey.trim(),
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 900,
-            temperature: 0.7,
-            messages: [
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-          }),
-        })
-        const data = (await safeJson(response)) as AnthropicResponse
-        if (!response.ok) {
-          const err = data.error?.message ?? `HTTP ${response.status}`
-          logger.warn(
-            `[${requestTag}] failed status=${response.status} body=${shortText(data)} err=${err}`,
-          )
-          return { ok: false, error: err }
-        }
-        const text = (data.content ?? [])
-          .filter((part) => part.type === 'text' && typeof part.text === 'string')
-          .map((part) => part.text?.trim() ?? '')
-          .join('\n')
-          .trim()
-        if (!text) {
-          logger.warn(`[${requestTag}] empty text response body=${shortText(data)}`)
-          return { ok: false, error: 'Empty AI response.' }
-        }
-        logger.info(`[${requestTag}] success format=anthropic text_len=${text.length}`)
-        return { ok: true, text }
-      }
-
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${settings.aiApiKey.trim()}`,
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0.7,
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-        }),
-      })
-
-      const data = (await safeJson(response)) as ChatCompletionResponse
-      if (!response.ok) {
-        const err = data.error?.message ?? `HTTP ${response.status}`
-        logger.warn(
-          `[${requestTag}] failed status=${response.status} body=${shortText(data)} err=${err}`,
-        )
-        return { ok: false, error: err }
-      }
-
-      const text = data.choices?.[0]?.message?.content?.trim() ?? ''
-      if (!text) {
-        logger.warn(`[${requestTag}] empty text response body=${shortText(data)}`)
-        return { ok: false, error: 'Empty AI response.' }
-      }
-      logger.info(`[${requestTag}] success format=openai text_len=${text.length}`)
-      return { ok: true, text }
-    } finally {
-      clearTimeout(timer)
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    logger.warn(`[${requestTag}] request error: ${msg}`)
-    return { ok: false, error: msg }
+  const model = settings.aiModel.trim()
+  if (!model) {
+    return { ok: false, error: 'Model id is empty.' }
   }
+
+  const result = await callLlmChat({
+    baseUrl,
+    apiKey: settings.aiApiKey,
+    apiFormat: settings.aiApiFormat === 'anthropic' ? 'anthropic' : 'openai',
+    model,
+    providerName: settings.aiProviderName,
+    messages: [{ role: 'user', content: buildPrompt(fortune, locale) }],
+    temperature: 0.7,
+    maxTokens: 900,
+    timeoutMs: 45_000,
+    tag: `fortune-ai-${Date.now().toString(36)}`,
+  })
+
+  if (!result.ok) return { ok: false, error: result.error ?? 'AI request failed.' }
+  return { ok: true, text: result.text ?? '' }
 }
 
 export async function testAiProviderConnection(
   input: FortuneAiConnectionTestInput,
 ): Promise<FortuneAiConnectionTestResponse> {
-  const fakeFortune: DailyFortune = {
-    date: '2026-01-01',
-    profileId: 'connection-test',
-    bazi: {
-      year: '甲子',
-      month: '乙丑',
-      day: '丙寅',
-      hour: null,
-      dayMaster: '丙',
-      hourKnown: false,
-      animal: '鼠',
-      yinYang: 'yang',
-      element: '火',
-    },
-    hexagram: {
-      id: 1,
-      name: '乾',
-      nameFull: '乾为天',
-      nameEn: 'The Creative',
-      tendency: 'favorable',
-      summary: '测试连接摘要',
-      advice: '测试连接建议',
-    },
-    overall: {
-      score: 80,
-      level: 'good',
-      blurb: '连接测试',
-    },
-    aspects: {
-      career: { score: 80, level: 'good', blurb: 'test' },
-      wealth: { score: 80, level: 'good', blurb: 'test' },
-      relationship: { score: 80, level: 'good', blurb: 'test' },
-      health: { score: 80, level: 'good', blurb: 'test' },
-      mood: { score: 80, level: 'good', blurb: 'test' },
-    },
-    lucky: { colors: ['青绿'], directions: ['东'], numbers: [3, 8] },
-    disclaimer: 'test',
-    source: { engine: 'test', aiPolished: true },
+  const settings = providerToSettings(input.provider, input.model)
+  const baseUrl = settings.aiBaseUrl.trim() || 'https://api.openai.com/v1'
+  const local = isLocalLlmEndpoint(baseUrl)
+  if (!settings.aiApiKey.trim() && !local) {
+    return { ok: false, message: 'API key is empty.' }
+  }
+  if (!settings.aiModel.trim()) {
+    return { ok: false, message: 'Model id is empty.' }
   }
 
   const startedAt = Date.now()
-  const result = await generateFortuneAiAnalysis(
-    fakeFortune,
-    'zh-CN',
-    providerToSettings(input.provider, input.model),
-  )
+  const ping = local
+    ? 'Reply with exactly: pong'
+    : 'Reply with a short OK.'
+  const result = await callLlmChat({
+    baseUrl,
+    apiKey: settings.aiApiKey,
+    apiFormat: settings.aiApiFormat === 'anthropic' ? 'anthropic' : 'openai',
+    model: settings.aiModel,
+    providerName: settings.aiProviderName,
+    messages: [
+      { role: 'system', content: 'You are a connection test probe. Reply briefly.' },
+      { role: 'user', content: ping },
+    ],
+    temperature: 0,
+    maxTokens: 32,
+    timeoutMs: 30_000,
+    tag: `ai-test-${Date.now().toString(36)}`,
+  })
+
   if (!result.ok) {
-    return {
-      ok: false,
-      message: result.error ?? 'Connection failed.',
-    }
+    return { ok: false, message: result.error ?? 'Connection failed.' }
   }
   return {
     ok: true,
-    message: `连接成功（${Date.now() - startedAt}ms）`,
+    message: `连接成功（${Date.now() - startedAt}ms）${local ? ' · 本地' : ''}`,
   }
 }

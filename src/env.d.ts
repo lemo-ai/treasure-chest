@@ -12,6 +12,8 @@ import type {
   FortuneAiConnectionTestInput,
   FortuneAiConnectionTestResponse,
   FortuneAiResponse,
+  LlmChatRequest,
+  LlmChatResponse,
   StockMarket,
   ScannerPoolItem,
   StocksReport,
@@ -56,6 +58,7 @@ interface TreasureChestApi {
   setStocksSettings: (partial: Partial<StocksSettings>) => Promise<StocksSettings>
   generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string) => Promise<FortuneAiResponse>
   testFortuneAiConnection: (payload: FortuneAiConnectionTestInput) => Promise<FortuneAiConnectionTestResponse>
+  workbenchChat: (payload: LlmChatRequest) => Promise<LlmChatResponse>
   getStocksWatchlist: () => Promise<WatchlistItem[]>
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }) => Promise<WatchlistItem>
   removeStocksWatchlistItem: (payload: { market: StockMarket; symbol: string }) => Promise<boolean>

@@ -140,6 +140,38 @@
   line-height: 1.5;
 }
 
+.localPresetRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 var(--space-2);
+}
+
+.localPresetLabel {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--color-ink-secondary);
+  margin-right: 0.25rem;
+}
+
+.localPresetBtn {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.localPresetBtn:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand-strong);
+  background: var(--color-brand-soft);
+}
+
 .settingRow {
   display: flex;
   align-items: center;
