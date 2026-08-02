@@ -35,21 +35,16 @@ import {
   IconDial,
   IconDownload,
   IconEraser,
-  IconFlower,
-  IconGlobe,
   IconImage,
   IconKey,
   IconLayers,
   IconMonitor,
-  IconMoon,
   IconSettings,
   IconStocks,
-  IconSun,
   IconTrash,
   IconTray,
   IconUpload,
   IconSparkles,
-  IconYinYang,
 } from '@renderer/shared/ui/icons'
 import { BirthProfileForm } from '@renderer/features/fortune/components/BirthProfileForm'
 import styles from './SettingsPage.module.css'
@@ -59,27 +54,10 @@ const locales: AppLocale[] = ['zh-CN', 'en-US']
 const launchBehaviors: LaunchBehavior[] = ['main', 'tray', 'widget']
 const hexagramSchools: HexagramSchool[] = HEXAGRAM_SCHOOLS
 
-const themeMeta = {
-  light: { icon: <IconSun />, tone: 'highlight' as const },
-  dark: { icon: <IconMoon />, tone: 'accent' as const },
-  system: { icon: <IconMonitor />, tone: 'brand' as const },
-}
-
 const launchBehaviorMeta = {
   main: { icon: <IconMonitor />, tone: 'brand' as const },
   tray: { icon: <IconTray />, tone: 'accent' as const },
   widget: { icon: <IconDial />, tone: 'highlight' as const },
-}
-
-const hexagramSchoolMeta = {
-  daymaster: { icon: <IconYinYang />, tone: 'brand' as const },
-  meihua: { icon: <IconFlower />, tone: 'highlight' as const },
-  liuyao: { icon: <IconLayers />, tone: 'accent' as const },
-}
-
-const localeMeta = {
-  'zh-CN': { icon: <IconGlobe />, tone: 'brand' as const },
-  'en-US': { icon: <IconGlobe />, tone: 'accent' as const },
 }
 
 export function SettingsPage(): React.JSX.Element {
@@ -94,6 +72,7 @@ export function SettingsPage(): React.JSX.Element {
   const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
   const [fortuneDailyNotify, setFortuneDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
   const [stocksDailyNotify, setStocksDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
+  const [fortuneNotifyHour, setFortuneNotifyHour] = useState(DEFAULT_NOTIFICATION_SETTINGS.fortuneNotifyHour)
   const [stocksSettings, setStocksSettings] = useState<StocksSettings>({ ...DEFAULT_STOCKS_SETTINGS })
   const [hexagramSchool, setHexagramSchool] = useState<HexagramSchool>(DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
   const [fortuneAiPolish, setFortuneAiPolish] = useState(DEFAULT_FORTUNE_SETTINGS.aiPolish)
@@ -187,6 +166,7 @@ export function SettingsPage(): React.JSX.Element {
       setLaunchBehavior(snap.launchBehavior)
       setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
       setStocksDailyNotify(snap.notifications?.stocksDaily ?? DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
+      setFortuneNotifyHour(snap.notifications?.fortuneNotifyHour ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneNotifyHour)
       setStocksSettings(snap.stocks ?? DEFAULT_STOCKS_SETTINGS)
       setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
       setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
@@ -288,6 +268,12 @@ export function SettingsPage(): React.JSX.Element {
     })
   }
 
+  const onFortuneNotifyHour = (hour: number): void => {
+    void window.treasureChest.setNotifications({ fortuneNotifyHour: hour }).then((next) => {
+      setFortuneNotifyHour(next.fortuneNotifyHour)
+    })
+  }
+
   const onStocksDailyNotify = (stocksDaily: boolean): void => {
     void window.treasureChest.setNotifications({ stocksDaily }).then((next) => {
       setStocksDailyNotify(next.stocksDaily)
@@ -335,6 +321,7 @@ export function SettingsPage(): React.JSX.Element {
         setLaunchBehavior(snap.launchBehavior)
         setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
         setStocksDailyNotify(snap.notifications?.stocksDaily ?? DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
+        setFortuneNotifyHour(snap.notifications?.fortuneNotifyHour ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneNotifyHour)
         setStocksSettings(snap.stocks ?? DEFAULT_STOCKS_SETTINGS)
         setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
         setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
@@ -600,31 +587,27 @@ export function SettingsPage(): React.JSX.Element {
         <h2 className={styles.title}>{t(`settings.nav.${section}`)}</h2>
 
       <div className={styles.group} hidden={section !== 'display'}>
-        <h2 className={styles.label}>{t('settings.desktopWidget')}</h2>
-        <p className={styles.desc}>{t('settings.desktopWidget.desc')}</p>
+        <h2 className={styles.label}>{t('settings.appearance')}</h2>
+        <p className={styles.desc}>{t('settings.appearanceDesc')}</p>
 
         <div className={styles.settingRow}>
           <div>
-            <div className={styles.settingTitle}>{t('settings.desktopWidget.enabled')}</div>
-            <div className={styles.settingHint}>{t('settings.desktopWidget.enabledHint')}</div>
+            <div className={styles.settingTitle}>{t('settings.theme')}</div>
+            <div className={styles.settingHint}>{t('settings.themeHint')}</div>
           </div>
-          <ToggleSwitch
-            checked={widget.enabled}
-            label={t('settings.desktopWidget.enabled')}
-            onChange={(enabled) => void patchWidget({ enabled })}
-          />
-        </div>
-
-        <div className={styles.settingRow}>
-          <div>
-            <div className={styles.settingTitle}>{t('settings.desktopWidget.keepAlive')}</div>
-            <div className={styles.settingHint}>{t('settings.desktopWidget.keepAliveHint')}</div>
+          <div className={styles.choiceControl}>
+            {themes.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`${styles.rangeChip} ${theme === mode ? styles.rangeChipActive : ''}`}
+                onClick={() => void setTheme(mode)}
+                aria-pressed={theme === mode}
+              >
+                {t(`settings.theme.${mode}`)}
+              </button>
+            ))}
           </div>
-          <ToggleSwitch
-            checked={widget.keepAlive}
-            label={t('settings.desktopWidget.keepAlive')}
-            onChange={(keepAlive) => void patchWidget({ keepAlive })}
-          />
         </div>
 
         <div className={styles.faceBlock}>
@@ -654,6 +637,47 @@ export function SettingsPage(): React.JSX.Element {
               )
             })}
           </div>
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.desktopWidget.showTicks')}</div>
+            <div className={styles.settingHint}>{t('settings.desktopWidget.showTicksHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={widget.showTicks}
+            label={t('settings.desktopWidget.showTicks')}
+            onChange={(showTicks) => void patchWidget({ showTicks })}
+          />
+        </div>
+      </div>
+
+      <div className={styles.group} hidden={section !== 'display'}>
+        <h2 className={styles.label}>{t('settings.desktopWidget')}</h2>
+        <p className={styles.desc}>{t('settings.desktopWidget.desc')}</p>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.desktopWidget.enabled')}</div>
+            <div className={styles.settingHint}>{t('settings.desktopWidget.enabledHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={widget.enabled}
+            label={t('settings.desktopWidget.enabled')}
+            onChange={(enabled) => void patchWidget({ enabled })}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.desktopWidget.keepAlive')}</div>
+            <div className={styles.settingHint}>{t('settings.desktopWidget.keepAliveHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={widget.keepAlive}
+            label={t('settings.desktopWidget.keepAlive')}
+            onChange={(keepAlive) => void patchWidget({ keepAlive })}
+          />
         </div>
 
         <div className={styles.faceBlock}>
@@ -725,18 +749,6 @@ export function SettingsPage(): React.JSX.Element {
             </div>
           ) : null}
         </div>
-
-        <div className={styles.settingRow}>
-          <div>
-            <div className={styles.settingTitle}>{t('settings.desktopWidget.showTicks')}</div>
-            <div className={styles.settingHint}>{t('settings.desktopWidget.showTicksHint')}</div>
-          </div>
-          <ToggleSwitch
-            checked={widget.showTicks}
-            label={t('settings.desktopWidget.showTicks')}
-            onChange={(showTicks) => void patchWidget({ showTicks })}
-          />
-        </div>
       </div>
 
       <div className={styles.group} hidden={section !== 'general'}>
@@ -770,30 +782,49 @@ export function SettingsPage(): React.JSX.Element {
             ))}
           </div>
         </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.language')}</div>
+            <div className={styles.settingHint}>{t('settings.languageHint')}</div>
+          </div>
+          <div className={styles.choiceControl}>
+            {locales.map((locale) => (
+              <button
+                key={locale}
+                type="button"
+                className={`${styles.rangeChip} ${i18n.language === locale ? styles.rangeChipActive : ''}`}
+                onClick={() => void onLocale(locale)}
+                aria-pressed={i18n.language === locale}
+              >
+                {t(`settings.locale.${locale}`)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className={styles.group} hidden={section !== 'fortune'}>
         <h2 className={styles.label}>{t('settings.fortuneProfile')}</h2>
         <p className={styles.desc}>{t('settings.fortuneProfileDesc')}</p>
-        <div className={styles.profileCard}>
+        <div className={styles.profileBlock}>
           <BirthProfileForm compact />
         </div>
-
-        <h2 className={styles.label}>{t('settings.fortune')}</h2>
 
         <div className={styles.faceBlock}>
           <div className={styles.settingTitle}>{t('settings.hexagramSchool')}</div>
           <div className={styles.settingHint}>{t('settings.hexagramSchoolHint')}</div>
-          <div className={styles.optionGrid}>
+          <div className={styles.rangeChips}>
             {hexagramSchools.map((school) => (
-              <SettingOption
+              <button
                 key={school}
-                icon={hexagramSchoolMeta[school].icon}
-                tone={hexagramSchoolMeta[school].tone}
-                label={t(`settings.hexagramSchool.${school}`)}
-                active={hexagramSchool === school}
+                type="button"
+                className={`${styles.rangeChip} ${hexagramSchool === school ? styles.rangeChipActive : ''}`}
                 onClick={() => onHexagramSchool(school)}
-              />
+                aria-pressed={hexagramSchool === school}
+              >
+                {t(`settings.hexagramSchool.${school}`)}
+              </button>
             ))}
           </div>
         </div>
@@ -1435,6 +1466,25 @@ export function SettingsPage(): React.JSX.Element {
 
         <div className={styles.settingRow}>
           <div>
+            <div className={styles.settingTitle}>{t('settings.fortuneNotifyHour')}</div>
+            <div className={styles.settingHint}>{t('settings.fortuneNotifyHourHint')}</div>
+          </div>
+          <select
+            className={styles.hourSelect}
+            value={fortuneNotifyHour}
+            disabled={!fortuneDailyNotify}
+            onChange={(e) => onFortuneNotifyHour(Number(e.target.value))}
+          >
+            {Array.from({ length: 24 }, (_, hour) => (
+              <option key={hour} value={hour}>
+                {t('settings.fortuneNotifyHourOption', { hour: String(hour).padStart(2, '0') })}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
             <div className={styles.settingTitle}>{t('settings.stocksDailyNotify')}</div>
             <div className={styles.settingHint}>{t('settings.stocksDailyNotifyHint')}</div>
           </div>
@@ -1446,43 +1496,13 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
-      <div className={styles.group} hidden={section !== 'display'}>
-        <h2 className={styles.label}>{t('settings.theme')}</h2>
-        <div className={styles.optionGrid}>
-          {themes.map((mode) => (
-            <SettingOption
-              key={mode}
-              icon={themeMeta[mode].icon}
-              tone={themeMeta[mode].tone}
-              label={t(`settings.theme.${mode}`)}
-              description={t(`settings.themeHint.${mode}`)}
-              active={theme === mode}
-              onClick={() => void setTheme(mode)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.group} hidden={section !== 'general'}>
-        <h2 className={styles.label}>{t('settings.language')}</h2>
-        <div className={styles.optionGrid}>
-          {locales.map((locale) => (
-            <SettingOption
-              key={locale}
-              icon={localeMeta[locale].icon}
-              tone={localeMeta[locale].tone}
-              label={t(`settings.locale.${locale}`)}
-              description={t(`settings.localeHint.${locale}`)}
-              active={i18n.language === locale}
-              onClick={() => void onLocale(locale)}
-            />
-          ))}
-        </div>
-      </div>
-
       <div className={styles.group} hidden={section !== 'data'}>
         <h2 className={styles.label}>{t('settings.backup')}</h2>
         <p className={styles.desc}>{t('settings.backupDesc')}</p>
+        <ul className={styles.backupList}>
+          <li>{t('settings.backupIncludes')}</li>
+          <li>{t('settings.backupExcludes')}</li>
+        </ul>
         <div className={styles.actionRow}>
           <SettingActionButton
             icon={<IconDownload />}

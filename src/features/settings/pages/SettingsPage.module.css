@@ -177,7 +177,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-3) 0;
+  padding: calc(var(--space-3) + 6px) 0;
   border-top: 1px solid var(--color-border);
 }
 
@@ -266,16 +266,16 @@
 }
 
 .faceBlock {
-  margin-top: var(--space-3);
-  padding-top: var(--space-4);
+  margin-top: calc(var(--space-3) + 6px);
+  padding-top: calc(var(--space-4) + 6px);
   border-top: 1px solid var(--color-border);
 }
 
 .faceGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-3);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .faceCard {
@@ -283,8 +283,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-2);
+  gap: 0.35rem;
+  padding: var(--space-2) var(--space-1);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg);
@@ -295,6 +295,37 @@
     background 0.15s ease,
     box-shadow 0.15s ease,
     transform 0.15s ease;
+}
+
+.choiceControl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  max-width: min(100%, 22rem);
+}
+
+.hourSelect {
+  min-width: 5.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.backupList {
+  margin: 0 0 var(--space-4);
+  padding-left: 1.1rem;
+  color: var(--color-ink-secondary);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.backupList li {
+  margin: 0.15rem 0;
 }
 
 .faceCard:hover {
@@ -327,13 +358,18 @@
 }
 
 .facePreview {
-  width: 52px;
-  height: 52px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: 3px solid var(--preview-bezel);
+  border: 2px solid var(--preview-bezel);
   background: var(--preview-face);
   position: relative;
   box-shadow: inset 0 0 0 1px var(--preview-ring);
+}
+
+.faceName {
+  font-size: 0.72rem;
+  font-weight: 650;
 }
 
 .facePreviewHand {
@@ -391,11 +427,6 @@
   --preview-ring: var(--dial-minimal-ring);
   --preview-hand: var(--dial-minimal-hand);
   --preview-second: var(--dial-minimal-second);
-}
-
-.faceName {
-  font-size: 0.78rem;
-  font-weight: 600;
 }
 
 .bgRow {
@@ -789,10 +820,6 @@
   font-size: 0.875rem;
 }
 
-.profileCard {
-  padding: var(--space-4);
-  margin-bottom: var(--space-5);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
+.profileBlock {
+  margin-bottom: var(--space-4);
 }

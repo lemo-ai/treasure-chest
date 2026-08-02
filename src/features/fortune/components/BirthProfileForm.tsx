@@ -146,31 +146,33 @@ export function BirthProfileForm({ compact = false, onSaved }: BirthProfileFormP
               dayLabel={t('fortune.date.day')}
             />
           </div>
-          <label className={styles.field}>
-            <span className={styles.label}>{t('fortune.birthCalendar')}</span>
-            <select
-              className={styles.select}
-              value={birthCalendar}
-              onChange={(e) => setBirthCalendar(e.target.value as BirthCalendar)}
-            >
-              <option value="solar">{t('fortune.calendar.solar')}</option>
-              <option value="lunar">{t('fortune.calendar.lunar')}</option>
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span className={styles.label}>{t('fortune.hourBranch')}</span>
-            <select
-              className={styles.select}
-              value={hourBranch}
-              onChange={(e) => setHourBranch(e.target.value as BirthHourBranch)}
-            >
-              {BIRTH_HOUR_BRANCHES.map((branch) => (
-                <option key={branch} value={branch}>
-                  {t(`fortune.hour.${branch}`)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className={styles.fieldRow}>
+            <label className={styles.field}>
+              <span className={styles.label}>{t('fortune.birthCalendar')}</span>
+              <select
+                className={styles.select}
+                value={birthCalendar}
+                onChange={(e) => setBirthCalendar(e.target.value as BirthCalendar)}
+              >
+                <option value="solar">{t('fortune.calendar.solar')}</option>
+                <option value="lunar">{t('fortune.calendar.lunar')}</option>
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>{t('fortune.hourBranch')}</span>
+              <select
+                className={styles.select}
+                value={hourBranch}
+                onChange={(e) => setHourBranch(e.target.value as BirthHourBranch)}
+              >
+                {BIRTH_HOUR_BRANCHES.map((branch) => (
+                  <option key={branch} value={branch}>
+                    {t(`fortune.hour.${branch}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </>
       ) : (
         <div className={styles.pillarRow}>
