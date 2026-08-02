@@ -65,7 +65,13 @@ interface TreasureChestApi {
     onStatus?: (text: string) => void,
     onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
     onToolStep?: (step: import('@shared').LlmToolStep) => void,
+    onToolApproval?: (request: import('@shared').ToolApprovalRequest) => void,
   ) => Promise<LlmChatResponse>
+  resolveToolApproval: (payload: {
+    streamId: string
+    toolCallId: string
+    approved: boolean
+  }) => Promise<boolean>
   listKnowledgeDocuments: (collectionId?: string) => Promise<import('@shared').KnowledgeDocument[]>
   ingestKnowledgeText: (
     payload: import('@shared').KnowledgeIngestInput,

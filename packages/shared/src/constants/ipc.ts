@@ -42,6 +42,7 @@ export const IpcChannels = {
     chat: 'workbench:chat',
     chatStream: 'workbench:chatStream',
     chatStreamEvent: 'workbench:chatStreamEvent',
+    resolveToolApproval: 'workbench:resolveToolApproval',
   },
   knowledge: {
     listDocuments: 'knowledge:listDocuments',

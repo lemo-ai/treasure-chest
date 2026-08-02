@@ -81,6 +81,8 @@ import {
 import { MarkdownMessage } from '../components/MarkdownMessage'
 import { ToolStepsCard } from '../components/ToolStepsCard'
 import { ArtifactsPanel } from '../components/ArtifactsPanel'
+import { MemoryPanel } from '../components/MemoryPanel'
+import { ToolApprovalModal } from '../components/ToolApprovalModal'
 import {
   clearSessionArtifacts,
   deleteArtifact,
@@ -88,6 +90,8 @@ import {
   listArtifacts,
   type WorkbenchArtifact,
 } from '../lib/artifactStore'
+import { memoryFactsForPrompt } from '../lib/agentMemoryStore'
+import type { ToolApprovalRequest } from '@shared'
 import styles from './WorkbenchPage.module.css'
 
 const PANEL_KEY = 'qiankun.workbench.sessionPanelOpen'
@@ -191,6 +195,8 @@ export function WorkbenchPage(): React.JSX.Element {
   const [artifactsOpen, setArtifactsOpen] = useState(false)
   const [artifacts, setArtifacts] = useState<WorkbenchArtifact[]>([])
   const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
+  const [memoryOpen, setMemoryOpen] = useState(false)
+  const [pendingApproval, setPendingApproval] = useState<ToolApprovalRequest | null>(null)
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillRow[]>([])
   const [skillInstallRef, setSkillInstallRef] = useState('')
   const [skillCatalogs, setSkillCatalogs] = useState<
@@ -538,6 +544,7 @@ export function WorkbenchPage(): React.JSX.Element {
             useKnowledge,
             knowledgeCollectionId,
             enabledMcpServerIds,
+            memoryFacts: memoryFactsForPrompt(String(activeAgent)),
             capabilityMode,
             skillPrompt: mergedSkillPrompt || undefined,
           },
@@ -565,6 +572,10 @@ export function WorkbenchPage(): React.JSX.Element {
               }
               return [...prev, step]
             })
+          },
+          (request) => {
+            if (streamSessionRef.current !== sessionId) return
+            setPendingApproval(request)
           },
         )
         if (streamSessionRef.current === sessionId) {
@@ -1052,9 +1063,23 @@ export function WorkbenchPage(): React.JSX.Element {
           <div className={styles.headActions}>
             <button
               type="button"
+              className={`${styles.chipLink} ${memoryOpen ? styles.chipLinkActive : ''}`}
+              title={t('workbench.memory')}
+              onClick={() => {
+                setMemoryOpen((v) => !v)
+                if (!memoryOpen) setArtifactsOpen(false)
+              }}
+            >
+              {t('workbench.memory')}
+            </button>
+            <button
+              type="button"
               className={`${styles.chipLink} ${artifactsOpen ? styles.chipLinkActive : ''}`}
               title={t('workbench.artifacts')}
-              onClick={() => setArtifactsOpen((v) => !v)}
+              onClick={() => {
+                setArtifactsOpen((v) => !v)
+                if (!artifactsOpen) setMemoryOpen(false)
+              }}
             >
               {t('workbench.artifacts')}
               {artifacts.length > 0 ? ` (${artifacts.length})` : ''}
@@ -1503,7 +1528,27 @@ export function WorkbenchPage(): React.JSX.Element {
           setActiveArtifactId(next[0]?.id ?? null)
         }}
       />
+      <MemoryPanel
+        open={memoryOpen}
+        agentId={String(activeAgent)}
+        agentName={activeAgentName}
+        onClose={() => setMemoryOpen(false)}
+      />
       </section>
+      {pendingApproval ? (
+        <ToolApprovalModal
+          request={pendingApproval}
+          onResolve={(approved) => {
+            const req = pendingApproval
+            setPendingApproval(null)
+            void window.treasureChest.resolveToolApproval({
+              streamId: req.streamId,
+              toolCallId: req.toolCallId,
+              approved,
+            })
+          }}
+        />
+      ) : null}
     </div>
   )
 }

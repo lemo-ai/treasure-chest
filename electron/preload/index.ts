@@ -103,6 +103,7 @@ const api = {
     onStatus?: (text: string) => void,
     onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
     onToolStep?: (step: import('@shared').LlmToolStep) => void,
+    onToolApproval?: (request: import('@shared').ToolApprovalRequest) => void,
   ): Promise<LlmChatResponse> => {
     const streamId = `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     return new Promise((resolve, reject) => {
@@ -128,6 +129,10 @@ const api = {
           if (idx >= 0) lastToolSteps[idx] = ev.step
           else lastToolSteps = [...lastToolSteps, ev.step]
           onToolStep?.(ev.step)
+          return
+        }
+        if (ev.type === 'tool_approval') {
+          onToolApproval?.(ev.request)
           return
         }
         if (ev.type === 'delta') {
@@ -163,6 +168,11 @@ const api = {
         })
     })
   },
+  resolveToolApproval: (payload: {
+    streamId: string
+    toolCallId: string
+    approved: boolean
+  }): Promise<boolean> => ipcRenderer.invoke(IpcChannels.workbench.resolveToolApproval, payload),
   reembedKnowledgeDocument: (id: string): Promise<import('@shared').KnowledgeDocument> =>
     ipcRenderer.invoke(IpcChannels.knowledge.reembedDocument, id),
   reembedKnowledgeCollection: (

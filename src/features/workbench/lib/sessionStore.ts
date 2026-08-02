@@ -26,7 +26,7 @@ export interface WorkbenchMessage {
     id: string
     name: string
     label: string
-    status: 'running' | 'done' | 'error'
+    status: 'running' | 'done' | 'error' | 'pending' | 'denied'
     argsPreview?: string
     resultPreview?: string
     error?: string

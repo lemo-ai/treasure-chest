@@ -48,6 +48,26 @@ export interface LlmChatRequest {
   knowledgeCollectionId?: string
   /** Restrict MCP tools to these server ids; empty/undefined = all connected */
   enabledMcpServerIds?: string[]
+  /** Cross-session memory facts injected into system prompt */
+  memoryFacts?: string[]
+}
+
+export type ToolSensitivityTier = 'auto' | 'confirm' | 'block'
+
+export interface ToolSensitivityDecision {
+  tier: ToolSensitivityTier
+  reason: string
+}
+
+/** Pending sensitive tool call awaiting user confirmation. */
+export interface ToolApprovalRequest {
+  streamId: string
+  toolCallId: string
+  name: string
+  label: string
+  argsPreview: string
+  risk: 'confirm' | 'block'
+  reason: string
 }
 
 export interface KnowledgeCitation {
@@ -65,7 +85,7 @@ export interface LlmToolStep {
   name: string
   /** Localized short label */
   label: string
-  status: 'running' | 'done' | 'error'
+  status: 'running' | 'done' | 'error' | 'pending' | 'denied'
   /** Truncated JSON args for display */
   argsPreview?: string
   /** Truncated tool output for display */
@@ -109,6 +129,11 @@ export type LlmChatStreamEvent =
       streamId: string
       type: 'tool_step'
       step: LlmToolStep
+    }
+  | {
+      streamId: string
+      type: 'tool_approval'
+      request: ToolApprovalRequest
     }
   | {
       streamId: string

@@ -5,6 +5,7 @@ import type {
   LlmChatResponse,
   LlmToolSpec,
   LlmToolStep,
+  ToolApprovalRequest,
 } from '@shared'
 import { callLlmChat, callLlmChatStream, settingsToLlmEndpoint } from './LlmClient'
 import {
@@ -15,7 +16,62 @@ import {
 } from './tools/builtinTools'
 import { executeBuiltinTool } from './tools/executeBuiltin'
 import { listMcpToolsAsSpecs, callMcpTool } from '../mcp/McpHub'
+import { classifyToolSensitivity } from './toolSensitivity'
 import { logger } from '../../utils/logger'
+
+type ApprovalHandler = (request: ToolApprovalRequest) => Promise<boolean>
+
+const pendingApprovals = new Map<string, (approved: boolean) => void>()
+
+function approvalKey(streamId: string, toolCallId: string): string {
+  return `${streamId}::${toolCallId}`
+}
+
+export function resolvePendingToolApproval(
+  streamId: string,
+  toolCallId: string,
+  approved: boolean,
+): boolean {
+  const key = approvalKey(streamId, toolCallId)
+  const resolve = pendingApprovals.get(key)
+  if (!resolve) return false
+  pendingApprovals.delete(key)
+  resolve(approved)
+  return true
+}
+
+function waitForToolApproval(streamId: string, toolCallId: string, timeoutMs = 180_000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const key = approvalKey(streamId, toolCallId)
+    const timer = setTimeout(() => {
+      pendingApprovals.delete(key)
+      resolve(false)
+    }, timeoutMs)
+    pendingApprovals.set(key, (approved) => {
+      clearTimeout(timer)
+      resolve(approved)
+    })
+  })
+}
+
+export function waitForToolApprovalFromIpc(
+  streamId: string,
+  toolCallId: string,
+): Promise<boolean> {
+  return waitForToolApproval(streamId, toolCallId)
+}
+
+function memoryHint(req: LlmChatRequest, isEn: boolean): string {
+  const facts = (req.memoryFacts ?? [])
+    .map((f) => f.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+  if (!facts.length) return ''
+  const body = facts.map((f) => `- ${f}`).join('\n')
+  return isEn
+    ? `Persistent user memory (cross-session; honor unless the user overrides):\n${body}`
+    : `跨会话长期记忆（除非用户改口，请遵守）：\n${body}`
+}
 
 const BUILTIN_SYSTEM: Record<string, { zh: string; en: string }> = {
   fortune: {
@@ -98,6 +154,7 @@ function resolveSystemPrompt(req: LlmChatRequest, toolNames: string[]): string |
         : '直接、清楚地回答用户问题。除非用户明确要求，否则不要扮演运势或股票等垂直领域助手。',
       modeHint,
       knowledgeHint,
+      memoryHint(req, isEn),
       toolHint,
     ]
       .filter(Boolean)
@@ -113,15 +170,18 @@ function resolveSystemPrompt(req: LlmChatRequest, toolNames: string[]): string |
       custom,
       modeHint,
       knowledgeHint,
+      memoryHint(req, isEn),
       toolHint,
       isEn
         ? 'Stay helpful and concise. Do not invent tool results you cannot access.'
         : '回答务实简洁；不要编造你无法访问的工具结果。',
-    ].join('\n')
+    ]
+      .filter(Boolean)
+      .join('\n')
   }
   const builtin = BUILTIN_SYSTEM[agentId]
   if (builtin) {
-    return [isEn ? builtin.en : builtin.zh, modeHint, knowledgeHint, toolHint]
+    return [isEn ? builtin.en : builtin.zh, modeHint, knowledgeHint, memoryHint(req, isEn), toolHint]
       .filter(Boolean)
       .join('\n')
   }
@@ -131,6 +191,7 @@ function resolveSystemPrompt(req: LlmChatRequest, toolNames: string[]): string |
       : '你是「袖里乾坤」工作台助手，请用清晰务实的中文回答。',
     modeHint,
     knowledgeHint,
+    memoryHint(req, isEn),
     toolHint,
   ]
     .filter(Boolean)
@@ -186,6 +247,7 @@ async function runToolLoop(
   onStatus?: (text: string) => void,
   onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
   onToolStep?: (step: LlmToolStep) => void,
+  onApproval?: ApprovalHandler,
 ): Promise<LlmChatResponse & { messages: LlmChatMessage[]; toolSteps: LlmToolStep[] }> {
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
@@ -258,14 +320,95 @@ async function runToolLoop(
       }
 
       const stepId = call.id || `tool_${Date.now().toString(36)}_${toolSteps.length}`
+      const decision = classifyToolSensitivity(name, argsJson)
+      const label = toolDisplayName(name, locale)
+      const argsPreview = previewJson(argsJson)
+
+      if (decision.tier === 'block') {
+        const blocked: LlmToolStep = {
+          id: stepId,
+          name,
+          label,
+          status: 'denied',
+          argsPreview,
+          error: decision.reason,
+        }
+        toolSteps.push(blocked)
+        onToolStep?.(blocked)
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          name,
+          content: JSON.stringify({
+            error: 'Tool blocked by policy (payment/transfer class operations are not allowed).',
+            reason: decision.reason,
+          }),
+        })
+        continue
+      }
+
+      if (decision.tier === 'confirm') {
+        const pending: LlmToolStep = {
+          id: stepId,
+          name,
+          label,
+          status: 'pending',
+          argsPreview,
+        }
+        toolSteps.push(pending)
+        onToolStep?.(pending)
+        onStatus?.(
+          locale.toLowerCase().startsWith('en')
+            ? `Waiting for approval: ${label}…`
+            : `等待审批：${label}…`,
+        )
+
+        let approved = false
+        if (onApproval && req.streamId) {
+          const request: ToolApprovalRequest = {
+            streamId: req.streamId,
+            toolCallId: stepId,
+            name,
+            label,
+            argsPreview,
+            risk: 'confirm',
+            reason: decision.reason,
+          }
+          approved = await onApproval(request)
+        }
+
+        if (!approved) {
+          const denied: LlmToolStep = {
+            ...pending,
+            status: 'denied',
+            error: 'user_denied',
+          }
+          const idxDenied = toolSteps.findIndex((s) => s.id === stepId)
+          if (idxDenied >= 0) toolSteps[idxDenied] = denied
+          onToolStep?.(denied)
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            name,
+            content: JSON.stringify({
+              error: 'User denied this sensitive tool call.',
+              reason: decision.reason,
+            }),
+          })
+          continue
+        }
+      }
+
       const running: LlmToolStep = {
         id: stepId,
         name,
-        label: toolDisplayName(name, locale),
+        label,
         status: 'running',
-        argsPreview: previewJson(argsJson),
+        argsPreview,
       }
-      toolSteps.push(running)
+      const runIdx = toolSteps.findIndex((s) => s.id === stepId)
+      if (runIdx >= 0) toolSteps[runIdx] = running
+      else toolSteps.push(running)
       onToolStep?.(running)
 
       let output: string
@@ -377,6 +520,7 @@ export async function runWorkbenchChatStream(
   onStatus?: (text: string) => void,
   onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
   onToolStep?: (step: LlmToolStep) => void,
+  onApproval?: ApprovalHandler,
 ): Promise<LlmChatResponse> {
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
@@ -385,7 +529,7 @@ export async function runWorkbenchChatStream(
     (req.locale ?? '').toLowerCase().startsWith('en') ? 'Thinking…' : '思考中…',
   )
 
-  const looped = await runToolLoop(req, settings, onStatus, onCitations, onToolStep)
+  const looped = await runToolLoop(req, settings, onStatus, onCitations, onToolStep, onApproval)
   if (!looped.ok && !looped.messages.length) return looped
 
   if (looped.ok && looped.text?.trim() && !(looped.toolCalls?.length)) {

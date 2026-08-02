@@ -29,7 +29,12 @@ import {
 } from '../modules/settings/DialBackground'
 import { fortuneStore } from '../modules/fortune/FortuneStore'
 import { generateFortuneAiAnalysis, testAiProviderConnection } from '../modules/fortune/FortuneAiService'
-import { runWorkbenchChat, runWorkbenchChatStream } from '../modules/llm/WorkbenchChatService'
+import {
+  runWorkbenchChat,
+  runWorkbenchChatStream,
+  resolvePendingToolApproval,
+  waitForToolApprovalFromIpc,
+} from '../modules/llm/WorkbenchChatService'
 import {
   createKnowledgeCollection,
   deleteKnowledgeCollection,
@@ -238,6 +243,10 @@ export function registerAllIpc(): void {
             (step) => {
               send({ streamId, type: 'tool_step', step })
             },
+            async (request) => {
+              send({ streamId, type: 'tool_approval', request })
+              return waitForToolApprovalFromIpc(streamId, request.toolCallId)
+            },
           )
           if (result.ok && result.text?.trim()) {
             send({
@@ -265,6 +274,19 @@ export function registerAllIpc(): void {
       })()
 
       return { streamId }
+    },
+  )
+  ipcMain.handle(
+    IpcChannels.workbench.resolveToolApproval,
+    (
+      _e,
+      payload: { streamId: string; toolCallId: string; approved: boolean },
+    ): boolean => {
+      return resolvePendingToolApproval(
+        payload.streamId,
+        payload.toolCallId,
+        Boolean(payload.approved),
+      )
     },
   )
 
