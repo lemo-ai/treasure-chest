@@ -108,10 +108,35 @@ interface TreasureChestApi {
     prompt: string
     size?: string
     model?: string
+    style?: string
+    quality?: string
   }) => Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }>
+  pickAudioFile: () => Promise<string | null>
+  transcribeAudio: (payload: {
+    filePath: string
+    model?: string
+    language?: string
+  }) => Promise<{ ok: boolean; text?: string; url?: string; error?: string }>
+  generateVideo: (payload: {
+    prompt: string
+    model?: string
+    durationSec?: number
+    aspectRatio?: string
+    resolution?: string
+  }) => Promise<{ ok: boolean; text?: string; url?: string; error?: string }>
+  generateMusic: (payload: {
+    prompt: string
+    model?: string
+    durationSec?: number
+    style?: string
+    instrumental?: boolean
+  }) => Promise<{ ok: boolean; text?: string; url?: string; error?: string }>
+  getMediaCapabilities: () => Promise<import('@shared').MediaCapabilitiesSnapshot>
   getMcpSettings: () => Promise<import('@shared').McpSettings>
   setMcpSettings: (next: import('@shared').McpSettings) => Promise<import('@shared').McpSettings>
   listMcpTools: () => Promise<import('@shared').LlmToolSpec[]>
+  getMcpStatus: () => Promise<import('@shared').McpStatusSnapshot>
+  refreshMcpStatus: () => Promise<import('@shared').McpStatusSnapshot>
   getStocksWatchlist: () => Promise<WatchlistItem[]>
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }) => Promise<WatchlistItem>
   removeStocksWatchlistItem: (payload: { market: StockMarket; symbol: string }) => Promise<boolean>
@@ -132,6 +157,7 @@ interface TreasureChestApi {
     added: number
     scanned: number
     errors: string[]
+    meta?: { newsProbed: number }
   }>
   listSkills: () => Promise<
     Array<{

@@ -27,9 +27,9 @@ export const WORKBENCH_CAPABILITIES: WorkbenchCapability[] = [
   { id: 'image', labelKey: 'workbench.cap.image', status: 'ready' },
   { id: 'write', labelKey: 'workbench.cap.write', status: 'ready' },
   { id: 'translate', labelKey: 'workbench.cap.translate', status: 'ready' },
-  { id: 'video', labelKey: 'workbench.cap.video', status: 'soon' },
-  { id: 'music', labelKey: 'workbench.cap.music', status: 'soon' },
-  { id: 'transcribe', labelKey: 'workbench.cap.transcribe', status: 'soon' },
+  { id: 'video', labelKey: 'workbench.cap.video', status: 'ready' },
+  { id: 'music', labelKey: 'workbench.cap.music', status: 'ready' },
+  { id: 'transcribe', labelKey: 'workbench.cap.transcribe', status: 'ready' },
   { id: 'research', labelKey: 'workbench.cap.research', status: 'ready' },
 ]
 

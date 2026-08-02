@@ -392,7 +392,11 @@ export function StocksPage(): React.JSX.Element {
                     await refresh()
                     setHint(
                       res.ok
-                        ? t('stocks.scannerRefreshOk', { count: res.added })
+                        ? t('stocks.scannerRefreshOk', {
+                            count: res.added,
+                            scanned: res.scanned,
+                            news: res.meta?.newsProbed ?? 0,
+                          })
                         : t('stocks.scannerRefreshFailed'),
                     )
                   } catch (err) {

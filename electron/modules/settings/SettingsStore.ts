@@ -88,20 +88,33 @@ function parseMcpSettings(raw: unknown): McpSettings {
   const serversRaw = Array.isArray(src.servers) ? src.servers : []
   const servers: McpServerConfig[] = serversRaw
     .filter((s): s is McpServerConfig => Boolean(s && typeof s === 'object' && typeof (s as McpServerConfig).id === 'string'))
-    .map((s) => ({
-      id: String(s.id).trim(),
-      name: String(s.name || s.id).trim(),
-      enabled: Boolean(s.enabled),
-      command: String(s.command || '').trim(),
-      args: Array.isArray(s.args) ? s.args.map((a) => String(a)) : [],
-      env:
+    .map((s) => {
+      const transport = s.transport === 'sse' ? 'sse' : 'stdio'
+      const env =
         s.env && typeof s.env === 'object'
-          ? Object.fromEntries(
-              Object.entries(s.env).map(([k, v]) => [k, String(v)]),
-            )
-          : undefined,
-    }))
-    .filter((s) => s.id && s.command)
+          ? Object.fromEntries(Object.entries(s.env).map(([k, v]) => [k, String(v)]))
+          : undefined
+      const headers =
+        s.headers && typeof s.headers === 'object'
+          ? Object.fromEntries(Object.entries(s.headers).map(([k, v]) => [k, String(v)]))
+          : undefined
+      return {
+        id: String(s.id).trim(),
+        name: String(s.name || s.id).trim(),
+        enabled: Boolean(s.enabled),
+        transport,
+        command: String(s.command || '').trim(),
+        args: Array.isArray(s.args) ? s.args.map((a) => String(a)) : [],
+        env: env && Object.keys(env).length > 0 ? env : undefined,
+        url: typeof s.url === 'string' ? s.url.trim() : undefined,
+        headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
+      } satisfies McpServerConfig
+    })
+    .filter((s) => {
+      if (!s.id) return false
+      if (s.transport === 'sse') return Boolean(s.url)
+      return Boolean(s.command)
+    })
   return { servers }
 }
 
@@ -313,7 +326,14 @@ export const settingsStore = {
       notifications: { ...memory.notifications },
       fortune: { ...memory.fortune },
       stocks: { ...memory.stocks },
-      mcp: { servers: memory.mcp.servers.map((s) => ({ ...s, args: [...s.args], env: s.env ? { ...s.env } : undefined })) },
+      mcp: {
+        servers: memory.mcp.servers.map((s) => ({
+          ...s,
+          args: [...s.args],
+          env: s.env ? { ...s.env } : undefined,
+          headers: s.headers ? { ...s.headers } : undefined,
+        })),
+      },
     }
   },
   getTheme(): ThemeMode {
@@ -494,6 +514,7 @@ export const settingsStore = {
         ...s,
         args: [...s.args],
         env: s.env ? { ...s.env } : undefined,
+        headers: s.headers ? { ...s.headers } : undefined,
       })),
     }
   },

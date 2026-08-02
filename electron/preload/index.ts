@@ -162,8 +162,35 @@ const api = {
     prompt: string
     size?: string
     model?: string
+    style?: string
+    quality?: string
   }): Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }> =>
     ipcRenderer.invoke(IpcChannels.image.generate, payload),
+  pickAudioFile: (): Promise<string | null> => ipcRenderer.invoke(IpcChannels.media.pickAudioFile),
+  transcribeAudio: (payload: {
+    filePath: string
+    model?: string
+    language?: string
+  }): Promise<{ ok: boolean; text?: string; url?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.media.transcribe, payload),
+  generateVideo: (payload: {
+    prompt: string
+    model?: string
+    durationSec?: number
+    aspectRatio?: string
+    resolution?: string
+  }): Promise<{ ok: boolean; text?: string; url?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.media.generateVideo, payload),
+  generateMusic: (payload: {
+    prompt: string
+    model?: string
+    durationSec?: number
+    style?: string
+    instrumental?: boolean
+  }): Promise<{ ok: boolean; text?: string; url?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.media.generateMusic, payload),
+  getMediaCapabilities: (): Promise<import('@shared').MediaCapabilitiesSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.media.getCapabilities),
   listKnowledgeDocuments: (collectionId?: string): Promise<import('@shared').KnowledgeDocument[]> =>
     ipcRenderer.invoke(IpcChannels.knowledge.listDocuments, collectionId),
   ingestKnowledgeText: (
@@ -217,6 +244,10 @@ const api = {
     ipcRenderer.invoke(IpcChannels.mcp.setSettings, next),
   listMcpTools: (): Promise<import('@shared').LlmToolSpec[]> =>
     ipcRenderer.invoke(IpcChannels.mcp.listTools),
+  getMcpStatus: (): Promise<import('@shared').McpStatusSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.mcp.getStatus),
+  refreshMcpStatus: (): Promise<import('@shared').McpStatusSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.mcp.refreshStatus),
   getStocksWatchlist: (): Promise<WatchlistItem[]> => ipcRenderer.invoke(IpcChannels.stocks.getWatchlist),
   addStocksWatchlistItem: (payload: { market: StockMarket; symbol: string; name?: string; note?: string }): Promise<WatchlistItem> =>
     ipcRenderer.invoke(IpcChannels.stocks.addWatchlistItem, payload),
@@ -248,6 +279,7 @@ const api = {
     added: number
     scanned: number
     errors: string[]
+    meta?: { newsProbed: number }
   }> => ipcRenderer.invoke(IpcChannels.stocks.refreshScanner),
   listSkills: (): Promise<
     Array<{

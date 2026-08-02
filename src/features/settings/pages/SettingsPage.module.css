@@ -674,6 +674,115 @@
   gap: var(--space-2);
 }
 
+.mcpStatusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.mcpBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 650;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  color: var(--color-ink-secondary);
+}
+
+.mcpBadge_connected {
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-brand) 14%, var(--color-bg-elevated));
+  color: var(--color-brand-strong);
+}
+
+.mcpBadge_connecting {
+  color: var(--color-ink);
+}
+
+.mcpBadge_error {
+  border-color: color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-bg-elevated));
+  color: var(--color-danger);
+}
+
+.mcpError {
+  font-size: 0.72rem;
+  color: var(--color-danger);
+  line-height: 1.35;
+  max-width: 36rem;
+}
+
+.mcpKvBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.mcpKvRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.mcpAddKv {
+  align-self: flex-start;
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  border-radius: var(--radius-md);
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.mcpAddKv:hover {
+  color: var(--color-ink);
+  border-color: var(--color-brand);
+}
+
+.mcpToolsBlock {
+  margin-top: 0.5rem;
+}
+
+.mcpToolList {
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 9rem;
+  overflow: auto;
+}
+
+.mcpToolList li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+}
+
+.mcpToolList code {
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.mcpToolDesc {
+  font-size: 0.72rem;
+  color: var(--color-ink-tertiary);
+  line-height: 1.35;
+}
+
 .hint {
   margin-top: var(--space-4);
   color: var(--color-ink-tertiary);

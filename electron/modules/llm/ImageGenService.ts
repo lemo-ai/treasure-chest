@@ -1,5 +1,6 @@
 import type { FortuneSettings } from '@shared'
 import { settingsToLlmEndpoint } from './LlmClient'
+import { classifyMediaHttpFailure } from './MediaCapabilities'
 import { logger } from '../../utils/logger'
 
 export interface ImageGenResult {
@@ -17,7 +18,7 @@ export interface ImageGenResult {
 export async function generateImage(
   prompt: string,
   settings: FortuneSettings,
-  opts?: { size?: string; model?: string },
+  opts?: { size?: string; model?: string; style?: string; quality?: string },
 ): Promise<ImageGenResult> {
   const text = prompt.trim()
   if (!text) return { ok: false, error: 'empty prompt' }
@@ -33,22 +34,41 @@ export async function generateImage(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (endpoint.apiKey.trim()) headers.Authorization = `Bearer ${endpoint.apiKey.trim()}`
 
+  const body: Record<string, unknown> = {
+    model,
+    prompt: text.slice(0, 4000),
+    n: 1,
+    size: opts?.size || '1024x1024',
+    response_format: 'b64_json',
+  }
+  if (opts?.style === 'vivid' || opts?.style === 'natural') body.style = opts.style
+  if (opts?.quality === 'hd' || opts?.quality === 'standard') body.quality = opts.quality
+
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model,
-        prompt: text.slice(0, 4000),
-        n: 1,
-        size: opts?.size || '1024x1024',
-        response_format: 'b64_json',
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(180_000),
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
       logger.warn(`image gen HTTP ${res.status}: ${body.slice(0, 200)}`)
+      const kind = classifyMediaHttpFailure(res.status, body)
+      if (kind === 'endpoint_missing') {
+        return {
+          ok: false,
+          error:
+            'This provider has no /images/generations endpoint. Switch to an OpenAI-compatible image API in Settings → Models.',
+        }
+      }
+      if (kind === 'model_unsupported') {
+        return {
+          ok: false,
+          error:
+            'Current model/provider rejected image generation. Use a provider that exposes DALL·E / image models.',
+        }
+      }
       return { ok: false, error: `HTTP ${res.status}: ${body.slice(0, 180)}` }
     }
     const data = (await res.json()) as {

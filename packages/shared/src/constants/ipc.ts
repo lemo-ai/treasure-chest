@@ -63,10 +63,19 @@ export const IpcChannels = {
   image: {
     generate: 'image:generate',
   },
+  media: {
+    transcribe: 'media:transcribe',
+    generateVideo: 'media:generateVideo',
+    generateMusic: 'media:generateMusic',
+    pickAudioFile: 'media:pickAudioFile',
+    getCapabilities: 'media:getCapabilities',
+  },
   mcp: {
     getSettings: 'mcp:getSettings',
     setSettings: 'mcp:setSettings',
     listTools: 'mcp:listTools',
+    getStatus: 'mcp:getStatus',
+    refreshStatus: 'mcp:refreshStatus',
   },
   stocks: {
     getWatchlist: 'stocks:getWatchlist',

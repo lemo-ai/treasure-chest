@@ -37,13 +37,22 @@ import {
   type AgentId,
 } from '@renderer/features/agents/lib/agentRegistry'
 import {
+  WORKBENCH_CAPABILITIES,
   WORKBENCH_PRIMARY_CAP_IDS,
   splitWorkbenchCapabilities,
   type WorkbenchCapability,
   type WorkbenchCapabilityId,
 } from '../lib/capabilities'
 import { WORKBENCH_SKILLS } from '../lib/capabilityModes'
-import type { KnowledgeCitation } from '@shared'
+import {
+  CAPABILITY_OPTION_GROUPS,
+  DEFAULT_CAP_OPTIONS,
+  buildCapabilityOptionsPrompt,
+  imageSizeFromOptions,
+  type CapOptionGroupId,
+  type CapOptionValues,
+} from '../lib/capabilityOptions'
+import type { KnowledgeCitation, MediaCapabilitiesSnapshot, MediaCapabilityKind, MediaSupportLevel } from '@shared'
 
 type InstalledSkillRow = {
   id: string
@@ -180,6 +189,8 @@ export function WorkbenchPage(): React.JSX.Element {
   const [selectedModel, setSelectedModel] = useState('')
   const [aiBaseUrl, setAiBaseUrl] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
+  const [mediaCaps, setMediaCaps] = useState<MediaCapabilitiesSnapshot | null>(null)
+  const [capOptions, setCapOptions] = useState<CapOptionValues>({ ...DEFAULT_CAP_OPTIONS })
   const [sending, setSending] = useState(false)
   const [streamText, setStreamText] = useState('')
   const [streamStatus, setStreamStatus] = useState('')
@@ -232,6 +243,7 @@ export function WorkbenchPage(): React.JSX.Element {
       void window.treasureChest.getSettingsSnapshot().then((snap) => {
         applyAiSettings(snap.fortune)
       })
+      void window.treasureChest.getMediaCapabilities().then(setMediaCaps)
     }
 
     loadAi()
@@ -363,19 +375,77 @@ export function WorkbenchPage(): React.JSX.Element {
           : (skill as (typeof WORKBENCH_SKILLS)[number]).promptZh
       : undefined
 
+    const optionPrompt =
+      activeCap && CAPABILITY_OPTION_GROUPS[activeCap]
+        ? buildCapabilityOptionsPrompt(activeCap, capOptions, i18n.language)
+        : null
+    const mergedSkillPrompt = [skillPrompt, optionPrompt].filter(Boolean).join('\n')
+
     try {
       if (activeCap === 'image') {
         setStreamStatus(t('workbench.imageGenerating'))
-        const img = await window.treasureChest.generateImage({ prompt: content })
+        const img = await window.treasureChest.generateImage({
+          prompt: content,
+          size: imageSizeFromOptions(capOptions),
+          style: capOptions.imageStyle,
+          quality: capOptions.imageQuality,
+        })
         if (streamSessionRef.current === sessionId) {
           if (img.ok && img.url) {
-            const md = `![${content.slice(0, 40)}](${img.url})\n\n${t('workbench.imageDone')}`
+            const meta = [
+              capOptions.imageAspect,
+              capOptions.imageQuality,
+              capOptions.imageStyle,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+            const md = `![${content.slice(0, 40)}](${img.url})\n\n${t('workbench.imageDone')}${
+              meta ? ` (${meta})` : ''
+            }`
             appendMessage(sessionId, 'assistant', md)
           } else {
             appendMessage(
               sessionId,
               'system',
               t('workbench.chatFailed', { error: img.error || t('workbench.chatUnknownError') }),
+            )
+          }
+        }
+      } else if (activeCap === 'video') {
+        setStreamStatus(t('workbench.videoGenerating'))
+        const vid = await window.treasureChest.generateVideo({
+          prompt: content,
+          durationSec: Number(capOptions.videoDuration || 5),
+          aspectRatio: capOptions.videoAspect,
+          resolution: capOptions.videoResolution,
+        })
+        if (streamSessionRef.current === sessionId) {
+          if (vid.ok && (vid.text || vid.url)) {
+            appendMessage(sessionId, 'assistant', vid.text || `[video](${vid.url})`)
+          } else {
+            appendMessage(
+              sessionId,
+              'system',
+              t('workbench.chatFailed', { error: vid.error || t('workbench.chatUnknownError') }),
+            )
+          }
+        }
+      } else if (activeCap === 'music') {
+        setStreamStatus(t('workbench.musicGenerating'))
+        const music = await window.treasureChest.generateMusic({
+          prompt: content,
+          durationSec: Number(capOptions.musicDuration || 60),
+          style: capOptions.musicStyle,
+          instrumental: capOptions.musicInstrumental !== 'no',
+        })
+        if (streamSessionRef.current === sessionId) {
+          if (music.ok && (music.text || music.url)) {
+            appendMessage(sessionId, 'assistant', music.text || `[audio](${music.url})`)
+          } else {
+            appendMessage(
+              sessionId,
+              'system',
+              t('workbench.chatFailed', { error: music.error || t('workbench.chatUnknownError') }),
             )
           }
         }
@@ -395,7 +465,7 @@ export function WorkbenchPage(): React.JSX.Element {
             locale: i18n.language,
             useKnowledge,
             capabilityMode,
-            skillPrompt,
+            skillPrompt: mergedSkillPrompt || undefined,
           },
           (delta) => {
             if (streamSessionRef.current !== sessionId) return
@@ -455,6 +525,8 @@ export function WorkbenchPage(): React.JSX.Element {
 
   const onCapability = (id: WorkbenchCapabilityId): void => {
     setMoreOpen(false)
+    const capMeta = WORKBENCH_CAPABILITIES.find((c) => c.id === id)
+    const capName = capMeta ? t(capMeta.labelKey) : id
     if (id === 'upload') {
       setActiveCap(id)
       fileRef.current?.click()
@@ -489,16 +561,79 @@ export function WorkbenchPage(): React.JSX.Element {
       })
       return
     }
-    if (id === 'image' || id === 'write' || id === 'translate' || id === 'research') {
+    if (id === 'image' || id === 'write' || id === 'translate' || id === 'research' || id === 'video' || id === 'music') {
+      if (id === 'image' || id === 'video' || id === 'music') {
+        const level = mediaLevelOf(id)
+        if (level === 'no') {
+          explainMediaCap(id)
+          return
+        }
+        if (level === 'maybe') {
+          explainMediaCap(id)
+        }
+      }
       setActiveCap((prev) => (prev === id ? null : id))
       inputRef.current?.focus()
       const sessionId = ensureSession(activeAgent)
-      appendMessage(sessionId, 'system', t('workbench.capArmed', { name: t(`workbench.cap.${id}`) }))
+      if (mediaLevelOf(id) !== 'maybe') {
+        appendMessage(sessionId, 'system', t('workbench.capArmed', { name: capName }))
+        refresh(sessionId)
+      }
+      return
+    }
+    if (id === 'transcribe') {
+      if (mediaLevelOf('transcribe') === 'no') {
+        explainMediaCap('transcribe')
+        return
+      }
+      if (mediaLevelOf('transcribe') === 'maybe') {
+        explainMediaCap('transcribe')
+      }
+      const sessionId = ensureSession(activeAgent)
+      appendMessage(sessionId, 'system', t('workbench.transcribePickHint'))
       refresh(sessionId)
+      void (async () => {
+        const filePath = await window.treasureChest.pickAudioFile()
+        if (!filePath) {
+          appendMessage(sessionId, 'system', t('workbench.transcribeCancelled'))
+          refresh(sessionId)
+          return
+        }
+        setSending(true)
+        setStreamStatus(t('workbench.transcribeGenerating'))
+        streamSessionRef.current = sessionId
+        setStreamSessionId(sessionId)
+        try {
+          const res = await window.treasureChest.transcribeAudio({ filePath })
+          if (res.ok && res.text) {
+            appendMessage(sessionId, 'assistant', res.text)
+          } else {
+            appendMessage(
+              sessionId,
+              'system',
+              t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
+            )
+          }
+        } catch (err) {
+          appendMessage(
+            sessionId,
+            'system',
+            t('workbench.chatFailed', {
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          )
+        } finally {
+          streamSessionRef.current = null
+          setStreamSessionId(null)
+          setStreamStatus('')
+          setSending(false)
+          refresh(sessionId)
+        }
+      })()
       return
     }
     const sessionId = ensureSession(activeAgent)
-    appendMessage(sessionId, 'system', t('workbench.capSoon', { name: t(`workbench.cap.${id}`) }))
+    appendMessage(sessionId, 'system', t('workbench.capSoon', { name: capName }))
     refresh(sessionId)
   }
 
@@ -557,9 +692,43 @@ export function WorkbenchPage(): React.JSX.Element {
       setModelOptions(models)
       setSelectedModel(models.includes(next.aiModel) ? next.aiModel : (models[0] ?? ''))
       setHasApiKey(Boolean(next.aiApiKey?.trim()))
+      void window.treasureChest.getMediaCapabilities().then(setMediaCaps)
     } catch {
       /* ignore */
     }
+  }
+
+  const mediaLevelOf = (id: WorkbenchCapabilityId): MediaSupportLevel | null => {
+    if (id !== 'image' && id !== 'video' && id !== 'music' && id !== 'transcribe') return null
+    return mediaCaps?.capabilities[id as MediaCapabilityKind]?.level ?? 'maybe'
+  }
+
+  const explainMediaCap = (id: MediaCapabilityKind): void => {
+    const sessionId = ensureSession(activeAgent)
+    const info = mediaCaps?.capabilities[id]
+    const name = t(`workbench.cap.${id}` as 'workbench.cap.image')
+    const provider = mediaCaps?.providerName || mediaCaps?.baseUrl || '—'
+    const format = mediaCaps?.apiFormat === 'anthropic' ? 'Anthropic' : 'OpenAI-compatible'
+    if (info?.level === 'no') {
+      const reason = info.reason
+        ? t(`workbench.media.reason.${info.reason}` as 'workbench.media.reason.anthropic_format')
+        : ''
+      appendMessage(
+        sessionId,
+        'system',
+        `${t('workbench.media.unsupportedTitle', { name })}\n\n${t('workbench.media.unsupportedBody', {
+          provider,
+          format,
+        })}${reason ? `\n\n${reason}` : ''}\n\n→ ${t('workbench.media.goSettings')}`,
+      )
+    } else {
+      appendMessage(
+        sessionId,
+        'system',
+        `${t('workbench.media.maybeTitle', { name })}\n\n${t('workbench.media.maybeBody', { provider })}`,
+      )
+    }
+    refresh(sessionId)
   }
 
   const quickPrompts = directMode
@@ -635,22 +804,35 @@ export function WorkbenchPage(): React.JSX.Element {
     }
   }, [baseOverflowCaps.length, i18n.language])
 
-  const renderCapButton = (cap: WorkbenchCapability, compact = false): ReactNode => (
-    <button
-      key={cap.id}
-      type="button"
-      className={`${styles.capItem} ${compact ? styles.capItemMenu : ''} ${
-        activeCap === cap.id ? styles.capItemActive : ''
-      }`}
-      onClick={() => onCapability(cap.id)}
-      title={
-        cap.status === 'soon' ? t('workbench.capSoonHint', { name: t(cap.labelKey) }) : t(cap.labelKey)
-      }
-    >
-      <span className={styles.capIcon}>{capabilityIcon(cap.id)}</span>
-      <span>{t(cap.labelKey)}</span>
-    </button>
-  )
+  const renderCapButton = (cap: WorkbenchCapability, compact = false): ReactNode => {
+    const mediaLevel = mediaLevelOf(cap.id)
+    const unavailable = mediaLevel === 'no'
+    const uncertain = mediaLevel === 'maybe'
+    const title = unavailable
+      ? t('workbench.media.unsupportedTitle', { name: t(cap.labelKey) })
+      : uncertain
+        ? t('workbench.media.maybeTitle', { name: t(cap.labelKey) })
+        : cap.status === 'soon'
+          ? t('workbench.capSoonHint', { name: t(cap.labelKey) })
+          : t(cap.labelKey)
+    return (
+      <button
+        key={cap.id}
+        type="button"
+        className={`${styles.capItem} ${compact ? styles.capItemMenu : ''} ${
+          activeCap === cap.id ? styles.capItemActive : ''
+        } ${unavailable ? styles.capItemUnavailable : ''} ${uncertain ? styles.capItemMaybe : ''}`.trim()}
+        onClick={() => onCapability(cap.id)}
+        title={title}
+        aria-disabled={unavailable || undefined}
+      >
+        <span className={styles.capIcon}>{capabilityIcon(cap.id)}</span>
+        <span>{t(cap.labelKey)}</span>
+        {unavailable ? <span className={styles.capBadge}>{t('workbench.media.badge.no')}</span> : null}
+        {uncertain ? <span className={styles.capBadgeMaybe}>{t('workbench.media.badge.maybe')}</span> : null}
+      </button>
+    )
+  }
 
   return (
     <div className={`${styles.page} ${panelOpen ? '' : styles.pageCollapsed}`.trim()}>
@@ -984,26 +1166,62 @@ export function WorkbenchPage(): React.JSX.Element {
           </div>
         ) : null}
         {activeCap &&
-        ['write', 'translate', 'research', 'skills', 'image'].includes(activeCap) ? (
-          <div className={styles.modeChip}>
-            <span>
-              {t(`workbench.cap.${activeCap}`)}
-              {activeCap === 'skills' && activeSkillId
-                ? ` · ${
-                    installedSkills.find((s) => s.id === activeSkillId)?.name ||
-                    t(WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)?.labelKey || '')
-                  }`
-                : ''}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveCap(null)
-                setActiveSkillId(null)
-              }}
-            >
-              ×
-            </button>
+        ['write', 'translate', 'research', 'skills', 'image', 'video', 'music'].includes(activeCap) ? (
+          <div className={styles.modePanel}>
+            <div className={styles.modePanelHead}>
+              <div className={styles.modePanelTitle}>
+                <span className={styles.modePanelIcon}>{capabilityIcon(activeCap)}</span>
+                <strong>
+                  {t(`workbench.cap.${activeCap}` as 'workbench.cap.image')}
+                  {activeCap === 'skills' && activeSkillId
+                    ? ` · ${
+                        installedSkills.find((s) => s.id === activeSkillId)?.name ||
+                        t(
+                          (WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)?.labelKey ||
+                            'workbench.cap.skills') as 'workbench.cap.skills',
+                        )
+                      }`
+                    : ''}
+                </strong>
+              </div>
+              <button
+                type="button"
+                className={styles.modePanelClose}
+                onClick={() => {
+                  setActiveCap(null)
+                  setActiveSkillId(null)
+                }}
+                title={t('workbench.mode.clear')}
+              >
+                {t('workbench.mode.clear')} ×
+              </button>
+            </div>
+            {(CAPABILITY_OPTION_GROUPS[activeCap] ?? []).map((group) => (
+              <div key={group.id} className={styles.modeOptRow}>
+                <span className={styles.modeOptLabel}>{t(group.labelKey)}</span>
+                <div className={styles.modeOptChips} role="group" aria-label={t(group.labelKey)}>
+                  {group.choices.map((choice) => {
+                    const selected = (capOptions[group.id] ?? DEFAULT_CAP_OPTIONS[group.id]) === choice.value
+                    return (
+                      <button
+                        key={choice.value}
+                        type="button"
+                        className={`${styles.modeOptChip} ${selected ? styles.modeOptChipActive : ''}`}
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setCapOptions((prev) => ({
+                            ...prev,
+                            [group.id as CapOptionGroupId]: choice.value,
+                          }))
+                        }
+                      >
+                        {t(choice.labelKey)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         ) : null}
         <div className={styles.composerWrap}>
@@ -1040,7 +1258,21 @@ export function WorkbenchPage(): React.JSX.Element {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder={t('workbench.inputPlaceholder')}
+              placeholder={
+                activeCap === 'image'
+                  ? t('workbench.placeholder.image')
+                  : activeCap === 'video'
+                    ? t('workbench.placeholder.video')
+                    : activeCap === 'music'
+                      ? t('workbench.placeholder.music')
+                      : activeCap === 'translate'
+                        ? t('workbench.placeholder.translate')
+                        : activeCap === 'write'
+                          ? t('workbench.placeholder.write')
+                          : activeCap === 'research'
+                            ? t('workbench.placeholder.research')
+                            : t('workbench.inputPlaceholder')
+              }
               rows={2}
             />
             <div

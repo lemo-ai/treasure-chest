@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, app, screen } from 'electron'
+import { BrowserWindow, dialog, ipcMain, app, screen } from 'electron'
 import {
   IpcChannels,
   type AppLocale,
@@ -48,7 +48,18 @@ import {
   setKnowledgeSettings,
 } from '../modules/knowledge/KnowledgeStore'
 import { generateImage } from '../modules/llm/ImageGenService'
-import { disposeAllMcpSessions, listMcpToolsAsSpecs } from '../modules/mcp/McpHub'
+import {
+  generateMusic,
+  generateVideo,
+  transcribeAudioFile,
+} from '../modules/llm/MediaGenService'
+import { assessMediaCapabilities } from '../modules/llm/MediaCapabilities'
+import {
+  disposeAllMcpSessions,
+  getMcpStatusSnapshot,
+  listMcpToolsAsSpecs,
+  refreshMcpStatus,
+} from '../modules/mcp/McpHub'
 import { exportBackup, importBackup } from '../modules/backup/BackupService'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
@@ -354,9 +365,13 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.mcp.getSettings, () => settingsStore.getMcpSettings())
   ipcMain.handle(IpcChannels.mcp.setSettings, (_e, next: import('@shared').McpSettings) => {
     disposeAllMcpSessions()
-    return settingsStore.setMcpSettings(next)
+    const saved = settingsStore.setMcpSettings(next)
+    void refreshMcpStatus().catch(() => undefined)
+    return saved
   })
   ipcMain.handle(IpcChannels.mcp.listTools, () => listMcpToolsAsSpecs())
+  ipcMain.handle(IpcChannels.mcp.getStatus, () => getMcpStatusSnapshot())
+  ipcMain.handle(IpcChannels.mcp.refreshStatus, () => refreshMcpStatus())
 
   ipcMain.handle(IpcChannels.skills.list, () =>
     import('../modules/skills/SkillsStore').then((m) => m.listSkills()),
@@ -423,11 +438,97 @@ export function registerAllIpc(): void {
   )
   ipcMain.handle(
     IpcChannels.image.generate,
-    async (_e, payload: { prompt: string; size?: string; model?: string }) => {
+    async (
+      _e,
+      payload: { prompt: string; size?: string; model?: string; style?: string; quality?: string },
+    ) => {
       const fortuneSettings = settingsStore.getFortuneSettings()
       return generateImage(payload.prompt, fortuneSettings, {
         size: payload.size,
         model: payload.model,
+        style: payload.style,
+        quality: payload.quality,
+      })
+    },
+  )
+  ipcMain.handle(IpcChannels.media.getCapabilities, () =>
+    assessMediaCapabilities(settingsStore.getFortuneSettings()),
+  )
+  ipcMain.handle(IpcChannels.media.pickAudioFile, async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const result = win
+      ? await dialog.showOpenDialog(win, {
+          title: 'Select audio / video for transcription',
+          properties: ['openFile'],
+          filters: [
+            {
+              name: 'Audio/Video',
+              extensions: ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm', 'ogg', 'flac'],
+            },
+          ],
+        })
+      : await dialog.showOpenDialog({
+          title: 'Select audio / video for transcription',
+          properties: ['openFile'],
+          filters: [
+            {
+              name: 'Audio/Video',
+              extensions: ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm', 'ogg', 'flac'],
+            },
+          ],
+        })
+    if (result.canceled || !result.filePaths[0]) return null
+    return result.filePaths[0]
+  })
+  ipcMain.handle(
+    IpcChannels.media.transcribe,
+    async (_e, payload: { filePath: string; model?: string; language?: string }) => {
+      const fortuneSettings = settingsStore.getFortuneSettings()
+      return transcribeAudioFile(payload.filePath, fortuneSettings, {
+        model: payload.model,
+        language: payload.language,
+      })
+    },
+  )
+  ipcMain.handle(
+    IpcChannels.media.generateVideo,
+    async (
+      _e,
+      payload: {
+        prompt: string
+        model?: string
+        durationSec?: number
+        aspectRatio?: string
+        resolution?: string
+      },
+    ) => {
+      const fortuneSettings = settingsStore.getFortuneSettings()
+      return generateVideo(payload.prompt, fortuneSettings, {
+        model: payload.model,
+        durationSec: payload.durationSec,
+        aspectRatio: payload.aspectRatio,
+        resolution: payload.resolution,
+      })
+    },
+  )
+  ipcMain.handle(
+    IpcChannels.media.generateMusic,
+    async (
+      _e,
+      payload: {
+        prompt: string
+        model?: string
+        durationSec?: number
+        style?: string
+        instrumental?: boolean
+      },
+    ) => {
+      const fortuneSettings = settingsStore.getFortuneSettings()
+      return generateMusic(payload.prompt, fortuneSettings, {
+        model: payload.model,
+        durationSec: payload.durationSec,
+        style: payload.style,
+        instrumental: payload.instrumental,
       })
     },
   )
