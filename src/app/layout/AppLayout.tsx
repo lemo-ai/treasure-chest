@@ -35,6 +35,7 @@ export function AppLayout(): React.JSX.Element {
   const [version, setVersion] = useState('')
   const [changelogOpen, setChangelogOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
   const [agents, setAgents] = useState<AgentDef[]>(() => listAgents())
   const flushMain =
     location.pathname === '/' ||
@@ -54,7 +55,7 @@ export function AppLayout(): React.JSX.Element {
 
   useEffect(() => {
     setAgents(listAgents())
-  }, [location.pathname, location.search, createOpen])
+  }, [location.pathname, location.search, createOpen, editingAgent])
 
   return (
     <div className={styles.shell}>
@@ -94,14 +95,32 @@ export function AppLayout(): React.JSX.Element {
             const to = `/?agent=${encodeURIComponent(agent.id)}`
             const isActive = onWorkbench && activeAgentParam === agent.id
             return (
-              <NavLink
-                key={agent.id}
-                to={to}
-                className={() => (isActive ? `${styles.link} ${styles.linkActive}` : styles.link)}
-              >
-                <span className={styles.linkIcon}>{agentNavIcon(agent)}</span>
-                <span className={styles.linkLabel}>{agentDisplayName(agent, t)}</span>
-              </NavLink>
+              <div key={agent.id} className={styles.agentRow}>
+                <NavLink
+                  to={to}
+                  className={() =>
+                    isActive ? `${styles.link} ${styles.linkActive}` : styles.link
+                  }
+                >
+                  <span className={styles.linkIcon}>{agentNavIcon(agent)}</span>
+                  <span className={styles.linkLabel}>{agentDisplayName(agent, t)}</span>
+                </NavLink>
+                {!agent.builtin ? (
+                  <button
+                    type="button"
+                    className={styles.agentEditBtn}
+                    title={t('agents.edit.action')}
+                    aria-label={t('agents.edit.action')}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setEditingAgent(agent)
+                    }}
+                  >
+                    ✎
+                  </button>
+                ) : null}
+              </div>
             )
           })}
           <button
@@ -159,6 +178,18 @@ export function AppLayout(): React.JSX.Element {
           onCreated={(agent) => {
             setAgents(listAgents())
             setCreateOpen(false)
+            void navigate(`/?agent=${encodeURIComponent(agent.id)}`)
+          }}
+        />
+      ) : null}
+
+      {editingAgent ? (
+        <CreateAgentModal
+          editing={editingAgent}
+          onClose={() => setEditingAgent(null)}
+          onUpdated={(agent) => {
+            setAgents(listAgents())
+            setEditingAgent(null)
             void navigate(`/?agent=${encodeURIComponent(agent.id)}`)
           }}
         />

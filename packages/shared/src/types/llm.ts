@@ -46,6 +46,8 @@ export interface LlmChatRequest {
   useKnowledge?: boolean
   /** Optional knowledge collection scope for search_knowledge */
   knowledgeCollectionId?: string
+  /** Restrict MCP tools to these server ids; empty/undefined = all connected */
+  enabledMcpServerIds?: string[]
 }
 
 export interface KnowledgeCitation {

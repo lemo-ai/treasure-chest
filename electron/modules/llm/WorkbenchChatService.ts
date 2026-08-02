@@ -150,14 +150,30 @@ function wantsKnowledge(req: LlmChatRequest): boolean {
   return req.messages.some((m) => /@知识库|@knowledge/i.test(m.content))
 }
 
+function mcpServerIdFromToolName(name: string): string | null {
+  if (!name.startsWith('mcp__')) return null
+  const rest = name.slice('mcp__'.length)
+  const idx = rest.indexOf('__')
+  if (idx <= 0) return null
+  return rest.slice(0, idx)
+}
+
 async function resolveTools(req: LlmChatRequest): Promise<LlmToolSpec[]> {
   const builtin = builtinToolsForAgent(req.agentId || 'direct', {
     useKnowledge: wantsKnowledge(req),
   })
   try {
     const mcpTools = await listMcpToolsAsSpecs()
+    const allowServers = (req.enabledMcpServerIds ?? []).map((id) => id.trim()).filter(Boolean)
+    const filteredMcp =
+      allowServers.length === 0
+        ? mcpTools
+        : mcpTools.filter((t) => {
+            const serverId = mcpServerIdFromToolName(t.function.name)
+            return serverId != null && allowServers.includes(serverId)
+          })
     const names = new Set(builtin.map((t) => t.function.name))
-    return [...builtin, ...mcpTools.filter((t) => !names.has(t.function.name))]
+    return [...builtin, ...filteredMcp.filter((t) => !names.has(t.function.name))]
   } catch (err) {
     logger.warn('mcp tool list failed', err)
     return builtin

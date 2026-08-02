@@ -21,6 +21,14 @@ export interface AgentDef {
   classicPath?: string
   createdAt: string
   updatedAt: string
+  /** Prefer this model when chatting as this agent; empty = global default */
+  preferredModel?: string
+  /** Restrict MCP tools to these server ids; empty/undefined = all connected */
+  enabledMcpServerIds?: string[]
+  /** Bound knowledge collections; empty = any / default scope */
+  knowledgeCollectionIds?: string[]
+  /** Always enable knowledge search for this agent */
+  alwaysUseKnowledge?: boolean
 }
 
 const STORAGE_KEY = 'qiankun.agents.v1'
@@ -66,6 +74,10 @@ export interface CreateAgentInput {
   description: string
   systemPrompt: string
   tone: AgentTone
+  preferredModel?: string
+  enabledMcpServerIds?: string[]
+  knowledgeCollectionIds?: string[]
+  alwaysUseKnowledge?: boolean
 }
 
 interface CustomAgentsStore {
@@ -74,6 +86,27 @@ interface CustomAgentsStore {
 
 function uid(): string {
   return `custom_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function normalizeIds(ids: string[] | undefined): string[] | undefined {
+  if (!ids) return undefined
+  const next = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  return next.length ? next : undefined
+}
+
+function applyBindings(agent: AgentDef, input: Partial<CreateAgentInput>): void {
+  if (input.preferredModel !== undefined) {
+    agent.preferredModel = input.preferredModel.trim() || undefined
+  }
+  if (input.enabledMcpServerIds !== undefined) {
+    agent.enabledMcpServerIds = normalizeIds(input.enabledMcpServerIds)
+  }
+  if (input.knowledgeCollectionIds !== undefined) {
+    agent.knowledgeCollectionIds = normalizeIds(input.knowledgeCollectionIds)
+  }
+  if (input.alwaysUseKnowledge !== undefined) {
+    agent.alwaysUseKnowledge = input.alwaysUseKnowledge || undefined
+  }
 }
 
 function readCustom(): AgentDef[] {
@@ -125,6 +158,7 @@ export function createAgent(input: CreateAgentInput): AgentDef {
     createdAt: now,
     updatedAt: now,
   }
+  applyBindings(agent, input)
   const next = [...readCustom(), agent]
   writeCustom(next)
   return agent
@@ -139,6 +173,7 @@ export function updateAgent(id: string, patch: Partial<CreateAgentInput>): Agent
   if (patch.description !== undefined) hit.description = patch.description.trim()
   if (patch.systemPrompt !== undefined) hit.systemPrompt = patch.systemPrompt.trim()
   if (patch.tone !== undefined) hit.tone = patch.tone
+  applyBindings(hit, patch)
   hit.updatedAt = new Date().toISOString()
   writeCustom(list)
   return hit

@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { IconClose } from '@renderer/shared/ui/icons'
 import {
   createAgent,
+  updateAgent,
   type AgentTone,
   type CreateAgentInput,
   type AgentDef,
@@ -13,28 +14,96 @@ const TONES: AgentTone[] = ['brand', 'accent', 'highlight']
 
 interface CreateAgentModalProps {
   onClose: () => void
-  onCreated: (agent: AgentDef) => void
+  onCreated?: (agent: AgentDef) => void
+  onUpdated?: (agent: AgentDef) => void
+  /** When set, modal edits this custom agent instead of creating. */
+  editing?: AgentDef | null
 }
 
-export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps): React.JSX.Element {
+export function CreateAgentModal({
+  onClose,
+  onCreated,
+  onUpdated,
+  editing = null,
+}: CreateAgentModalProps): React.JSX.Element {
   const { t } = useTranslation()
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [systemPrompt, setSystemPrompt] = useState('')
-  const [tone, setTone] = useState<AgentTone>('brand')
+  const isEdit = Boolean(editing && !editing.builtin)
+  const [name, setName] = useState(editing?.name ?? '')
+  const [description, setDescription] = useState(editing?.description ?? '')
+  const [systemPrompt, setSystemPrompt] = useState(editing?.systemPrompt ?? '')
+  const [tone, setTone] = useState<AgentTone>(editing?.tone ?? 'brand')
+  const [preferredModel, setPreferredModel] = useState(editing?.preferredModel ?? '')
+  const [alwaysUseKnowledge, setAlwaysUseKnowledge] = useState(
+    Boolean(editing?.alwaysUseKnowledge),
+  )
+  const [mcpServerIds, setMcpServerIds] = useState<string[]>(editing?.enabledMcpServerIds ?? [])
+  const [collectionIds, setCollectionIds] = useState<string[]>(
+    editing?.knowledgeCollectionIds ?? [],
+  )
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [mcpServers, setMcpServers] = useState<Array<{ id: string; name: string; enabled: boolean }>>(
+    [],
+  )
+  const [collections, setCollections] = useState<Array<{ id: string; name: string }>>([])
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const snap = await window.treasureChest.getSettingsSnapshot()
+        setModelOptions((snap.fortune?.aiModels ?? []).map((m) => m.trim()).filter(Boolean))
+      } catch {
+        setModelOptions([])
+      }
+      try {
+        const status = await window.treasureChest.refreshMcpStatus()
+        setMcpServers(
+          status.servers.map((s) => ({ id: s.id, name: s.name, enabled: s.enabled })),
+        )
+      } catch {
+        setMcpServers([])
+      }
+      try {
+        const cols = await window.treasureChest.listKnowledgeCollections()
+        setCollections(cols.map((c) => ({ id: c.id, name: c.name })))
+      } catch {
+        setCollections([])
+      }
+    })()
+  }, [])
+
+  const toggleId = (list: string[], id: string): string[] =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 
   const onSubmit = (e: FormEvent): void => {
     e.preventDefault()
     setError(null)
-    const input: CreateAgentInput = { name, description, systemPrompt, tone }
+    const input: CreateAgentInput = {
+      name,
+      description,
+      systemPrompt,
+      tone,
+      preferredModel,
+      enabledMcpServerIds: mcpServerIds,
+      knowledgeCollectionIds: collectionIds,
+      alwaysUseKnowledge,
+    }
     if (!input.name.trim()) {
       setError(t('agents.create.nameRequired'))
       return
     }
     try {
-      const agent = createAgent(input)
-      onCreated(agent)
+      if (isEdit && editing) {
+        const agent = updateAgent(String(editing.id), input)
+        if (!agent) {
+          setError(t('agents.create.failed'))
+          return
+        }
+        onUpdated?.(agent)
+      } else {
+        const agent = createAgent(input)
+        onCreated?.(agent)
+      }
     } catch {
       setError(t('agents.create.failed'))
     }
@@ -52,9 +121,11 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps):
         <header className={styles.head}>
           <div>
             <h2 id="create-agent-title" className={styles.title}>
-              {t('agents.create.title')}
+              {isEdit ? t('agents.edit.title') : t('agents.create.title')}
             </h2>
-            <p className={styles.sub}>{t('agents.create.subtitle')}</p>
+            <p className={styles.sub}>
+              {isEdit ? t('agents.edit.subtitle') : t('agents.create.subtitle')}
+            </p>
           </div>
           <button
             type="button"
@@ -98,6 +169,22 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps):
             />
           </label>
 
+          <label className={styles.field}>
+            <span>{t('agents.create.model')}</span>
+            <select
+              value={preferredModel}
+              onChange={(e) => setPreferredModel(e.target.value)}
+            >
+              <option value="">{t('agents.create.modelDefault')}</option>
+              {modelOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <span className={styles.hint}>{t('agents.create.modelHint')}</span>
+          </label>
+
           <fieldset className={styles.toneField}>
             <legend>{t('agents.create.tone')}</legend>
             <div className={styles.tones}>
@@ -117,6 +204,67 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps):
             </div>
           </fieldset>
 
+          <label className={styles.checkRow}>
+            <input
+              type="checkbox"
+              checked={alwaysUseKnowledge}
+              onChange={(e) => setAlwaysUseKnowledge(e.target.checked)}
+            />
+            <span>{t('agents.create.alwaysKnowledge')}</span>
+          </label>
+
+          <fieldset className={styles.bindField}>
+            <legend>{t('agents.create.knowledge')}</legend>
+            <p className={styles.hint}>{t('agents.create.knowledgeHint')}</p>
+            {collections.length === 0 ? (
+              <p className={styles.emptyBind}>{t('agents.create.knowledgeEmpty')}</p>
+            ) : (
+              <div className={styles.chipRow}>
+                {collections.map((col) => {
+                  const on = collectionIds.includes(col.id)
+                  return (
+                    <button
+                      key={col.id}
+                      type="button"
+                      className={`${styles.bindChip} ${on ? styles.bindChipOn : ''}`}
+                      aria-pressed={on}
+                      onClick={() => setCollectionIds((prev) => toggleId(prev, col.id))}
+                    >
+                      {col.name}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </fieldset>
+
+          <fieldset className={styles.bindField}>
+            <legend>{t('agents.create.mcp')}</legend>
+            <p className={styles.hint}>{t('agents.create.mcpHint')}</p>
+            {mcpServers.length === 0 ? (
+              <p className={styles.emptyBind}>{t('agents.create.mcpEmpty')}</p>
+            ) : (
+              <div className={styles.chipRow}>
+                {mcpServers.map((server) => {
+                  const on = mcpServerIds.includes(server.id)
+                  return (
+                    <button
+                      key={server.id}
+                      type="button"
+                      className={`${styles.bindChip} ${on ? styles.bindChipOn : ''}`}
+                      aria-pressed={on}
+                      title={server.enabled ? undefined : t('agents.create.mcpDisabled')}
+                      onClick={() => setMcpServerIds((prev) => toggleId(prev, server.id))}
+                    >
+                      {server.name}
+                      {!server.enabled ? ' · off' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </fieldset>
+
           {error ? <p className={styles.error}>{error}</p> : null}
 
           <div className={styles.actions}>
@@ -124,7 +272,7 @@ export function CreateAgentModal({ onClose, onCreated }: CreateAgentModalProps):
               {t('agents.create.cancel')}
             </button>
             <button type="submit" className={styles.primary}>
-              {t('agents.create.submit')}
+              {isEdit ? t('agents.edit.submit') : t('agents.create.submit')}
             </button>
           </div>
         </form>

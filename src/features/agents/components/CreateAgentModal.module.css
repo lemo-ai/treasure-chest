@@ -10,8 +10,8 @@
 }
 
 .dialog {
-  width: min(32rem, 100%);
-  max-height: min(90vh, 40rem);
+  width: min(36rem, 100%);
+  max-height: min(92vh, 48rem);
   overflow: auto;
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-border);
@@ -72,7 +72,8 @@
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -85,9 +86,76 @@
 }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   outline: 2px solid color-mix(in srgb, var(--color-brand) 35%, transparent);
   border-color: var(--color-brand);
+}
+
+.hint {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-ink-tertiary);
+  line-height: 1.4;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+  cursor: pointer;
+}
+
+.checkRow input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-brand);
+}
+
+.bindField {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.bindField legend {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--color-ink-secondary);
+}
+
+.emptyBind {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-ink-tertiary);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.bindChip {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-ink-secondary);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bindChipOn {
+  border-color: color-mix(in srgb, var(--color-brand) 50%, var(--color-border));
+  background: color-mix(in srgb, var(--color-brand) 14%, white);
+  color: var(--color-brand-strong);
 }
 
 .toneField {

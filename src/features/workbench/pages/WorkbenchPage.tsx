@@ -302,6 +302,18 @@ export function WorkbenchPage(): React.JSX.Element {
   }, [searchParams])
 
   useEffect(() => {
+    const agent = getAgent(activeAgent)
+    if (
+      agent &&
+      !agent.builtin &&
+      agent.preferredModel &&
+      modelOptions.includes(agent.preferredModel)
+    ) {
+      setSelectedModel(agent.preferredModel)
+    }
+  }, [activeAgent, modelOptions])
+
+  useEffect(() => {
     try {
       localStorage.setItem(PANEL_KEY, panelOpen ? '1' : '0')
     } catch {
@@ -401,7 +413,28 @@ export function WorkbenchPage(): React.JSX.Element {
         content: m.content,
       }))
 
-    const useKnowledge = /@知识库|@knowledge/i.test(content) || activeCap === 'knowledge'
+    const useKnowledge =
+      /@知识库|@knowledge/i.test(content) ||
+      activeCap === 'knowledge' ||
+      Boolean(!directMode && !activeAgentDef.builtin && activeAgentDef.alwaysUseKnowledge) ||
+      Boolean(
+        !directMode &&
+          !activeAgentDef.builtin &&
+          (activeAgentDef.knowledgeCollectionIds?.length ?? 0) > 0,
+      )
+    const knowledgeCollectionId =
+      !directMode && !activeAgentDef.builtin
+        ? activeAgentDef.knowledgeCollectionIds?.[0]
+        : undefined
+    const enabledMcpServerIds =
+      !directMode && !activeAgentDef.builtin ? activeAgentDef.enabledMcpServerIds : undefined
+    const chatModel =
+      !directMode &&
+      !activeAgentDef.builtin &&
+      activeAgentDef.preferredModel &&
+      modelOptions.includes(activeAgentDef.preferredModel)
+        ? activeAgentDef.preferredModel
+        : selectedModel
     const skill =
       installedSkills.find((s) => s.id === activeSkillId) ||
       WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)
@@ -497,12 +530,14 @@ export function WorkbenchPage(): React.JSX.Element {
         const res = await window.treasureChest.workbenchChatStream(
           {
             agentId: directMode ? DIRECT_CHAT_ID : String(activeAgent),
-            model: selectedModel,
+            model: chatModel,
             messages: history,
             systemPrompt:
               !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
             locale: i18n.language,
             useKnowledge,
+            knowledgeCollectionId,
+            enabledMcpServerIds,
             capabilityMode,
             skillPrompt: mergedSkillPrompt || undefined,
           },
