@@ -80,6 +80,14 @@ import {
 } from '../lib/sessionStore'
 import { MarkdownMessage } from '../components/MarkdownMessage'
 import { ToolStepsCard } from '../components/ToolStepsCard'
+import { ArtifactsPanel } from '../components/ArtifactsPanel'
+import {
+  clearSessionArtifacts,
+  deleteArtifact,
+  extractArtifactsFromContent,
+  listArtifacts,
+  type WorkbenchArtifact,
+} from '../lib/artifactStore'
 import styles from './WorkbenchPage.module.css'
 
 const PANEL_KEY = 'qiankun.workbench.sessionPanelOpen'
@@ -180,6 +188,9 @@ export function WorkbenchPage(): React.JSX.Element {
   const [skillPickerOpen, setSkillPickerOpen] = useState(false)
   const [streamCitations, setStreamCitations] = useState<KnowledgeCitation[]>([])
   const [streamToolSteps, setStreamToolSteps] = useState<LlmToolStep[]>([])
+  const [artifactsOpen, setArtifactsOpen] = useState(false)
+  const [artifacts, setArtifacts] = useState<WorkbenchArtifact[]>([])
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillRow[]>([])
   const [skillInstallRef, setSkillInstallRef] = useState('')
   const [skillCatalogs, setSkillCatalogs] = useState<
@@ -224,9 +235,27 @@ export function WorkbenchPage(): React.JSX.Element {
     if (nextId) {
       setActiveSessionId(nextId)
       setMessages(listMessages(nextId))
+      const arts = listArtifacts(nextId)
+      setArtifacts(arts)
+      setActiveArtifactId((prev) => (prev && arts.some((a) => a.id === prev) ? prev : arts[0]?.id ?? null))
     } else {
       setMessages([])
+      setArtifacts([])
+      setActiveArtifactId(null)
     }
+  }
+
+  const appendAssistant = (
+    sessionId: string,
+    content: string,
+    citations?: Parameters<typeof appendMessage>[3],
+    toolSteps?: Parameters<typeof appendMessage>[4],
+  ): void => {
+    const msg = appendMessage(sessionId, 'assistant', content, citations, toolSteps)
+    extractArtifactsFromContent(sessionId, content, msg.id)
+    const arts = listArtifacts(sessionId)
+    setArtifacts(arts)
+    if (arts[0]) setActiveArtifactId(arts[0].id)
   }
 
   useEffect(() => {
@@ -327,6 +356,7 @@ export function WorkbenchPage(): React.JSX.Element {
   }
 
   const onDeleteSession = (id: string): void => {
+    clearSessionArtifacts(id)
     deleteSession(id)
     refresh(null, activeAgent)
   }
@@ -410,7 +440,7 @@ export function WorkbenchPage(): React.JSX.Element {
             const md = `![${content.slice(0, 40)}](${img.url})\n\n${t('workbench.imageDone')}${
               meta ? ` (${meta})` : ''
             }`
-            appendMessage(sessionId, 'assistant', md)
+            appendAssistant(sessionId, md)
           } else {
             appendMessage(
               sessionId,
@@ -429,7 +459,7 @@ export function WorkbenchPage(): React.JSX.Element {
         })
         if (streamSessionRef.current === sessionId) {
           if (vid.ok && (vid.text || vid.url)) {
-            appendMessage(sessionId, 'assistant', vid.text || `[video](${vid.url})`)
+            appendAssistant(sessionId, vid.text || `[video](${vid.url})`)
           } else {
             appendMessage(
               sessionId,
@@ -448,7 +478,7 @@ export function WorkbenchPage(): React.JSX.Element {
         })
         if (streamSessionRef.current === sessionId) {
           if (music.ok && (music.text || music.url)) {
-            appendMessage(sessionId, 'assistant', music.text || `[audio](${music.url})`)
+            appendAssistant(sessionId, music.text || `[audio](${music.url})`)
           } else {
             appendMessage(
               sessionId,
@@ -504,13 +534,7 @@ export function WorkbenchPage(): React.JSX.Element {
         )
         if (streamSessionRef.current === sessionId) {
           if (res.ok && res.text?.trim()) {
-            appendMessage(
-              sessionId,
-              'assistant',
-              res.text.trim(),
-              res.citations,
-              res.toolSteps,
-            )
+            appendAssistant(sessionId, res.text.trim(), res.citations, res.toolSteps)
           } else {
             appendMessage(
               sessionId,
@@ -636,7 +660,7 @@ export function WorkbenchPage(): React.JSX.Element {
         try {
           const res = await window.treasureChest.transcribeAudio({ filePath })
           if (res.ok && res.text) {
-            appendMessage(sessionId, 'assistant', res.text)
+            appendAssistant(sessionId, res.text)
           } else {
             appendMessage(
               sessionId,
@@ -968,6 +992,7 @@ export function WorkbenchPage(): React.JSX.Element {
         )}
       </aside>
 
+      <section className={styles.chatShell}>
       <section className={styles.chatPane}>
         <header className={styles.chatHead}>
           <div className={styles.headLeft}>
@@ -990,6 +1015,15 @@ export function WorkbenchPage(): React.JSX.Element {
             </div>
           </div>
           <div className={styles.headActions}>
+            <button
+              type="button"
+              className={`${styles.chipLink} ${artifactsOpen ? styles.chipLinkActive : ''}`}
+              title={t('workbench.artifacts')}
+              onClick={() => setArtifactsOpen((v) => !v)}
+            >
+              {t('workbench.artifacts')}
+              {artifacts.length > 0 ? ` (${artifacts.length})` : ''}
+            </button>
             {panelOpen ? (
               <button
                 type="button"
@@ -1113,155 +1147,155 @@ export function WorkbenchPage(): React.JSX.Element {
           )}
         </div>
 
-        {skillPickerOpen ? (
-          <div className={styles.skillPicker}>
-            <div className={styles.skillPickerHead}>
-              <strong>{t('workbench.skillPickerTitle')}</strong>
-              <button
-                type="button"
-                className={styles.ghostMini}
-                onClick={() => setSkillPickerOpen(false)}
-              >
-                {t('knowledge.cancel')}
-              </button>
-            </div>
-            <div className={styles.skillGrid}>
-              {(installedSkills.length
-                ? installedSkills.map((skill) => ({
-                    id: skill.id,
-                    label: skill.name,
-                    desc: skill.description,
-                  }))
-                : WORKBENCH_SKILLS.map((skill) => ({
-                    id: skill.id,
-                    label: t(skill.labelKey),
-                    desc: '',
-                  }))
-              ).map((skill) => (
-                <button
-                  key={skill.id}
-                  type="button"
-                  className={`${styles.skillCard} ${
-                    activeSkillId === skill.id ? styles.skillCardActive : ''
-                  }`}
-                  title={skill.desc}
-                  onClick={() => {
-                    setActiveSkillId(skill.id)
-                    setActiveCap('skills')
-                    setSkillPickerOpen(false)
-                    inputRef.current?.focus()
-                  }}
-                >
-                  {skill.label}
-                </button>
-              ))}
-            </div>
-            <div className={styles.skillInstall}>
-              <input
-                value={skillInstallRef}
-                onChange={(e) => setSkillInstallRef(e.target.value)}
-                placeholder={t('workbench.skillInstallPlaceholder')}
-              />
-              <button
-                type="button"
-                className={styles.ghostMini}
-                disabled={!skillInstallRef.trim()}
-                onClick={() => {
-                  void (async () => {
-                    try {
-                      await window.treasureChest.installSkillFromGithub(skillInstallRef.trim())
-                      const skills = await window.treasureChest.listSkills()
-                      setInstalledSkills(skills)
-                      setSkillInstallRef('')
-                    } catch (err) {
-                      const sessionId = ensureSession(activeAgent)
-                      appendMessage(
-                        sessionId,
-                        'system',
-                        t('workbench.skillInstallFailed', {
-                          error: err instanceof Error ? err.message : String(err),
-                        }),
-                      )
-                      refresh(sessionId)
-                    }
-                  })()
-                }}
-              >
-                {t('workbench.skillInstall')}
-              </button>
-            </div>
-            {skillCatalogs.length ? (
-              <div className={styles.skillCatalogs}>
-                {skillCatalogs.map((c) => (
-                  <a key={c.id} href={c.url} target="_blank" rel="noreferrer">
-                    {c.name}
-                  </a>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {activeCap &&
-        ['write', 'translate', 'research', 'skills', 'image', 'video', 'music'].includes(activeCap) ? (
-          <div className={styles.modePanel}>
-            <div className={styles.modePanelHead}>
-              <div className={styles.modePanelTitle}>
-                <span className={styles.modePanelIcon}>{capabilityIcon(activeCap)}</span>
-                <strong>
-                  {t(`workbench.cap.${activeCap}` as 'workbench.cap.image')}
-                  {activeCap === 'skills' && activeSkillId
-                    ? ` · ${
-                        installedSkills.find((s) => s.id === activeSkillId)?.name ||
-                        t(
-                          (WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)?.labelKey ||
-                            'workbench.cap.skills') as 'workbench.cap.skills',
-                        )
-                      }`
-                    : ''}
-                </strong>
-              </div>
-              <button
-                type="button"
-                className={styles.modePanelClose}
-                onClick={() => {
-                  setActiveCap(null)
-                  setActiveSkillId(null)
-                }}
-                title={t('workbench.mode.clear')}
-              >
-                {t('workbench.mode.clear')} ×
-              </button>
-            </div>
-            {(CAPABILITY_OPTION_GROUPS[activeCap] ?? []).map((group) => (
-              <div key={group.id} className={styles.modeOptRow}>
-                <span className={styles.modeOptLabel}>{t(group.labelKey)}</span>
-                <div className={styles.modeOptChips} role="group" aria-label={t(group.labelKey)}>
-                  {group.choices.map((choice) => {
-                    const selected = (capOptions[group.id] ?? DEFAULT_CAP_OPTIONS[group.id]) === choice.value
-                    return (
-                      <button
-                        key={choice.value}
-                        type="button"
-                        className={`${styles.modeOptChip} ${selected ? styles.modeOptChipActive : ''}`}
-                        aria-pressed={selected}
-                        onClick={() =>
-                          setCapOptions((prev) => ({
-                            ...prev,
-                            [group.id as CapOptionGroupId]: choice.value,
-                          }))
-                        }
-                      >
-                        {t(choice.labelKey)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
         <div className={styles.composerWrap}>
           <div className={styles.composer}>
+          {skillPickerOpen ? (
+            <div className={styles.skillPicker}>
+              <div className={styles.skillPickerHead}>
+                <strong>{t('workbench.skillPickerTitle')}</strong>
+                <button
+                  type="button"
+                  className={styles.ghostMini}
+                  onClick={() => setSkillPickerOpen(false)}
+                >
+                  {t('knowledge.cancel')}
+                </button>
+              </div>
+              <div className={styles.skillGrid}>
+                {(installedSkills.length
+                  ? installedSkills.map((skill) => ({
+                      id: skill.id,
+                      label: skill.name,
+                      desc: skill.description,
+                    }))
+                  : WORKBENCH_SKILLS.map((skill) => ({
+                      id: skill.id,
+                      label: t(skill.labelKey),
+                      desc: '',
+                    }))
+                ).map((skill) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    className={`${styles.skillCard} ${
+                      activeSkillId === skill.id ? styles.skillCardActive : ''
+                    }`}
+                    title={skill.desc}
+                    onClick={() => {
+                      setActiveSkillId(skill.id)
+                      setActiveCap('skills')
+                      setSkillPickerOpen(false)
+                      inputRef.current?.focus()
+                    }}
+                  >
+                    {skill.label}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.skillInstall}>
+                <input
+                  value={skillInstallRef}
+                  onChange={(e) => setSkillInstallRef(e.target.value)}
+                  placeholder={t('workbench.skillInstallPlaceholder')}
+                />
+                <button
+                  type="button"
+                  className={styles.ghostMini}
+                  disabled={!skillInstallRef.trim()}
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        await window.treasureChest.installSkillFromGithub(skillInstallRef.trim())
+                        const skills = await window.treasureChest.listSkills()
+                        setInstalledSkills(skills)
+                        setSkillInstallRef('')
+                      } catch (err) {
+                        const sessionId = ensureSession(activeAgent)
+                        appendMessage(
+                          sessionId,
+                          'system',
+                          t('workbench.skillInstallFailed', {
+                            error: err instanceof Error ? err.message : String(err),
+                          }),
+                        )
+                        refresh(sessionId)
+                      }
+                    })()
+                  }}
+                >
+                  {t('workbench.skillInstall')}
+                </button>
+              </div>
+              {skillCatalogs.length ? (
+                <div className={styles.skillCatalogs}>
+                  {skillCatalogs.map((c) => (
+                    <a key={c.id} href={c.url} target="_blank" rel="noreferrer">
+                      {c.name}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {activeCap &&
+          ['write', 'translate', 'research', 'skills', 'image', 'video', 'music'].includes(activeCap) ? (
+            <div className={styles.modePanel}>
+              <div className={styles.modePanelHead}>
+                <div className={styles.modePanelTitle}>
+                  <span className={styles.modePanelIcon}>{capabilityIcon(activeCap)}</span>
+                  <strong>
+                    {t(`workbench.cap.${activeCap}` as 'workbench.cap.image')}
+                    {activeCap === 'skills' && activeSkillId
+                      ? ` · ${
+                          installedSkills.find((s) => s.id === activeSkillId)?.name ||
+                          t(
+                            (WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)?.labelKey ||
+                              'workbench.cap.skills') as 'workbench.cap.skills',
+                          )
+                        }`
+                      : ''}
+                  </strong>
+                </div>
+                <button
+                  type="button"
+                  className={styles.modePanelClose}
+                  onClick={() => {
+                    setActiveCap(null)
+                    setActiveSkillId(null)
+                  }}
+                  title={t('workbench.mode.clear')}
+                >
+                  {t('workbench.mode.clear')} ×
+                </button>
+              </div>
+              {(CAPABILITY_OPTION_GROUPS[activeCap] ?? []).map((group) => (
+                <div key={group.id} className={styles.modeOptRow}>
+                  <span className={styles.modeOptLabel}>{t(group.labelKey)}</span>
+                  <div className={styles.modeOptChips} role="group" aria-label={t(group.labelKey)}>
+                    {group.choices.map((choice) => {
+                      const selected = (capOptions[group.id] ?? DEFAULT_CAP_OPTIONS[group.id]) === choice.value
+                      return (
+                        <button
+                          key={choice.value}
+                          type="button"
+                          className={`${styles.modeOptChip} ${selected ? styles.modeOptChipActive : ''}`}
+                          aria-pressed={selected}
+                          onClick={() =>
+                            setCapOptions((prev) => ({
+                              ...prev,
+                              [group.id as CapOptionGroupId]: choice.value,
+                            }))
+                          }
+                        >
+                          {t(choice.labelKey)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
             {attachments.length > 0 ? (
               <div className={styles.attachRow}>
                 {attachments.map((file) => (
@@ -1420,6 +1454,20 @@ export function WorkbenchPage(): React.JSX.Element {
           </div>
           <p className={styles.hint}>{t('workbench.inputHint')}</p>
         </div>
+      </section>
+      <ArtifactsPanel
+        open={artifactsOpen}
+        artifacts={artifacts}
+        activeId={activeArtifactId}
+        onSelect={setActiveArtifactId}
+        onClose={() => setArtifactsOpen(false)}
+        onDelete={(id) => {
+          deleteArtifact(id)
+          const next = listArtifacts(activeId ?? undefined)
+          setArtifacts(next)
+          setActiveArtifactId(next[0]?.id ?? null)
+        }}
+      />
       </section>
     </div>
   )

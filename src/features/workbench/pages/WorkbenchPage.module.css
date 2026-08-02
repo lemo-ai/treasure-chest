@@ -11,6 +11,20 @@
   grid-template-columns: 64px minmax(0, 1fr);
 }
 
+.chatShell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.chatPane {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  min-height: 0;
+}
+
 .agentPane {
   display: flex;
   flex-direction: column;
@@ -300,13 +314,6 @@
   white-space: nowrap;
 }
 
-.chatPane {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  min-width: 0;
-  min-height: 0;
-}
-
 .chatHead {
   display: flex;
   align-items: center;
@@ -386,6 +393,12 @@
 .chipLink:hover {
   color: var(--color-brand-strong);
   border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  background: var(--color-brand-soft);
+}
+
+.chipLinkActive {
+  color: var(--color-brand-strong);
+  border-color: color-mix(in srgb, var(--color-brand) 55%, var(--color-border));
   background: var(--color-brand-soft);
 }
 
@@ -980,11 +993,11 @@
 }
 
 .skillPicker {
-  margin: 0 var(--space-5) var(--space-2);
-  padding: var(--space-3);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 0.2rem 0.55rem;
+  margin: 0 0 0.15rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
 }
 
 .skillPickerHead {
@@ -1040,17 +1053,12 @@
 }
 
 .modePanel {
-  margin: 0 var(--space-5) 0.45rem;
-  padding: 0.7rem 0.85rem 0.75rem;
-  border-radius: var(--radius-xl);
-  border: 1px solid color-mix(in srgb, var(--color-brand) 28%, var(--color-border));
-  background:
-    linear-gradient(
-      160deg,
-      color-mix(in srgb, var(--color-brand) 10%, var(--color-bg-elevated)),
-      var(--color-bg-elevated)
-    );
-  box-shadow: var(--shadow-soft);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 0.35rem 0.65rem;
+  margin: 0 0 0.1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-brand) 22%, var(--color-border));
+  background: transparent;
 }
 
 .modePanelHead {
