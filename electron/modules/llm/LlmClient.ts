@@ -483,12 +483,23 @@ export function settingsToLlmEndpoint(settings: FortuneSettings): {
   apiFormat: 'openai' | 'anthropic'
   model: string
   providerName: string
+  mediaProfile: import('@shared').MediaProfileId
+  imageModel?: string
+  videoModel?: string
+  musicModel?: string
 } {
+  const active =
+    settings.aiProviders.find((p) => p.id === settings.aiActiveProviderId) ??
+    settings.aiProviders[0]
   return {
     baseUrl: settings.aiBaseUrl,
     apiKey: settings.aiApiKey,
     apiFormat: settings.aiApiFormat === 'anthropic' ? 'anthropic' : 'openai',
     model: settings.aiModel,
     providerName: settings.aiProviderName,
+    mediaProfile: active?.mediaProfile ?? 'auto',
+    imageModel: active?.imageModel,
+    videoModel: active?.videoModel,
+    musicModel: active?.musicModel,
   }
 }

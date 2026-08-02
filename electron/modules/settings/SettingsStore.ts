@@ -186,6 +186,23 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
         !apiKey && id === 'default-openai' && models.length === 1 && models[0] === 'gpt-4o-mini'
           ? []
           : models
+      const mediaProfileRaw = typeof r.mediaProfile === 'string' ? r.mediaProfile.trim() : 'auto'
+      const mediaProfile = (
+        [
+          'auto',
+          'openai_compat',
+          'volcengine_ark',
+          'dashscope',
+          'kling',
+          'minimax',
+          'none',
+        ] as const
+      ).includes(mediaProfileRaw as 'auto')
+        ? (mediaProfileRaw as FortuneAiProviderConfig['mediaProfile'])
+        : 'auto'
+      const imageModel = typeof r.imageModel === 'string' ? r.imageModel.trim() || undefined : undefined
+      const videoModel = typeof r.videoModel === 'string' ? r.videoModel.trim() || undefined : undefined
+      const musicModel = typeof r.musicModel === 'string' ? r.musicModel.trim() || undefined : undefined
       return {
         id,
         name,
@@ -193,6 +210,10 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
         apiFormat,
         models: scrubbedModels,
         apiKey,
+        mediaProfile,
+        imageModel,
+        videoModel,
+        musicModel,
       }
     })
     .filter((p) => Boolean(p.id))
@@ -213,6 +234,7 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
         : DEFAULT_FORTUNE_SETTINGS.aiApiFormat,
     models: modelList,
     apiKey: typeof src.aiApiKey === 'string' ? src.aiApiKey.trim() : '',
+    mediaProfile: 'auto',
   }
 
   const providers = parsedProviders.length > 0 ? parsedProviders : [fallbackProvider]
@@ -465,6 +487,16 @@ export const settingsStore = {
           ),
         )
         const apiKey = typeof p.apiKey === 'string' ? p.apiKey.trim() : ''
+        const mediaProfile =
+          p.mediaProfile === 'openai_compat' ||
+          p.mediaProfile === 'volcengine_ark' ||
+          p.mediaProfile === 'dashscope' ||
+          p.mediaProfile === 'kling' ||
+          p.mediaProfile === 'minimax' ||
+          p.mediaProfile === 'none' ||
+          p.mediaProfile === 'auto'
+            ? p.mediaProfile
+            : 'auto'
         return {
           id,
           name,
@@ -472,6 +504,10 @@ export const settingsStore = {
           apiFormat,
           models,
           apiKey,
+          mediaProfile,
+          imageModel: typeof p.imageModel === 'string' ? p.imageModel.trim() || undefined : undefined,
+          videoModel: typeof p.videoModel === 'string' ? p.videoModel.trim() || undefined : undefined,
+          musicModel: typeof p.musicModel === 'string' ? p.musicModel.trim() || undefined : undefined,
         }
       })
       .filter((p) => Boolean(p.id))

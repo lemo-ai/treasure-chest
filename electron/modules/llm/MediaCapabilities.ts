@@ -6,9 +6,16 @@ import type {
   MediaSupportLevel,
 } from '@shared'
 import { settingsToLlmEndpoint } from './LlmClient'
+import {
+  classifyMediaHttpFailure,
+  resolveEffectiveMediaVendor,
+} from './media/detect'
+import { resolveImageProvider } from './image'
+import { resolveMusicProvider } from './music'
 import { resolveVideoProvider } from './video'
 
 export type { MediaSupportLevel, MediaCapabilityKind, MediaCapabilityInfo, MediaCapabilitiesSnapshot }
+export { classifyMediaHttpFailure }
 
 function hostOf(baseUrl: string): string {
   try {
@@ -19,31 +26,35 @@ function hostOf(baseUrl: string): string {
 }
 
 /**
- * Industry pattern (Cursor / ChatGPT / Open WebUI):
- * gate media actions by provider capability *before* calling APIs.
- * Heuristics only — user gateways vary; "maybe" means try-at-own-risk.
+ * Gate media actions by Settings mediaProfile (+ URL auto when profile=auto).
  */
 export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabilitiesSnapshot {
   const endpoint = settingsToLlmEndpoint(settings)
   const host = hostOf(endpoint.baseUrl)
   const isAnthropic = endpoint.apiFormat === 'anthropic'
-  const isOpenAiOfficial =
-    host.includes('api.openai.com') || host.includes('openai.azure.com')
-  const isDeepSeek = host.includes('deepseek')
   const isLocal =
     host.includes('127.0.0.1') ||
     host.includes('localhost') ||
     host.includes('ollama') ||
     host.includes('lmstudio') ||
     /:(11434|1234|8080)\b/.test(endpoint.baseUrl)
-  const knownNoMedia = isDeepSeek || host.includes('moonshot') || host.includes('anthropic')
+  const knownNoMedia = host.includes('deepseek') || host.includes('moonshot') || host.includes('anthropic')
 
-  const videoProvider = resolveVideoProvider({
+  const ctx = {
     baseUrl: endpoint.baseUrl,
     apiKey: endpoint.apiKey,
     providerName: endpoint.providerName,
     settingsModel: endpoint.model,
-  })
+    mediaProfile: endpoint.mediaProfile,
+    imageModel: endpoint.imageModel,
+    videoModel: endpoint.videoModel,
+    musicModel: endpoint.musicModel,
+  }
+  const vendor = resolveEffectiveMediaVendor(ctx)
+  const imageProvider = resolveImageProvider(ctx)
+  const videoProvider = resolveVideoProvider(ctx)
+  const musicProvider = resolveMusicProvider(ctx)
+  const mediaProfile = endpoint.mediaProfile ?? 'auto'
 
   const make = (
     kind: MediaCapabilityKind,
@@ -51,27 +62,17 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
     reason: MediaCapabilityInfo['reason'],
   ): MediaCapabilityInfo => ({ kind, level, reason })
 
-  const videoCapability = (): MediaCapabilityInfo => {
-    switch (videoProvider.id) {
-      case 'volcengine_ark':
-        return make('video', 'yes', 'volcengine_ark')
-      case 'dashscope':
-        return make('video', 'yes', 'dashscope_wan')
-      case 'kling':
-        return make('video', 'yes', 'kling')
-      default:
-        if (isOpenAiOfficial) return make('video', 'maybe', 'video_rare')
-        if (isLocal) return make('video', 'no', 'video_rare')
-        return make('video', 'maybe', 'openai_compat_unknown')
-    }
+  const baseSnap = {
+    providerName: endpoint.providerName,
+    baseUrl: endpoint.baseUrl,
+    apiFormat: endpoint.apiFormat,
+    model: endpoint.model,
+    mediaProfile,
   }
 
   if (isAnthropic) {
     return {
-      providerName: endpoint.providerName,
-      baseUrl: endpoint.baseUrl,
-      apiFormat: endpoint.apiFormat,
-      model: endpoint.model,
+      ...baseSnap,
       capabilities: {
         image: make('image', 'no', 'anthropic_format'),
         video: make('video', 'no', 'anthropic_format'),
@@ -81,12 +82,21 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
     }
   }
 
-  if (knownNoMedia) {
+  if (vendor === 'none' || mediaProfile === 'none') {
     return {
-      providerName: endpoint.providerName,
-      baseUrl: endpoint.baseUrl,
-      apiFormat: endpoint.apiFormat,
-      model: endpoint.model,
+      ...baseSnap,
+      capabilities: {
+        image: make('image', 'no', 'media_disabled'),
+        video: make('video', 'no', 'media_disabled'),
+        music: make('music', 'no', 'media_disabled'),
+        transcribe: make('transcribe', 'maybe', 'openai_compat_unknown'),
+      },
+    }
+  }
+
+  if (knownNoMedia && mediaProfile === 'auto') {
+    return {
+      ...baseSnap,
       capabilities: {
         image: make('image', 'no', 'provider_no_media'),
         video: make('video', 'no', 'provider_no_media'),
@@ -96,64 +106,63 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
     }
   }
 
-  if (isOpenAiOfficial) {
-    return {
-      providerName: endpoint.providerName,
-      baseUrl: endpoint.baseUrl,
-      apiFormat: endpoint.apiFormat,
-      model: endpoint.model,
-      capabilities: {
-        image: make('image', 'yes', 'openai_official'),
-        video: videoCapability(),
-        music: make('music', 'no', 'music_rare'),
-        transcribe: make('transcribe', 'yes', 'openai_official'),
-      },
+  const imageCap = (): MediaCapabilityInfo => {
+    switch (imageProvider.id) {
+      case 'volcengine_ark':
+        return make('image', 'yes', 'volcengine_ark')
+      case 'dashscope':
+        return make('image', 'yes', 'dashscope_wan')
+      case 'none':
+        return make('image', 'no', 'media_disabled')
+      default:
+        if (vendor === 'openai') return make('image', 'yes', 'openai_official')
+        if (isLocal) return make('image', 'maybe', 'local_runtime')
+        return make('image', 'maybe', 'media_profile')
     }
   }
 
-  if (isLocal) {
-    return {
-      providerName: endpoint.providerName,
-      baseUrl: endpoint.baseUrl,
-      apiFormat: endpoint.apiFormat,
-      model: endpoint.model,
-      capabilities: {
-        image: make('image', 'maybe', 'local_runtime'),
-        video: videoCapability(),
-        music: make('music', 'no', 'music_rare'),
-        transcribe: make('transcribe', 'maybe', 'local_runtime'),
-      },
+  const videoCap = (): MediaCapabilityInfo => {
+    switch (videoProvider.id) {
+      case 'volcengine_ark':
+        return make('video', 'yes', 'volcengine_ark')
+      case 'dashscope':
+        return make('video', 'yes', 'dashscope_wan')
+      case 'kling':
+        return make('video', 'yes', 'kling')
+      default:
+        if (vendor === 'openai') return make('video', 'maybe', 'video_rare')
+        if (isLocal) return make('video', 'no', 'video_rare')
+        return make('video', 'maybe', 'media_profile')
     }
   }
 
-  // DashScope / Ark chat gateways often also expose image APIs
-  const imageYes =
-    videoProvider.id === 'dashscope' || videoProvider.id === 'volcengine_ark'
+  const musicCap = (): MediaCapabilityInfo => {
+    switch (musicProvider.id) {
+      case 'minimax':
+        return make('music', 'yes', 'minimax_music')
+      case 'dashscope':
+        return make('music', 'maybe', 'dashscope_audio')
+      case 'none':
+        return make('music', 'no', 'media_disabled')
+      default:
+        if (vendor === 'openai') return make('music', 'no', 'music_rare')
+        return make('music', 'maybe', 'media_profile')
+    }
+  }
+
+  const transcribeCap = (): MediaCapabilityInfo => {
+    if (vendor === 'openai') return make('transcribe', 'yes', 'openai_official')
+    if (isLocal) return make('transcribe', 'maybe', 'local_runtime')
+    return make('transcribe', 'maybe', 'openai_compat_unknown')
+  }
 
   return {
-    providerName: endpoint.providerName,
-    baseUrl: endpoint.baseUrl,
-    apiFormat: endpoint.apiFormat,
-    model: endpoint.model,
+    ...baseSnap,
     capabilities: {
-      image: make('image', imageYes ? 'yes' : 'maybe', 'openai_compat_unknown'),
-      video: videoCapability(),
-      music: make('music', 'no', 'music_rare'),
-      transcribe: make('transcribe', 'maybe', 'openai_compat_unknown'),
+      image: imageCap(),
+      video: videoCap(),
+      music: musicCap(),
+      transcribe: transcribeCap(),
     },
   }
-}
-
-export function classifyMediaHttpFailure(status: number, body: string): string | null {
-  const lower = body.toLowerCase()
-  if (status === 404 || status === 405) return 'endpoint_missing'
-  if (
-    status === 400 &&
-    (/not support|unsupported|unknown model|does not exist|no such model/.test(lower) ||
-      /image.?generat|dall-e|whisper|sora/.test(lower))
-  ) {
-    return 'model_unsupported'
-  }
-  if (status === 501 || /not implemented|not available/.test(lower)) return 'endpoint_missing'
-  return null
 }

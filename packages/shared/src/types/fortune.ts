@@ -1,3 +1,5 @@
+import type { MediaProfileId } from './media'
+
 /** Calendar system used for birth date input. */
 export type BirthCalendar = 'solar' | 'lunar'
 
@@ -45,6 +47,15 @@ export interface FortuneAiProviderConfig {
   apiFormat: 'openai' | 'anthropic'
   models: string[]
   apiKey: string
+  /**
+   * Media protocol profile for image/video/music.
+   * `auto` suggests from Base URL; user may override in Settings.
+   */
+  mediaProfile?: MediaProfileId
+  /** Optional dedicated models (fall back to chat model / adapter default). */
+  imageModel?: string
+  videoModel?: string
+  musicModel?: string
 }
 
 export interface FortuneSettings {
@@ -87,6 +98,7 @@ export const DEFAULT_FORTUNE_SETTINGS: FortuneSettings = {
       apiFormat: 'openai',
       models: [],
       apiKey: '',
+      mediaProfile: 'auto',
     },
   ],
   aiActiveProviderId: 'default-openai',

@@ -1,10 +1,11 @@
-import type { FortuneSettings } from '@shared'
-import { settingsToLlmEndpoint } from './LlmClient'
-import { classifyMediaHttpFailure } from './MediaCapabilities'
-import { generateVideoWithAdapters } from './video'
-import { logger } from '../../utils/logger'
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
+import type { FortuneSettings } from '@shared'
+import { settingsToLlmEndpoint } from './LlmClient'
+import { classifyMediaHttpFailure } from './media/detect'
+import { generateMusicWithAdapters } from './music'
+import { generateVideoWithAdapters } from './video'
+import { logger } from '../../utils/logger'
 
 export interface MediaGenResult {
   ok: boolean
@@ -31,7 +32,6 @@ function authHeaders(apiKey: string): Record<string, string> {
 
 /**
  * OpenAI-compatible Whisper transcription: POST /v1/audio/transcriptions
- * @see https://platform.openai.com/docs/api-reference/audio/createTranscription
  */
 export async function transcribeAudioFile(
   filePath: string,
@@ -92,9 +92,7 @@ export async function transcribeAudioFile(
   }
 }
 
-/**
- * Provider-adaptive video generation (Ark Seedance / DashScope Wan / Kling / OpenAI-compat).
- */
+/** Provider-adaptive video generation. */
 export async function generateVideo(
   prompt: string,
   settings: FortuneSettings,
@@ -123,6 +121,10 @@ export async function generateVideo(
       apiKey: endpoint.apiKey,
       providerName: endpoint.providerName,
       settingsModel: endpoint.model,
+      mediaProfile: endpoint.mediaProfile,
+      imageModel: endpoint.imageModel,
+      videoModel: endpoint.videoModel,
+      musicModel: endpoint.musicModel,
     },
     opts ?? {},
   )
@@ -130,9 +132,7 @@ export async function generateVideo(
   return media
 }
 
-/**
- * Best-effort music / audio generation against OpenAI-compatible gateways.
- */
+/** Provider-adaptive music / audio generation. */
 export async function generateMusic(
   prompt: string,
   settings: FortuneSettings,
@@ -146,104 +146,26 @@ export async function generateMusic(
   const text = prompt.trim()
   if (!text) return { ok: false, error: 'empty prompt' }
 
-  const endpoint = requireOpenAiCompat(settings)
-  if ('ok' in endpoint && endpoint.ok === false) return endpoint
-  const { baseUrl, apiKey } = endpoint as ReturnType<typeof settingsToLlmEndpoint>
-  const base = baseUrl.replace(/\/$/, '')
-  const model = opts?.model?.trim() || 'music-1'
-  const headers = { 'Content-Type': 'application/json', ...authHeaders(apiKey) }
-  const enriched =
-    [
-      text.slice(0, 1800),
-      opts?.style ? `style: ${opts.style}` : null,
-      opts?.durationSec ? `duration: ${opts.durationSec}s` : null,
-      opts?.instrumental ? 'instrumental only' : null,
-    ]
-      .filter(Boolean)
-      .join('. ')
-  const musicBody = {
-    model,
-    prompt: enriched,
-    duration: opts?.durationSec,
-    style: opts?.style,
-    instrumental: opts?.instrumental,
-  }
-  const attempts = [
-    { path: '/audio/generations', body: musicBody },
-    { path: '/music/generations', body: musicBody },
-    {
-      path: '/audio/speech',
-      body: {
-        model: 'tts-1',
-        input: text.slice(0, 1000),
-        voice: 'alloy',
-        response_format: 'mp3',
-      },
-      speech: true as const,
-    },
-  ]
-
-  const errors: string[] = []
-  for (const attempt of attempts) {
-    try {
-      const res = await fetch(`${base}${attempt.path}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(attempt.body),
-        signal: AbortSignal.timeout(180_000),
-      })
-      if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        errors.push(`${attempt.path} → HTTP ${res.status}`)
-        logger.warn(`music gen ${attempt.path} HTTP ${res.status}: ${body.slice(0, 160)}`)
-        continue
-      }
-      if ('speech' in attempt && attempt.speech) {
-        const buf = Buffer.from(await res.arrayBuffer())
-        const url = `data:audio/mpeg;base64,${buf.toString('base64')}`
-        return {
-          ok: true,
-          url,
-          text:
-            `**Audio (TTS fallback)**\n\n` +
-            `Your provider has no dedicated music endpoint; generated speech audio from the prompt instead.\n\n` +
-            `<audio controls src="${url}"></audio>`,
-        }
-      }
-      const data = (await res.json()) as {
-        data?: Array<{ url?: string; b64_json?: string }>
-        url?: string
-        audio_url?: string
-      }
-      const url =
-        data.url ||
-        data.audio_url ||
-        data.data?.[0]?.url ||
-        (data.data?.[0]?.b64_json ? `data:audio/mpeg;base64,${data.data[0].b64_json}` : undefined)
-      const meta = [
-        opts?.style,
-        opts?.durationSec ? `${opts.durationSec}s` : null,
-        opts?.instrumental ? 'instrumental' : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-      if (url) {
-        return {
-          ok: true,
-          url,
-          text: `**Music / audio**${meta ? ` (${meta})` : ''}\n\n<audio controls src="${url}"></audio>\n\n_${text.slice(0, 120)}_`,
-        }
-      }
-      errors.push(`${attempt.path} → no audio payload`)
-    } catch (err) {
-      errors.push(`${attempt.path} → ${err instanceof Error ? err.message : String(err)}`)
+  const endpoint = settingsToLlmEndpoint(settings)
+  if (endpoint.apiFormat === 'anthropic') {
+    return {
+      ok: false,
+      error: 'Music generation requires a non-Anthropic media-capable endpoint.',
     }
   }
 
-  return {
-    ok: false,
-    error:
-      `Music API not available on this endpoint. Tried /audio/generations, /music/generations, and TTS fallback. ` +
-      `Errors: ${errors.slice(-3).join('; ')}`,
-  }
+  return generateMusicWithAdapters(
+    text,
+    {
+      baseUrl: endpoint.baseUrl,
+      apiKey: endpoint.apiKey,
+      providerName: endpoint.providerName,
+      settingsModel: endpoint.model,
+      mediaProfile: endpoint.mediaProfile,
+      imageModel: endpoint.imageModel,
+      videoModel: endpoint.videoModel,
+      musicModel: endpoint.musicModel,
+    },
+    opts ?? {},
+  )
 }

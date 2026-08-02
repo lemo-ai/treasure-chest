@@ -25,6 +25,10 @@ export interface VideoProviderContext {
   providerName: string
   /** Active chat/video model from settings. */
   settingsModel: string
+  mediaProfile?: import('@shared').MediaProfileId
+  imageModel?: string
+  videoModel?: string
+  musicModel?: string
 }
 
 export interface VideoProvider {

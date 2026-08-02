@@ -9,11 +9,13 @@ import type {
   LaunchBehavior,
   McpServerStatus,
   McpTransport,
+  MediaProfileId,
   StocksRangeKey,
   StocksSettings,
   ThemeMode,
 } from '@shared'
 import {
+  AI_PROVIDER_PRESETS,
   ALL_STOCKS_RANGE_KEYS,
   DEFAULT_DESKTOP_WIDGET,
   DEFAULT_FORTUNE_SETTINGS,
@@ -21,6 +23,7 @@ import {
   DEFAULT_STOCKS_SETTINGS,
   DIAL_FACE_STYLES,
   HEXAGRAM_SCHOOLS,
+  MEDIA_PROFILE_IDS,
 } from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
@@ -103,6 +106,10 @@ export function SettingsPage(): React.JSX.Element {
   const [aiModel, setAiModel] = useState(DEFAULT_FORTUNE_SETTINGS.aiModel)
   const [aiModelDraft, setAiModelDraft] = useState('')
   const [aiApiKey, setAiApiKey] = useState(DEFAULT_FORTUNE_SETTINGS.aiApiKey)
+  const [aiMediaProfile, setAiMediaProfile] = useState<MediaProfileId>('auto')
+  const [aiImageModel, setAiImageModel] = useState('')
+  const [aiVideoModel, setAiVideoModel] = useState('')
+  const [aiMusicModel, setAiMusicModel] = useState('')
   const [aiSavedHint, setAiSavedHint] = useState<string | null>(null)
   const [aiTesting, setAiTesting] = useState(false)
   const [aiTestHint, setAiTestHint] = useState<string | null>(null)
@@ -191,6 +198,15 @@ export function SettingsPage(): React.JSX.Element {
       setAiModels(snap.fortune?.aiModels ?? DEFAULT_FORTUNE_SETTINGS.aiModels)
       setAiModel(snap.fortune?.aiModel ?? DEFAULT_FORTUNE_SETTINGS.aiModel)
       setAiApiKey(snap.fortune?.aiApiKey ?? DEFAULT_FORTUNE_SETTINGS.aiApiKey)
+      {
+        const active =
+          (snap.fortune?.aiProviders ?? []).find((p) => p.id === snap.fortune?.aiActiveProviderId) ??
+          snap.fortune?.aiProviders?.[0]
+        setAiMediaProfile(active?.mediaProfile ?? 'auto')
+        setAiImageModel(active?.imageModel ?? '')
+        setAiVideoModel(active?.videoModel ?? '')
+        setAiMusicModel(active?.musicModel ?? '')
+      }
     })
     void window.treasureChest.getMcpSettings().then((mcp) => {
       setMcpServers(mcp.servers.map(toMcpDraft))
@@ -330,6 +346,15 @@ export function SettingsPage(): React.JSX.Element {
         setAiModels(snap.fortune?.aiModels ?? DEFAULT_FORTUNE_SETTINGS.aiModels)
         setAiModel(snap.fortune?.aiModel ?? DEFAULT_FORTUNE_SETTINGS.aiModel)
         setAiApiKey(snap.fortune?.aiApiKey ?? DEFAULT_FORTUNE_SETTINGS.aiApiKey)
+        {
+          const active =
+            (snap.fortune?.aiProviders ?? []).find((p) => p.id === snap.fortune?.aiActiveProviderId) ??
+            snap.fortune?.aiProviders?.[0]
+          setAiMediaProfile(active?.mediaProfile ?? 'auto')
+          setAiImageModel(active?.imageModel ?? '')
+          setAiVideoModel(active?.videoModel ?? '')
+          setAiMusicModel(active?.musicModel ?? '')
+        }
         const login = await window.treasureChest.getLaunchAtLogin()
         setLaunchAtLogin(login.configured)
         const w = await window.treasureChest.getDesktopWidget()
@@ -361,6 +386,10 @@ export function SettingsPage(): React.JSX.Element {
             apiFormat: aiApiFormat,
             models: resolvedModels,
             apiKey: aiApiKey.trim(),
+            mediaProfile: aiMediaProfile,
+            imageModel: aiImageModel.trim() || undefined,
+            videoModel: aiVideoModel.trim() || undefined,
+            musicModel: aiMusicModel.trim() || undefined,
           }
         : provider,
     )
@@ -385,6 +414,14 @@ export function SettingsPage(): React.JSX.Element {
         setAiModels(next.aiModels)
         setAiModel(next.aiModel)
         setAiApiKey(next.aiApiKey)
+        {
+          const active =
+            next.aiProviders.find((p) => p.id === next.aiActiveProviderId) ?? next.aiProviders[0]
+          setAiMediaProfile(active?.mediaProfile ?? 'auto')
+          setAiImageModel(active?.imageModel ?? '')
+          setAiVideoModel(active?.videoModel ?? '')
+          setAiMusicModel(active?.musicModel ?? '')
+        }
         setAiSavedHint(t('settings.fortuneAiConfigSaved'))
       })
   }
@@ -443,6 +480,10 @@ export function SettingsPage(): React.JSX.Element {
     setAiModels(provider.models)
     setAiModel(provider.models[0] ?? '')
     setAiApiKey(provider.apiKey)
+    setAiMediaProfile(provider.mediaProfile ?? 'auto')
+    setAiImageModel(provider.imageModel ?? '')
+    setAiVideoModel(provider.videoModel ?? '')
+    setAiMusicModel(provider.musicModel ?? '')
   }
 
   const onAddProvider = (): void => {
@@ -454,6 +495,7 @@ export function SettingsPage(): React.JSX.Element {
       apiFormat: 'openai',
       models: [],
       apiKey: '',
+      mediaProfile: 'auto',
     }
     const nextProviders = [...aiProviders, next]
     setAiProviders(nextProviders)
@@ -464,6 +506,24 @@ export function SettingsPage(): React.JSX.Element {
     setAiModels(next.models)
     setAiModel(next.models[0] ?? '')
     setAiApiKey(next.apiKey)
+    setAiMediaProfile('auto')
+    setAiImageModel('')
+    setAiVideoModel('')
+    setAiMusicModel('')
+  }
+
+  const applyCloudPreset = (presetId: string): void => {
+    const preset = AI_PROVIDER_PRESETS.find((p) => p.id === presetId)
+    if (!preset) return
+    setAiProviderName(t(preset.nameKey))
+    setAiBaseUrl(preset.baseUrl)
+    setAiApiFormat(preset.apiFormat)
+    setAiMediaProfile(preset.mediaProfile)
+    setAiModels(preset.models)
+    setAiModel(preset.models[0] ?? '')
+    setAiImageModel(preset.imageModel ?? '')
+    setAiVideoModel(preset.videoModel ?? '')
+    setAiMusicModel(preset.musicModel ?? '')
   }
 
   const applyLocalPreset = (kind: 'ollama' | 'lmstudio'): void => {
@@ -472,6 +532,10 @@ export function SettingsPage(): React.JSX.Element {
       setAiBaseUrl('http://127.0.0.1:11434/v1')
       setAiApiFormat('openai')
       setAiApiKey('')
+      setAiMediaProfile('openai_compat')
+      setAiImageModel('')
+      setAiVideoModel('')
+      setAiMusicModel('')
       if (aiModels.length === 0) {
         setAiModels(['qwen2.5:7b'])
         setAiModel('qwen2.5:7b')
@@ -482,6 +546,10 @@ export function SettingsPage(): React.JSX.Element {
     setAiBaseUrl('http://127.0.0.1:1234/v1')
     setAiApiFormat('openai')
     setAiApiKey('')
+    setAiMediaProfile('openai_compat')
+    setAiImageModel('')
+    setAiVideoModel('')
+    setAiMusicModel('')
     if (aiModels.length === 0) {
       setAiModels(['local-model'])
       setAiModel('local-model')
@@ -501,6 +569,10 @@ export function SettingsPage(): React.JSX.Element {
       setAiModels(first.models)
       setAiModel(first.models[0] ?? '')
       setAiApiKey(first.apiKey)
+      setAiMediaProfile(first.mediaProfile ?? 'auto')
+      setAiImageModel(first.imageModel ?? '')
+      setAiVideoModel(first.videoModel ?? '')
+      setAiMusicModel(first.musicModel ?? '')
     }
   }
 
@@ -757,6 +829,20 @@ export function SettingsPage(): React.JSX.Element {
             {t('settings.modelsPreset.lmstudio')}
           </button>
         </div>
+        <div className={styles.localPresetRow}>
+          <span className={styles.localPresetLabel}>{t('settings.modelsCloudPresets')}</span>
+          {AI_PROVIDER_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className={styles.localPresetBtn}
+              onClick={() => applyCloudPreset(preset.id)}
+            >
+              {t(preset.nameKey)}
+            </button>
+          ))}
+        </div>
+        <p className={styles.settingHint}>{t('settings.modelsPresetHint')}</p>
         <p className={styles.settingHint}>{t('settings.modelsLocalHint')}</p>
         <div className={styles.aiProviderRow}>
           <div className={styles.aiProviderList}>
@@ -821,7 +907,49 @@ export function SettingsPage(): React.JSX.Element {
               <option value="anthropic">{t('settings.fortuneAiFormat.anthropic')}</option>
             </select>
           </label>
+          <label className={styles.aiField}>
+            <span className={styles.aiLabel}>{t('settings.mediaProfile')}</span>
+            <select
+              className={styles.aiSelect}
+              value={aiMediaProfile}
+              onChange={(e) => setAiMediaProfile(e.target.value as MediaProfileId)}
+            >
+              {MEDIA_PROFILE_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {t(`settings.mediaProfile.${id}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.aiField}>
+            <span className={styles.aiLabel}>{t('settings.mediaImageModel')}</span>
+            <input
+              className={styles.aiInput}
+              value={aiImageModel}
+              onChange={(e) => setAiImageModel(e.target.value)}
+              placeholder={t('settings.mediaModelOptional')}
+            />
+          </label>
+          <label className={styles.aiField}>
+            <span className={styles.aiLabel}>{t('settings.mediaVideoModel')}</span>
+            <input
+              className={styles.aiInput}
+              value={aiVideoModel}
+              onChange={(e) => setAiVideoModel(e.target.value)}
+              placeholder={t('settings.mediaModelOptional')}
+            />
+          </label>
+          <label className={styles.aiField}>
+            <span className={styles.aiLabel}>{t('settings.mediaMusicModel')}</span>
+            <input
+              className={styles.aiInput}
+              value={aiMusicModel}
+              onChange={(e) => setAiMusicModel(e.target.value)}
+              placeholder={t('settings.mediaModelOptional')}
+            />
+          </label>
         </div>
+        <p className={styles.settingHint}>{t('settings.mediaProfileHint')}</p>
         <div className={styles.aiModelBlock}>
           <div className={styles.aiLabel}>{t('settings.fortuneAiModelList')}</div>
           <div className={styles.aiModelAddRow}>
