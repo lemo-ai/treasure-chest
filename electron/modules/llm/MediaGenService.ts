@@ -1,9 +1,10 @@
-import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
 import type { FortuneSettings } from '@shared'
 import { settingsToLlmEndpoint } from './LlmClient'
 import { classifyMediaHttpFailure } from './MediaCapabilities'
+import { generateVideoWithAdapters } from './video'
 import { logger } from '../../utils/logger'
+import { readFile } from 'node:fs/promises'
+import { basename } from 'node:path'
 
 export interface MediaGenResult {
   ok: boolean
@@ -48,7 +49,7 @@ export async function transcribeAudioFile(
     const buf = await readFile(filePath)
     const name = basename(filePath)
     const form = new FormData()
-      form.append('file', new Blob([new Uint8Array(buf)]), name)
+    form.append('file', new Blob([new Uint8Array(buf)]), name)
     form.append('model', model)
     if (opts?.language) form.append('language', opts.language)
 
@@ -92,8 +93,7 @@ export async function transcribeAudioFile(
 }
 
 /**
- * Best-effort OpenAI-compatible video generation.
- * Tries common gateway paths used by OpenAI Videos / compatible providers.
+ * Provider-adaptive video generation (Ark Seedance / DashScope Wan / Kling / OpenAI-compat).
  */
 export async function generateVideo(
   prompt: string,
@@ -108,88 +108,26 @@ export async function generateVideo(
   const text = prompt.trim()
   if (!text) return { ok: false, error: 'empty prompt' }
 
-  const endpoint = requireOpenAiCompat(settings)
-  if ('ok' in endpoint && endpoint.ok === false) return endpoint
-  const { baseUrl, apiKey } = endpoint as ReturnType<typeof settingsToLlmEndpoint>
-  const base = baseUrl.replace(/\/$/, '')
-  const model = opts?.model?.trim() || 'sora-2'
-  const headers = { 'Content-Type': 'application/json', ...authHeaders(apiKey) }
-  const extra = {
-    duration: opts?.durationSec,
-    seconds: opts?.durationSec,
-    aspect_ratio: opts?.aspectRatio,
-    size: opts?.aspectRatio,
-    resolution: opts?.resolution,
-  }
-  const baseBody = { model, prompt: text.slice(0, 4000), ...extra }
-  const bodies = [
-    { path: '/videos', body: baseBody },
-    { path: '/video/generations', body: { ...baseBody, n: 1 } },
-    { path: '/videos/generations', body: baseBody },
-  ]
-
-  const errors: string[] = []
-  for (const attempt of bodies) {
-    try {
-      const res = await fetch(`${base}${attempt.path}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(attempt.body),
-        signal: AbortSignal.timeout(300_000),
-      })
-      if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        errors.push(`${attempt.path} → HTTP ${res.status}`)
-        logger.warn(`video gen ${attempt.path} HTTP ${res.status}: ${body.slice(0, 160)}`)
-        continue
-      }
-      const data = (await res.json()) as {
-        id?: string
-        data?: Array<{ url?: string; b64_json?: string }>
-        url?: string
-        video_url?: string
-        status?: string
-      }
-      const url =
-        data.url ||
-        data.video_url ||
-        data.data?.[0]?.url ||
-        (data.data?.[0]?.b64_json ? `data:video/mp4;base64,${data.data[0].b64_json}` : undefined)
-      const meta = [
-        opts?.aspectRatio,
-        opts?.durationSec ? `${opts.durationSec}s` : null,
-        opts?.resolution,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-      if (url) {
-        return {
-          ok: true,
-          url,
-          text: `**Video**${meta ? ` (${meta})` : ''}\n\n[Open video](${url})\n\n_${text.slice(0, 120)}_`,
-        }
-      }
-      if (data.id || data.status) {
-        return {
-          ok: true,
-          text:
-            `**Video job accepted**${meta ? ` · ${meta}` : ''}\n\n` +
-            `Provider returned job \`${data.id || 'pending'}\` (status: ${data.status || 'submitted'}).\n` +
-            `Poll or open your provider console to download when ready.\n\nPrompt: ${text.slice(0, 200)}`,
-        }
-      }
-      errors.push(`${attempt.path} → no video payload`)
-    } catch (err) {
-      errors.push(`${attempt.path} → ${err instanceof Error ? err.message : String(err)}`)
+  const endpoint = settingsToLlmEndpoint(settings)
+  if (endpoint.apiFormat === 'anthropic') {
+    return {
+      ok: false,
+      error: 'Video generation is not available on Anthropic Messages endpoints. Switch provider in Settings.',
     }
   }
 
-  return {
-    ok: false,
-    error:
-      `Video API not available on this endpoint. Tried /videos, /video/generations, /videos/generations. ` +
-      `Last errors: ${errors.slice(-3).join('; ')}`,
-  }
+  const result = await generateVideoWithAdapters(
+    text,
+    {
+      baseUrl: endpoint.baseUrl,
+      apiKey: endpoint.apiKey,
+      providerName: endpoint.providerName,
+      settingsModel: endpoint.model,
+    },
+    opts ?? {},
+  )
+  const { providerId: _providerId, ...media } = result
+  return media
 }
 
 /**

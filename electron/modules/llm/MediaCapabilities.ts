@@ -6,6 +6,7 @@ import type {
   MediaSupportLevel,
 } from '@shared'
 import { settingsToLlmEndpoint } from './LlmClient'
+import { resolveVideoProvider } from './video'
 
 export type { MediaSupportLevel, MediaCapabilityKind, MediaCapabilityInfo, MediaCapabilitiesSnapshot }
 
@@ -37,11 +38,33 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
     /:(11434|1234|8080)\b/.test(endpoint.baseUrl)
   const knownNoMedia = isDeepSeek || host.includes('moonshot') || host.includes('anthropic')
 
+  const videoProvider = resolveVideoProvider({
+    baseUrl: endpoint.baseUrl,
+    apiKey: endpoint.apiKey,
+    providerName: endpoint.providerName,
+    settingsModel: endpoint.model,
+  })
+
   const make = (
     kind: MediaCapabilityKind,
     level: MediaSupportLevel,
     reason: MediaCapabilityInfo['reason'],
   ): MediaCapabilityInfo => ({ kind, level, reason })
+
+  const videoCapability = (): MediaCapabilityInfo => {
+    switch (videoProvider.id) {
+      case 'volcengine_ark':
+        return make('video', 'yes', 'volcengine_ark')
+      case 'dashscope':
+        return make('video', 'yes', 'dashscope_wan')
+      case 'kling':
+        return make('video', 'yes', 'kling')
+      default:
+        if (isOpenAiOfficial) return make('video', 'maybe', 'video_rare')
+        if (isLocal) return make('video', 'no', 'video_rare')
+        return make('video', 'maybe', 'openai_compat_unknown')
+    }
+  }
 
   if (isAnthropic) {
     return {
@@ -81,7 +104,7 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
       model: endpoint.model,
       capabilities: {
         image: make('image', 'yes', 'openai_official'),
-        video: make('video', 'maybe', 'video_rare'),
+        video: videoCapability(),
         music: make('music', 'no', 'music_rare'),
         transcribe: make('transcribe', 'yes', 'openai_official'),
       },
@@ -96,12 +119,16 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
       model: endpoint.model,
       capabilities: {
         image: make('image', 'maybe', 'local_runtime'),
-        video: make('video', 'no', 'video_rare'),
+        video: videoCapability(),
         music: make('music', 'no', 'music_rare'),
         transcribe: make('transcribe', 'maybe', 'local_runtime'),
       },
     }
   }
+
+  // DashScope / Ark chat gateways often also expose image APIs
+  const imageYes =
+    videoProvider.id === 'dashscope' || videoProvider.id === 'volcengine_ark'
 
   return {
     providerName: endpoint.providerName,
@@ -109,8 +136,8 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
     apiFormat: endpoint.apiFormat,
     model: endpoint.model,
     capabilities: {
-      image: make('image', 'maybe', 'openai_compat_unknown'),
-      video: make('video', 'no', 'video_rare'),
+      image: make('image', imageYes ? 'yes' : 'maybe', 'openai_compat_unknown'),
+      video: videoCapability(),
       music: make('music', 'no', 'music_rare'),
       transcribe: make('transcribe', 'maybe', 'openai_compat_unknown'),
     },

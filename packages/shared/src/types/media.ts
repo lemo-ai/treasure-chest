@@ -13,6 +13,9 @@ export interface MediaCapabilityInfo {
     | 'local_runtime'
     | 'video_rare'
     | 'music_rare'
+    | 'volcengine_ark'
+    | 'dashscope_wan'
+    | 'kling'
 }
 
 export interface MediaCapabilitiesSnapshot {
