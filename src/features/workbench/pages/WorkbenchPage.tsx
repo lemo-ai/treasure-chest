@@ -52,7 +52,13 @@ import {
   type CapOptionGroupId,
   type CapOptionValues,
 } from '../lib/capabilityOptions'
-import type { KnowledgeCitation, MediaCapabilitiesSnapshot, MediaCapabilityKind, MediaSupportLevel } from '@shared'
+import type {
+  KnowledgeCitation,
+  LlmToolStep,
+  MediaCapabilitiesSnapshot,
+  MediaCapabilityKind,
+  MediaSupportLevel,
+} from '@shared'
 
 type InstalledSkillRow = {
   id: string
@@ -73,6 +79,7 @@ import {
   type WorkbenchSession,
 } from '../lib/sessionStore'
 import { MarkdownMessage } from '../components/MarkdownMessage'
+import { ToolStepsCard } from '../components/ToolStepsCard'
 import styles from './WorkbenchPage.module.css'
 
 const PANEL_KEY = 'qiankun.workbench.sessionPanelOpen'
@@ -172,6 +179,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null)
   const [skillPickerOpen, setSkillPickerOpen] = useState(false)
   const [streamCitations, setStreamCitations] = useState<KnowledgeCitation[]>([])
+  const [streamToolSteps, setStreamToolSteps] = useState<LlmToolStep[]>([])
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillRow[]>([])
   const [skillInstallRef, setSkillInstallRef] = useState('')
   const [skillCatalogs, setSkillCatalogs] = useState<
@@ -451,6 +459,7 @@ export function WorkbenchPage(): React.JSX.Element {
         }
       } else {
         setStreamCitations([])
+        setStreamToolSteps([])
         const capabilityMode =
           activeCap && ['write', 'translate', 'research', 'skills'].includes(activeCap)
             ? activeCap
@@ -480,10 +489,28 @@ export function WorkbenchPage(): React.JSX.Element {
             if (streamSessionRef.current !== sessionId) return
             setStreamCitations(citations)
           },
+          (step) => {
+            if (streamSessionRef.current !== sessionId) return
+            setStreamToolSteps((prev) => {
+              const idx = prev.findIndex((s) => s.id === step.id)
+              if (idx >= 0) {
+                const next = [...prev]
+                next[idx] = step
+                return next
+              }
+              return [...prev, step]
+            })
+          },
         )
         if (streamSessionRef.current === sessionId) {
           if (res.ok && res.text?.trim()) {
-            appendMessage(sessionId, 'assistant', res.text.trim(), res.citations)
+            appendMessage(
+              sessionId,
+              'assistant',
+              res.text.trim(),
+              res.citations,
+              res.toolSteps,
+            )
           } else {
             appendMessage(
               sessionId,
@@ -505,12 +532,15 @@ export function WorkbenchPage(): React.JSX.Element {
         setStreamText('')
         setStreamStatus('')
         setStreamCitations([])
+        setStreamToolSteps([])
         setSending(false)
         refresh(sessionId)
       } else {
         setSending(false)
         setStreamText('')
         setStreamStatus('')
+        setStreamCitations([])
+        setStreamToolSteps([])
         setStreamSessionId(null)
       }
     }
@@ -1026,6 +1056,7 @@ export function WorkbenchPage(): React.JSX.Element {
                 return (
                   <div key={msg.id} className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
                     <div className={styles.assistantMessage}>
+                      {msg.toolSteps?.length ? <ToolStepsCard steps={msg.toolSteps} /> : null}
                       <MarkdownMessage content={msg.content} />
                       {msg.citations?.length ? (
                         <div className={styles.citations}>
@@ -1052,11 +1083,16 @@ export function WorkbenchPage(): React.JSX.Element {
                       streamText ? '' : styles.bubbleThinking
                     }`}
                   >
+                    {streamToolSteps.length > 0 ? (
+                      <ToolStepsCard steps={streamToolSteps} defaultOpen />
+                    ) : null}
                     {streamText ? (
                       <MarkdownMessage content={streamText} streaming />
-                    ) : (
+                    ) : streamToolSteps.length === 0 ? (
                       streamStatus || t('workbench.thinking')
-                    )}
+                    ) : streamStatus ? (
+                      <div className={styles.streamStatusHint}>{streamStatus}</div>
+                    ) : null}
                     {streamCitations.length > 0 && streamText ? (
                       <div className={styles.citations}>
                         <div className={styles.citationsTitle}>{t('workbench.citations')}</div>

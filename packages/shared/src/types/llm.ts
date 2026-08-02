@@ -57,6 +57,20 @@ export interface KnowledgeCitation {
   score: number
 }
 
+/** One tool invocation step for Codex-style process UI. */
+export interface LlmToolStep {
+  id: string
+  name: string
+  /** Localized short label */
+  label: string
+  status: 'running' | 'done' | 'error'
+  /** Truncated JSON args for display */
+  argsPreview?: string
+  /** Truncated tool output for display */
+  resultPreview?: string
+  error?: string
+}
+
 export interface LlmChatResponse {
   ok: boolean
   text?: string
@@ -65,6 +79,7 @@ export interface LlmChatResponse {
   providerName?: string
   toolCalls?: LlmToolCall[]
   citations?: KnowledgeCitation[]
+  toolSteps?: LlmToolStep[]
 }
 
 /** Renderer ↔ main stream handshake id */
@@ -90,11 +105,17 @@ export type LlmChatStreamEvent =
     }
   | {
       streamId: string
+      type: 'tool_step'
+      step: LlmToolStep
+    }
+  | {
+      streamId: string
       type: 'done'
       text: string
       model?: string
       providerName?: string
       citations?: KnowledgeCitation[]
+      toolSteps?: LlmToolStep[]
     }
   | {
       streamId: string

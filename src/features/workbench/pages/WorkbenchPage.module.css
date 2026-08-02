@@ -507,6 +507,15 @@
   max-width: min(92%, 44rem);
   padding: 0.15rem 0.1rem;
   animation: bubbleIn 0.28s ease both;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.streamStatusHint {
+  font-size: 0.8rem;
+  color: var(--color-ink-tertiary);
+  padding: 0.15rem 0.1rem;
 }
 
 .bubbleAssistant {

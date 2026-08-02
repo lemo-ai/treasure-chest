@@ -22,6 +22,15 @@ export interface WorkbenchMessage {
     text: string
     score: number
   }>
+  toolSteps?: Array<{
+    id: string
+    name: string
+    label: string
+    status: 'running' | 'done' | 'error'
+    argsPreview?: string
+    resultPreview?: string
+    error?: string
+  }>
 }
 
 const STORAGE_KEY = 'qiankun.workbench.v1'
@@ -123,6 +132,7 @@ export function appendMessage(
   role: WorkbenchMessage['role'],
   content: string,
   citations?: WorkbenchMessage['citations'],
+  toolSteps?: WorkbenchMessage['toolSteps'],
 ): WorkbenchMessage {
   const store = readStore()
   const msg: WorkbenchMessage = {
@@ -131,6 +141,7 @@ export function appendMessage(
     content,
     createdAt: new Date().toISOString(),
     ...(citations?.length ? { citations } : {}),
+    ...(toolSteps?.length ? { toolSteps } : {}),
   }
   const list = store.messagesBySession[sessionId] ?? []
   list.push(msg)

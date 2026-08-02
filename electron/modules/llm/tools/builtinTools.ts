@@ -120,6 +120,42 @@ export function toolStatusLabel(name: string, locale: string): string {
     case 'search_knowledge':
       return en ? 'Searching knowledge base…' : '正在检索知识库…'
     default:
+      if (name.startsWith('mcp__')) {
+        const short = name.replace(/^mcp__/, '').replace(/__/g, ' / ')
+        return en ? `MCP: ${short}…` : `MCP：${short}…`
+      }
       return en ? `Running ${name}…` : `正在调用 ${name}…`
+  }
+}
+
+export function toolDisplayName(name: string, locale: string): string {
+  const en = locale.toLowerCase().startsWith('en')
+  switch (name) {
+    case 'get_weather':
+      return en ? 'Weather' : '天气'
+    case 'get_daily_fortune':
+      return en ? 'Daily fortune' : '今日运势'
+    case 'get_stock_quote':
+      return en ? 'Stock quote' : '股票行情'
+    case 'get_latest_stocks_report':
+      return en ? 'Stocks report' : '荐股报告'
+    case 'search_knowledge':
+      return en ? 'Knowledge search' : '知识库检索'
+    default:
+      if (name.startsWith('mcp__')) {
+        return name.replace(/^mcp__/, '').replace(/__/g, ' · ')
+      }
+      return name
+  }
+}
+
+export function previewJson(raw: string, max = 180): string {
+  const text = raw.trim()
+  if (!text) return ''
+  try {
+    const compact = JSON.stringify(JSON.parse(text))
+    return compact.length > max ? `${compact.slice(0, max)}…` : compact
+  } catch {
+    return text.length > max ? `${text.slice(0, max)}…` : text
   }
 }

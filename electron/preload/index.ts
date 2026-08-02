@@ -102,10 +102,12 @@ const api = {
     onDelta: (text: string) => void,
     onStatus?: (text: string) => void,
     onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
+    onToolStep?: (step: import('@shared').LlmToolStep) => void,
   ): Promise<LlmChatResponse> => {
     const streamId = `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     return new Promise((resolve, reject) => {
       let lastCitations: import('@shared').KnowledgeCitation[] | undefined
+      let lastToolSteps: import('@shared').LlmToolStep[] = []
       const finish = (response: LlmChatResponse): void => {
         ipcRenderer.removeListener(IpcChannels.workbench.chatStreamEvent, handler)
         resolve(response)
@@ -121,6 +123,13 @@ const api = {
           onCitations?.(ev.citations)
           return
         }
+        if (ev.type === 'tool_step') {
+          const idx = lastToolSteps.findIndex((s) => s.id === ev.step.id)
+          if (idx >= 0) lastToolSteps[idx] = ev.step
+          else lastToolSteps = [...lastToolSteps, ev.step]
+          onToolStep?.(ev.step)
+          return
+        }
         if (ev.type === 'delta') {
           onDelta(ev.text)
           return
@@ -132,6 +141,7 @@ const api = {
             model: ev.model,
             providerName: ev.providerName,
             citations: ev.citations ?? lastCitations,
+            toolSteps: ev.toolSteps ?? lastToolSteps,
           })
           return
         }
@@ -140,6 +150,7 @@ const api = {
           error: ev.error,
           model: ev.model,
           providerName: ev.providerName,
+          toolSteps: lastToolSteps,
         })
       }
 

@@ -4,9 +4,15 @@ import type {
   LlmChatRequest,
   LlmChatResponse,
   LlmToolSpec,
+  LlmToolStep,
 } from '@shared'
 import { callLlmChat, callLlmChatStream, settingsToLlmEndpoint } from './LlmClient'
-import { builtinToolsForAgent, toolStatusLabel } from './tools/builtinTools'
+import {
+  builtinToolsForAgent,
+  previewJson,
+  toolDisplayName,
+  toolStatusLabel,
+} from './tools/builtinTools'
 import { executeBuiltinTool } from './tools/executeBuiltin'
 import { listMcpToolsAsSpecs, callMcpTool } from '../mcp/McpHub'
 import { logger } from '../../utils/logger'
@@ -163,7 +169,8 @@ async function runToolLoop(
   settings: FortuneSettings,
   onStatus?: (text: string) => void,
   onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
-): Promise<LlmChatResponse & { messages: LlmChatMessage[] }> {
+  onToolStep?: (step: LlmToolStep) => void,
+): Promise<LlmChatResponse & { messages: LlmChatMessage[]; toolSteps: LlmToolStep[] }> {
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
   const locale = req.locale ?? 'zh-CN'
@@ -174,6 +181,7 @@ async function runToolLoop(
       error: 'Empty message.',
       providerName: endpoint.providerName,
       messages: [],
+      toolSteps: [],
     }
   }
 
@@ -188,6 +196,7 @@ async function runToolLoop(
   const maxRounds = 4
   const canUseTools = endpoint.apiFormat !== 'anthropic' && tools.length > 0
   const citations: import('@shared').KnowledgeCitation[] = []
+  const toolSteps: LlmToolStep[] = []
 
   for (let round = 0; round < maxRounds; round++) {
     const result = await callLlmChat({
@@ -202,12 +211,12 @@ async function runToolLoop(
     })
 
     if (!result.ok) {
-      return { ...result, messages, citations }
+      return { ...result, messages, citations, toolSteps }
     }
 
     const calls = result.toolCalls ?? []
     if (!calls.length) {
-      return { ...result, messages, citations }
+      return { ...result, messages, citations, toolSteps }
     }
 
     messages.push({
@@ -231,12 +240,50 @@ async function runToolLoop(
           /* keep original */
         }
       }
-      let output: string
-      if (name.startsWith('mcp__')) {
-        output = await callMcpTool(name, argsJson)
-      } else {
-        output = await executeBuiltinTool(name, argsJson, { locale })
+
+      const stepId = call.id || `tool_${Date.now().toString(36)}_${toolSteps.length}`
+      const running: LlmToolStep = {
+        id: stepId,
+        name,
+        label: toolDisplayName(name, locale),
+        status: 'running',
+        argsPreview: previewJson(argsJson),
       }
+      toolSteps.push(running)
+      onToolStep?.(running)
+
+      let output: string
+      let failed = false
+      try {
+        if (name.startsWith('mcp__')) {
+          output = await callMcpTool(name, argsJson)
+        } else {
+          output = await executeBuiltinTool(name, argsJson, { locale })
+        }
+        try {
+          const parsed = JSON.parse(output) as { error?: string }
+          if (parsed && typeof parsed === 'object' && parsed.error) failed = true
+        } catch {
+          /* plain text ok */
+        }
+      } catch (err) {
+        failed = true
+        output = JSON.stringify({
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+
+      const finished: LlmToolStep = {
+        ...running,
+        status: failed ? 'error' : 'done',
+        resultPreview: previewJson(output, 220),
+        error: failed ? previewJson(output, 120) : undefined,
+      }
+      const idx = toolSteps.findIndex((s) => s.id === stepId)
+      if (idx >= 0) toolSteps[idx] = finished
+      else toolSteps.push(finished)
+      onToolStep?.(finished)
+
       if (name === 'search_knowledge') {
         try {
           const parsed = JSON.parse(output) as {
@@ -280,6 +327,7 @@ async function runToolLoop(
     model,
     messages,
     citations,
+    toolSteps,
   }
 }
 
@@ -289,12 +337,12 @@ export async function runWorkbenchChat(
 ): Promise<LlmChatResponse> {
   const looped = await runToolLoop(req, settings)
   if (!looped.ok) return looped
-  if (looped.text?.trim()) return looped
+  if (looped.text?.trim()) return { ...looped, toolSteps: looped.toolSteps }
 
   // Final pass without tools if last tool round produced no text
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
-  return callLlmChat({
+  const final = await callLlmChat({
     ...endpoint,
     model,
     messages: looped.messages,
@@ -303,6 +351,7 @@ export async function runWorkbenchChat(
     timeoutMs: 120_000,
     tag: `workbench-${req.agentId || 'direct'}`,
   })
+  return { ...final, citations: looped.citations, toolSteps: looped.toolSteps }
 }
 
 export async function runWorkbenchChatStream(
@@ -311,6 +360,7 @@ export async function runWorkbenchChatStream(
   onDelta: (text: string) => void,
   onStatus?: (text: string) => void,
   onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
+  onToolStep?: (step: LlmToolStep) => void,
 ): Promise<LlmChatResponse> {
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
@@ -319,12 +369,12 @@ export async function runWorkbenchChatStream(
     (req.locale ?? '').toLowerCase().startsWith('en') ? 'Thinking…' : '思考中…',
   )
 
-  const looped = await runToolLoop(req, settings, onStatus, onCitations)
+  const looped = await runToolLoop(req, settings, onStatus, onCitations, onToolStep)
   if (!looped.ok && !looped.messages.length) return looped
 
   if (looped.ok && looped.text?.trim() && !(looped.toolCalls?.length)) {
     onDelta(looped.text.trim())
-    return looped
+    return { ...looped, toolSteps: looped.toolSteps }
   }
 
   if (!looped.ok && looped.messages.length === 0) return looped
@@ -347,5 +397,5 @@ export async function runWorkbenchChatStream(
     },
     onDelta,
   )
-  return { ...streamed, citations: looped.citations }
+  return { ...streamed, citations: looped.citations, toolSteps: looped.toolSteps }
 }

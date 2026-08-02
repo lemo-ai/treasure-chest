@@ -235,6 +235,9 @@ export function registerAllIpc(): void {
             (citations) => {
               send({ streamId, type: 'citations', citations })
             },
+            (step) => {
+              send({ streamId, type: 'tool_step', step })
+            },
           )
           if (result.ok && result.text?.trim()) {
             send({
@@ -244,6 +247,7 @@ export function registerAllIpc(): void {
               model: result.model,
               providerName: result.providerName,
               citations: result.citations,
+              toolSteps: result.toolSteps,
             })
           } else {
             send({

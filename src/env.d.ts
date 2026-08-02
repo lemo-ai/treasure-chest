@@ -64,6 +64,7 @@ interface TreasureChestApi {
     onDelta: (text: string) => void,
     onStatus?: (text: string) => void,
     onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
+    onToolStep?: (step: import('@shared').LlmToolStep) => void,
   ) => Promise<LlmChatResponse>
   listKnowledgeDocuments: (collectionId?: string) => Promise<import('@shared').KnowledgeDocument[]>
   ingestKnowledgeText: (
