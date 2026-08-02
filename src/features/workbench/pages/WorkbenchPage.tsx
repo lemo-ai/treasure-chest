@@ -91,6 +91,12 @@ import {
   type WorkbenchArtifact,
 } from '../lib/artifactStore'
 import { memoryFactsForPrompt } from '../lib/agentMemoryStore'
+import {
+  WORKFLOW_DEFS,
+  type WorkflowId,
+  type WorkflowStepState,
+} from '../lib/workflows'
+import { WorkflowStepsCard } from '../components/WorkflowStepsCard'
 import type { ToolApprovalRequest } from '@shared'
 import styles from './WorkbenchPage.module.css'
 
@@ -197,6 +203,9 @@ export function WorkbenchPage(): React.JSX.Element {
   const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
   const [memoryOpen, setMemoryOpen] = useState(false)
   const [pendingApproval, setPendingApproval] = useState<ToolApprovalRequest | null>(null)
+  const [workflowSteps, setWorkflowSteps] = useState<WorkflowStepState[]>([])
+  const [workflowTitle, setWorkflowTitle] = useState('')
+  const [armedWorkflow, setArmedWorkflow] = useState<WorkflowId | null>(null)
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillRow[]>([])
   const [skillInstallRef, setSkillInstallRef] = useState('')
   const [skillCatalogs, setSkillCatalogs] = useState<
@@ -381,9 +390,285 @@ export function WorkbenchPage(): React.JSX.Element {
 
   const localEndpoint = isLocalLlmBaseUrl(aiBaseUrl)
 
+  const setWorkflowStepStatus = (id: string, status: WorkflowStepState['status']): void => {
+    setWorkflowSteps((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)))
+  }
+
+  const initWorkflowSteps = (id: WorkflowId): WorkflowStepState[] => {
+    const def = WORKFLOW_DEFS[id]
+    const steps = def.stepKeys.map((key, i) => ({
+      id: `${id}_${i}`,
+      label: t(key),
+      status: 'pending' as const,
+    }))
+    setWorkflowTitle(
+      id === 'daily_brief' ? t('workbench.workflow.dailyBrief.title') : t('workbench.workflow.deepResearch.title'),
+    )
+    setWorkflowSteps(steps)
+    return steps
+  }
+
+  /** Shared single chat round used by workflows (and keeps tool/approval/artifacts wiring). */
+  const runChatRound = async (
+    sessionId: string,
+    opts: {
+      userContent: string
+      capabilityMode?: string
+      useKnowledge?: boolean
+      skillPrompt?: string
+      appendUser?: boolean
+    },
+  ): Promise<boolean> => {
+    if (opts.appendUser !== false) {
+      appendMessage(sessionId, 'user', opts.userContent)
+    }
+    refresh(sessionId)
+    setStreamText('')
+    setStreamStatus('')
+    setStreamCitations([])
+    setStreamToolSteps([])
+    streamSessionRef.current = sessionId
+    setStreamSessionId(sessionId)
+
+    const history = listMessages(sessionId)
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }))
+
+    const knowledgeCollectionId =
+      !directMode && !activeAgentDef.builtin
+        ? activeAgentDef.knowledgeCollectionIds?.[0]
+        : undefined
+    const enabledMcpServerIds =
+      !directMode && !activeAgentDef.builtin ? activeAgentDef.enabledMcpServerIds : undefined
+    const chatModel =
+      !directMode &&
+      !activeAgentDef.builtin &&
+      activeAgentDef.preferredModel &&
+      modelOptions.includes(activeAgentDef.preferredModel)
+        ? activeAgentDef.preferredModel
+        : selectedModel
+
+    try {
+      const res = await window.treasureChest.workbenchChatStream(
+        {
+          agentId: directMode ? DIRECT_CHAT_ID : String(activeAgent),
+          model: chatModel,
+          messages: history,
+          systemPrompt:
+            !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
+          locale: i18n.language,
+          useKnowledge: Boolean(opts.useKnowledge),
+          knowledgeCollectionId,
+          enabledMcpServerIds,
+          memoryFacts: memoryFactsForPrompt(String(activeAgent)),
+          capabilityMode: opts.capabilityMode,
+          skillPrompt: opts.skillPrompt,
+        },
+        (delta) => {
+          if (streamSessionRef.current !== sessionId) return
+          setStreamStatus('')
+          setStreamText((prev) => prev + delta)
+        },
+        (status) => {
+          if (streamSessionRef.current !== sessionId) return
+          setStreamStatus(status)
+        },
+        (citations) => {
+          if (streamSessionRef.current !== sessionId) return
+          setStreamCitations(citations)
+        },
+        (step) => {
+          if (streamSessionRef.current !== sessionId) return
+          setStreamToolSteps((prev) => {
+            const idx = prev.findIndex((s) => s.id === step.id)
+            if (idx >= 0) {
+              const next = [...prev]
+              next[idx] = step
+              return next
+            }
+            return [...prev, step]
+          })
+        },
+        (request) => {
+          if (streamSessionRef.current !== sessionId) return
+          setPendingApproval(request)
+        },
+      )
+      if (streamSessionRef.current !== sessionId) return false
+      if (res.ok && res.text?.trim()) {
+        appendAssistant(sessionId, res.text.trim(), res.citations, res.toolSteps)
+        refresh(sessionId)
+        return true
+      }
+      appendMessage(
+        sessionId,
+        'system',
+        t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
+      )
+      refresh(sessionId)
+      return false
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (streamSessionRef.current === sessionId) {
+        appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
+        refresh(sessionId)
+      }
+      return false
+    } finally {
+      if (streamSessionRef.current === sessionId) {
+        setStreamText('')
+        setStreamStatus('')
+        setStreamCitations([])
+        setStreamToolSteps([])
+      }
+    }
+  }
+
+  const runDailyBriefWorkflow = async (): Promise<void> => {
+    if (sending) return
+    if (!selectedModel) {
+      const sid = ensureSession(activeAgent)
+      appendMessage(sid, 'system', t('workbench.needModel'))
+      refresh(sid)
+      return
+    }
+    if (!hasApiKey && !localEndpoint) {
+      const sid = ensureSession(activeAgent)
+      appendMessage(sid, 'system', t('workbench.needApiKey'))
+      refresh(sid)
+      return
+    }
+    const sessionId = ensureSession(activeAgent)
+    const steps = initWorkflowSteps('daily_brief')
+    appendMessage(sessionId, 'user', t('workbench.workflow.kickoff.dailyBrief'))
+    setSending(true)
+    streamSessionRef.current = sessionId
+    setStreamSessionId(sessionId)
+    refresh(sessionId)
+
+    try {
+      const stocksStep = steps[0]!
+      setWorkflowStepStatus(stocksStep.id, 'running')
+      let stocksJson = ''
+      try {
+        let report = await window.treasureChest.getLatestStocksReport()
+        if (!report) report = await window.treasureChest.generateStocksReport()
+        stocksJson = JSON.stringify(
+          {
+            date: report.date,
+            generatedAt: report.generatedAt,
+            picks: (report.recommendations || []).slice(0, 8).map((r) => ({
+              market: r.market,
+              symbol: r.symbol,
+              name: r.name,
+              signal: r.signal,
+              score: r.score,
+              summary: r.summary,
+              reasons: r.reasons?.slice(0, 3),
+            })),
+          },
+          null,
+          2,
+        )
+        appendMessage(
+          sessionId,
+          'system',
+          t('workbench.workflow.prompt.stocksContext', { json: stocksJson.slice(0, 6000) }),
+        )
+        setWorkflowStepStatus(stocksStep.id, 'done')
+      } catch {
+        appendMessage(sessionId, 'system', t('workbench.workflow.stocksMissing'))
+        setWorkflowStepStatus(stocksStep.id, 'done')
+      }
+      refresh(sessionId)
+
+      const briefStep = steps[1]!
+      setWorkflowStepStatus(briefStep.id, 'running')
+      const ok = await runChatRound(sessionId, {
+        userContent: t('workbench.workflow.prompt.brief'),
+        capabilityMode: 'write',
+        useKnowledge: false,
+      })
+      setWorkflowStepStatus(briefStep.id, ok ? 'done' : 'error')
+    } finally {
+      streamSessionRef.current = null
+      setStreamSessionId(null)
+      setSending(false)
+      refresh(sessionId)
+    }
+  }
+
+  const runDeepResearchWorkflow = async (topic: string): Promise<void> => {
+    if (sending) return
+    if (!selectedModel) {
+      const sid = ensureSession(activeAgent)
+      appendMessage(sid, 'system', t('workbench.needModel'))
+      refresh(sid)
+      return
+    }
+    if (!hasApiKey && !localEndpoint) {
+      const sid = ensureSession(activeAgent)
+      appendMessage(sid, 'system', t('workbench.needApiKey'))
+      refresh(sid)
+      return
+    }
+    const sessionId = ensureSession(activeAgent)
+    const steps = initWorkflowSteps('deep_research')
+    appendMessage(sessionId, 'user', t('workbench.workflow.kickoff.deepResearch', { topic }))
+    setArmedWorkflow(null)
+    setSending(true)
+    streamSessionRef.current = sessionId
+    setStreamSessionId(sessionId)
+    refresh(sessionId)
+
+    try {
+      const plan = steps[0]!
+      setWorkflowStepStatus(plan.id, 'running')
+      let ok = await runChatRound(sessionId, {
+        userContent: t('workbench.workflow.prompt.plan', { topic }),
+        capabilityMode: 'research',
+        useKnowledge: true,
+      })
+      setWorkflowStepStatus(plan.id, ok ? 'done' : 'error')
+      if (!ok) return
+
+      const investigate = steps[1]!
+      setWorkflowStepStatus(investigate.id, 'running')
+      ok = await runChatRound(sessionId, {
+        userContent: t('workbench.workflow.prompt.investigate', { topic }),
+        capabilityMode: 'research',
+        useKnowledge: true,
+      })
+      setWorkflowStepStatus(investigate.id, ok ? 'done' : 'error')
+      if (!ok) return
+
+      const report = steps[2]!
+      setWorkflowStepStatus(report.id, 'running')
+      ok = await runChatRound(sessionId, {
+        userContent: t('workbench.workflow.prompt.report', { topic }),
+        capabilityMode: 'write',
+        useKnowledge: false,
+      })
+      setWorkflowStepStatus(report.id, ok ? 'done' : 'error')
+    } finally {
+      streamSessionRef.current = null
+      setStreamSessionId(null)
+      setSending(false)
+      refresh(sessionId)
+    }
+  }
+
   const sendText = async (text: string): Promise<void> => {
     const content = text.trim()
     if ((!content && attachments.length === 0) || sending) return
+    if (armedWorkflow === 'deep_research' && content) {
+      setDraft('')
+      await runDeepResearchWorkflow(content)
+      return
+    }
     if (!selectedModel) {
       const sessionId = ensureSession(activeAgent)
       appendMessage(sessionId, 'system', t('workbench.needModel'))
@@ -1118,12 +1403,34 @@ export function WorkbenchPage(): React.JSX.Element {
                   : t('workbench.welcome', { agent: activeAgentName })}
               </p>
               <div className={styles.chips}>
-                {quickPrompts.map((key) => (
+                {(directMode
+                  ? [
+                      WORKFLOW_DEFS.daily_brief.chipKey,
+                      WORKFLOW_DEFS.deep_research.chipKey,
+                      ...quickPrompts,
+                    ]
+                  : quickPrompts
+                ).map((key) => (
                   <button
                     key={key}
                     type="button"
                     className={styles.chip}
-                    onClick={() => void sendText(t(key))}
+                    onClick={() => {
+                      if (key === WORKFLOW_DEFS.daily_brief.chipKey) {
+                        void runDailyBriefWorkflow()
+                        return
+                      }
+                      if (key === WORKFLOW_DEFS.deep_research.chipKey) {
+                        setArmedWorkflow('deep_research')
+                        setActiveCap('research')
+                        const sid = ensureSession(activeAgent)
+                        appendMessage(sid, 'system', t('workbench.workflow.armedResearch'))
+                        refresh(sid)
+                        inputRef.current?.focus()
+                        return
+                      }
+                      void sendText(t(key))
+                    }}
                   >
                     {t(key)}
                   </button>
@@ -1132,6 +1439,9 @@ export function WorkbenchPage(): React.JSX.Element {
             </div>
           ) : (
             <div className={styles.msgList}>
+              {workflowSteps.length > 0 ? (
+                <WorkflowStepsCard title={workflowTitle} steps={workflowSteps} />
+              ) : null}
               {messages.map((msg) => {
                 if (msg.role === 'system') {
                   return (
