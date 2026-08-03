@@ -22,12 +22,15 @@ import type {
   StockQuoteDetail,
   WatchlistItem,
   ThemeMode,
+  ThemeAccent,
 } from '@shared'
 
 interface TreasureChestApi {
   getVersion: () => Promise<string>
   getTheme: () => Promise<ThemeMode>
   setTheme: (theme: ThemeMode) => Promise<ThemeMode>
+  getAccent: () => Promise<ThemeAccent>
+  setAccent: (accent: ThemeAccent) => Promise<ThemeAccent>
   getLocale: () => Promise<AppLocale>
   setLocale: (locale: AppLocale) => Promise<AppLocale>
   getSettingsSnapshot: () => Promise<AppSettingsSnapshot>

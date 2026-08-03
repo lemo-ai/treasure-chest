@@ -20,6 +20,7 @@ import {
 } from '@renderer/features/agents/lib/agentRegistry'
 import { CreateAgentModal } from '@renderer/features/agents/components/CreateAgentModal'
 import { ChangelogModal } from './ChangelogModal'
+import { useTheme } from '@renderer/shared/hooks/useTheme'
 import styles from './AppLayout.module.css'
 
 function agentNavIcon(agent: AgentDef): ReactNode {
@@ -29,6 +30,7 @@ function agentNavIcon(agent: AgentDef): ReactNode {
 }
 
 export function AppLayout(): React.JSX.Element {
+  useTheme()
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()

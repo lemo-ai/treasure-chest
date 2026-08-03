@@ -6,10 +6,51 @@ import type { McpSettings } from './mcp'
 
 export type { AppLocale, ThemeMode }
 
-/** Built-in circular dial faces for the desktop widget. */
-export type DialFaceStyle = 'teal' | 'ink' | 'dawn' | 'minimal'
+/** App UI brand / accent palette (independent of light / dark mode). */
+export type ThemeAccent =
+  | 'teal'
+  | 'azure'
+  | 'rose'
+  | 'violet'
+  | 'forest'
+  | 'amber'
+  | 'coral'
+  | 'slate'
 
-export const DIAL_FACE_STYLES: DialFaceStyle[] = ['teal', 'ink', 'dawn', 'minimal']
+export const THEME_ACCENTS: ThemeAccent[] = [
+  'teal',
+  'azure',
+  'rose',
+  'violet',
+  'forest',
+  'amber',
+  'coral',
+  'slate',
+]
+
+export const DEFAULT_THEME_ACCENT: ThemeAccent = 'teal'
+
+/** Built-in circular dial faces for the desktop widget. */
+export type DialFaceStyle =
+  | 'teal'
+  | 'ink'
+  | 'dawn'
+  | 'minimal'
+  | 'azure'
+  | 'rose'
+  | 'violet'
+  | 'forest'
+
+export const DIAL_FACE_STYLES: DialFaceStyle[] = [
+  'teal',
+  'ink',
+  'dawn',
+  'minimal',
+  'azure',
+  'rose',
+  'violet',
+  'forest',
+]
 
 export interface DesktopWidgetSettings {
   /** Prefer showing the dial on app launch (closing the window does not clear this). */
@@ -57,6 +98,8 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 
 export interface AppSettingsSnapshot {
   theme: ThemeMode
+  /** Brand color palette for UI chrome (buttons, chips, highlights). */
+  accent: ThemeAccent
   locale: AppLocale
   calendarMode: CalendarMode
   desktopWidget: DesktopWidgetSettings

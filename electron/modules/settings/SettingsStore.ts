@@ -13,6 +13,7 @@ import type {
   McpServerConfig,
   NotificationSettings,
   ThemeMode,
+  ThemeAccent,
   FortuneSettings,
   FortuneAiProviderConfig,
   HexagramSchool,
@@ -28,7 +29,9 @@ import {
   DEFAULT_NOTIFICATION_SETTINGS,
   DEFAULT_STOCKS_SETTINGS,
   DIAL_FACE_STYLES,
+  DEFAULT_THEME_ACCENT,
   HEXAGRAM_SCHOOLS,
+  THEME_ACCENTS,
 } from '@shared'
 import { getSetting, setSetting } from '../../db/AppSettingsRepo'
 import { resolveDialBackgroundUrl } from './DialBackground'
@@ -36,6 +39,7 @@ import { logger } from '../../utils/logger'
 
 interface PersistedSettings {
   theme: ThemeMode
+  accent: ThemeAccent
   locale: AppLocale
   calendarMode: CalendarMode
   desktopWidget: DesktopWidgetSettings
@@ -49,6 +53,7 @@ interface PersistedSettings {
 
 const memory: PersistedSettings = {
   theme: 'system',
+  accent: DEFAULT_THEME_ACCENT,
   locale: 'zh-CN',
   calendarMode: 'widget',
   desktopWidget: { ...DEFAULT_DESKTOP_WIDGET },
@@ -69,6 +74,14 @@ function parseDialFace(value: unknown): DialFaceStyle {
     return value as DialFaceStyle
   }
   return DEFAULT_DESKTOP_WIDGET.dialFace
+}
+
+
+function parseThemeAccent(value: unknown): ThemeAccent {
+  if (typeof value === 'string' && (THEME_ACCENTS as string[]).includes(value)) {
+    return value as ThemeAccent
+  }
+  return DEFAULT_THEME_ACCENT
 }
 
 function parseLaunchBehavior(value: unknown): LaunchBehavior {
@@ -281,6 +294,7 @@ function parseDesktopWidget(raw: unknown): DesktopWidgetSettings {
 
 function loadFromDb(): void {
   memory.theme = getSetting('ui.theme', memory.theme)
+  memory.accent = parseThemeAccent(getSetting('ui.accent', memory.accent))
   memory.locale = getSetting('ui.locale', memory.locale)
   memory.calendarMode = getSetting('calendar.mode', memory.calendarMode)
   memory.launchAtLogin = getSetting('system.launchAtLogin', memory.launchAtLogin)
@@ -302,6 +316,7 @@ function loadLegacyJsonFallback(): void {
     if (!existsSync(path)) return
     const raw = JSON.parse(readFileSync(path, 'utf8')) as Partial<PersistedSettings>
     if (raw.theme) memory.theme = raw.theme
+    if (raw.accent) memory.accent = parseThemeAccent(raw.accent)
     if (raw.locale) memory.locale = raw.locale
     if (raw.calendarMode) memory.calendarMode = raw.calendarMode
     if (raw.launchAtLogin !== undefined) memory.launchAtLogin = Boolean(raw.launchAtLogin)
@@ -314,6 +329,7 @@ function loadLegacyJsonFallback(): void {
 
 function persist(): void {
   setSetting('ui.theme', memory.theme)
+  setSetting('ui.accent', memory.accent)
   setSetting('ui.locale', memory.locale)
   setSetting('calendar.mode', memory.calendarMode)
   setSetting('system.launchAtLogin', memory.launchAtLogin)
@@ -340,6 +356,7 @@ export const settingsStore = {
   getSnapshot(): AppSettingsSnapshot {
     return {
       theme: memory.theme,
+      accent: memory.accent,
       locale: memory.locale,
       calendarMode: memory.calendarMode,
       desktopWidget: { ...memory.desktopWidget },
@@ -365,6 +382,14 @@ export const settingsStore = {
     memory.theme = theme
     persist()
     return memory.theme
+  },
+  getAccent(): ThemeAccent {
+    return memory.accent
+  },
+  setAccent(accent: ThemeAccent): ThemeAccent {
+    memory.accent = parseThemeAccent(accent)
+    persist()
+    return memory.accent
   },
   getLocale(): AppLocale {
     return memory.locale
@@ -561,6 +586,7 @@ export const settingsStore = {
   },
   applySnapshot(snapshot: AppSettingsSnapshot): AppSettingsSnapshot {
     memory.theme = snapshot.theme
+    memory.accent = parseThemeAccent(snapshot.accent)
     memory.locale = snapshot.locale
     memory.calendarMode = snapshot.calendarMode
     memory.desktopWidget = parseDesktopWidget(snapshot.desktopWidget)
@@ -580,6 +606,7 @@ export const settingsStore = {
   exportSettingsMap(): Record<string, unknown> {
     return {
       'ui.theme': memory.theme,
+      'ui.accent': memory.accent,
       'ui.locale': memory.locale,
       'calendar.mode': memory.calendarMode,
       'system.launchAtLogin': memory.launchAtLogin,
@@ -593,6 +620,7 @@ export const settingsStore = {
   },
   importSettingsMap(entries: Record<string, unknown>): void {
     if (entries['ui.theme']) memory.theme = entries['ui.theme'] as ThemeMode
+    if (entries['ui.accent']) memory.accent = parseThemeAccent(entries['ui.accent'])
     if (entries['ui.locale']) memory.locale = entries['ui.locale'] as AppLocale
     if (entries['calendar.mode']) memory.calendarMode = entries['calendar.mode'] as CalendarMode
     if (entries['system.launchAtLogin'] !== undefined) {

@@ -24,6 +24,7 @@ import {
   DIAL_FACE_STYLES,
   HEXAGRAM_SCHOOLS,
   MEDIA_PROFILE_IDS,
+  THEME_ACCENTS,
 } from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
@@ -62,7 +63,7 @@ const launchBehaviorMeta = {
 
 export function SettingsPage(): React.JSX.Element {
   const { t, i18n } = useTranslation()
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, accent, setAccent } = useTheme()
   const [widget, setWidget] = useState<DesktopWidgetView>({
     ...DEFAULT_DESKTOP_WIDGET,
     backgroundImageUrl: null,
@@ -611,6 +612,29 @@ export function SettingsPage(): React.JSX.Element {
         </div>
 
         <div className={styles.faceBlock}>
+          <div className={styles.settingTitle}>{t('settings.themeAccent')}</div>
+          <div className={styles.settingHint}>{t('settings.themeAccentHint')}</div>
+          <div className={styles.accentSwatches}>
+            {THEME_ACCENTS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={`${styles.accentSwatch} ${styles[`accent_${id}`]} ${
+                  accent === id ? styles.accentSwatchActive : ''
+                }`}
+                onClick={() => void setAccent(id)}
+                aria-pressed={accent === id}
+                title={t(`settings.themeAccent.${id}`)}
+                aria-label={t(`settings.themeAccent.${id}`)}
+              >
+                <span className={styles.accentSwatchDot} aria-hidden />
+                <span className={styles.accentSwatchLabel}>{t(`settings.themeAccent.${id}`)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.faceBlock}>
           <div className={styles.settingTitle}>{t('settings.desktopWidget.dialFace')}</div>
           <div className={styles.settingHint}>{t('settings.desktopWidget.dialFaceHint')}</div>
           <div className={styles.faceGrid}>
@@ -620,6 +644,10 @@ export function SettingsPage(): React.JSX.Element {
                 ink: styles.face_ink,
                 dawn: styles.face_dawn,
                 minimal: styles.face_minimal,
+                azure: styles.face_azure,
+                rose: styles.face_rose,
+                violet: styles.face_violet,
+                forest: styles.face_forest,
               }[face]
               return (
                 <button

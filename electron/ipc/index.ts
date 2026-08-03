@@ -16,6 +16,7 @@ import {
   type NotificationSettings,
   type FortuneSettings,
   type ThemeMode,
+  type ThemeAccent,
   type StocksSettings,
   type StocksReportSummary,
   type StockQuoteDetail,
@@ -105,6 +106,10 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.settings.getTheme, () => settingsStore.getTheme())
   ipcMain.handle(IpcChannels.settings.setTheme, (_e, theme: ThemeMode) =>
     settingsStore.setTheme(theme),
+  )
+  ipcMain.handle(IpcChannels.settings.getAccent, () => settingsStore.getAccent())
+  ipcMain.handle(IpcChannels.settings.setAccent, (_e, accent: ThemeAccent) =>
+    settingsStore.setAccent(accent),
   )
   ipcMain.handle(IpcChannels.settings.getLocale, () => settingsStore.getLocale())
   ipcMain.handle(IpcChannels.settings.setLocale, (_e, locale: AppLocale) =>

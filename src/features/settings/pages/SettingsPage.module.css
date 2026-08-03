@@ -266,16 +266,103 @@
 }
 
 .faceBlock {
-  margin-top: calc(var(--space-3) + 6px);
-  padding-top: calc(var(--space-4) + 6px);
+  margin-top: var(--space-4);
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-4);
   border-top: 1px solid var(--color-border);
+}
+
+.faceBlock + .settingRow {
+  margin-top: var(--space-2);
+  padding-top: calc(var(--space-4) + 6px);
+}
+
+.accentSwatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.accentSwatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+  color: var(--color-ink-secondary);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.accentSwatch:hover {
+  border-color: color-mix(in srgb, var(--swatch) 50%, var(--color-border));
+}
+
+.accentSwatchActive {
+  border-color: var(--swatch);
+  background: color-mix(in srgb, var(--swatch) 10%, var(--color-bg-elevated));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--swatch) 28%, transparent);
+  color: var(--color-ink);
+}
+
+.accentSwatchDot {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 12%, transparent);
+}
+
+.accentSwatchLabel {
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.accent_teal {
+  --swatch: #0fbea8;
+}
+
+.accent_azure {
+  --swatch: #3b82f6;
+}
+
+.accent_rose {
+  --swatch: #f43f5e;
+}
+
+.accent_violet {
+  --swatch: #8b5cf6;
+}
+
+.accent_forest {
+  --swatch: #16a34a;
+}
+
+.accent_amber {
+  --swatch: #d97706;
+}
+
+.accent_coral {
+  --swatch: #ff7a59;
+}
+
+.accent_slate {
+  --swatch: #475569;
 }
 
 .faceGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(4.25rem, 1fr));
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .faceCard {
@@ -427,6 +514,38 @@
   --preview-ring: var(--dial-minimal-ring);
   --preview-hand: var(--dial-minimal-hand);
   --preview-second: var(--dial-minimal-second);
+}
+
+.face_azure {
+  --preview-bezel: var(--dial-azure-bezel);
+  --preview-face: var(--dial-azure-face);
+  --preview-ring: var(--dial-azure-ring);
+  --preview-hand: var(--dial-azure-hand);
+  --preview-second: var(--dial-azure-second);
+}
+
+.face_rose {
+  --preview-bezel: var(--dial-rose-bezel);
+  --preview-face: var(--dial-rose-face);
+  --preview-ring: var(--dial-rose-ring);
+  --preview-hand: var(--dial-rose-hand);
+  --preview-second: var(--dial-rose-second);
+}
+
+.face_violet {
+  --preview-bezel: var(--dial-violet-bezel);
+  --preview-face: var(--dial-violet-face);
+  --preview-ring: var(--dial-violet-ring);
+  --preview-hand: var(--dial-violet-hand);
+  --preview-second: var(--dial-violet-second);
+}
+
+.face_forest {
+  --preview-bezel: var(--dial-forest-bezel);
+  --preview-face: var(--dial-forest-face);
+  --preview-ring: var(--dial-forest-ring);
+  --preview-hand: var(--dial-forest-hand);
+  --preview-second: var(--dial-forest-second);
 }
 
 .bgRow {

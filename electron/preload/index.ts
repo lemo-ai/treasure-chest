@@ -25,6 +25,7 @@ import {
   type StockQuoteDetail,
   type WatchlistItem,
   type ThemeMode,
+  type ThemeAccent,
 } from '@shared'
 
 const api = {
@@ -32,6 +33,9 @@ const api = {
   getTheme: (): Promise<ThemeMode> => ipcRenderer.invoke(IpcChannels.settings.getTheme),
   setTheme: (theme: ThemeMode): Promise<ThemeMode> =>
     ipcRenderer.invoke(IpcChannels.settings.setTheme, theme),
+  getAccent: (): Promise<ThemeAccent> => ipcRenderer.invoke(IpcChannels.settings.getAccent),
+  setAccent: (accent: ThemeAccent): Promise<ThemeAccent> =>
+    ipcRenderer.invoke(IpcChannels.settings.setAccent, accent),
   getLocale: (): Promise<AppLocale> => ipcRenderer.invoke(IpcChannels.settings.getLocale),
   setLocale: (locale: AppLocale): Promise<AppLocale> =>
     ipcRenderer.invoke(IpcChannels.settings.setLocale, locale),

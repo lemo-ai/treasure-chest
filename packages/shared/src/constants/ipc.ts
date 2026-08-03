@@ -5,6 +5,8 @@ export const IpcChannels = {
   settings: {
     getTheme: 'settings:getTheme',
     setTheme: 'settings:setTheme',
+    getAccent: 'settings:getAccent',
+    setAccent: 'settings:setAccent',
     getLocale: 'settings:getLocale',
     setLocale: 'settings:setLocale',
     getSnapshot: 'settings:getSnapshot',

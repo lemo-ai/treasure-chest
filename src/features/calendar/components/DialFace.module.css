@@ -57,7 +57,11 @@
 .teal .faceWithPhoto,
 .ink .faceWithPhoto,
 .dawn .faceWithPhoto,
-.minimal .faceWithPhoto {
+.minimal .faceWithPhoto,
+.azure .faceWithPhoto,
+.rose .faceWithPhoto,
+.violet .faceWithPhoto,
+.forest .faceWithPhoto {
   --dial-scrim: var(--dial-photo-scrim);
   --dial-tick: var(--dial-photo-tick);
   --dial-ink: var(--dial-photo-ink);
@@ -351,5 +355,77 @@
   --dial-action-on: var(--dial-minimal-action-on);
   --dial-pattern: var(--dial-minimal-pattern);
   --dial-pattern-strong: var(--dial-minimal-pattern-strong);
+  --dial-scrim: transparent;
+}
+
+.azure {
+  --dial-bezel: var(--dial-azure-bezel);
+  --dial-face: var(--dial-azure-face);
+  --dial-ring: var(--dial-azure-ring);
+  --dial-tick: var(--dial-azure-tick);
+  --dial-ink: var(--dial-azure-ink);
+  --dial-muted: var(--dial-azure-muted);
+  --dial-accent: var(--dial-azure-accent);
+  --dial-hand: var(--dial-azure-hand);
+  --dial-second: var(--dial-azure-second);
+  --dial-action-bg: var(--dial-azure-action-bg);
+  --dial-action-ink: var(--dial-azure-action-ink);
+  --dial-action-on: var(--dial-azure-action-on);
+  --dial-pattern: var(--dial-azure-pattern);
+  --dial-pattern-strong: var(--dial-azure-pattern-strong);
+  --dial-scrim: transparent;
+}
+
+.rose {
+  --dial-bezel: var(--dial-rose-bezel);
+  --dial-face: var(--dial-rose-face);
+  --dial-ring: var(--dial-rose-ring);
+  --dial-tick: var(--dial-rose-tick);
+  --dial-ink: var(--dial-rose-ink);
+  --dial-muted: var(--dial-rose-muted);
+  --dial-accent: var(--dial-rose-accent);
+  --dial-hand: var(--dial-rose-hand);
+  --dial-second: var(--dial-rose-second);
+  --dial-action-bg: var(--dial-rose-action-bg);
+  --dial-action-ink: var(--dial-rose-action-ink);
+  --dial-action-on: var(--dial-rose-action-on);
+  --dial-pattern: var(--dial-rose-pattern);
+  --dial-pattern-strong: var(--dial-rose-pattern-strong);
+  --dial-scrim: transparent;
+}
+
+.violet {
+  --dial-bezel: var(--dial-violet-bezel);
+  --dial-face: var(--dial-violet-face);
+  --dial-ring: var(--dial-violet-ring);
+  --dial-tick: var(--dial-violet-tick);
+  --dial-ink: var(--dial-violet-ink);
+  --dial-muted: var(--dial-violet-muted);
+  --dial-accent: var(--dial-violet-accent);
+  --dial-hand: var(--dial-violet-hand);
+  --dial-second: var(--dial-violet-second);
+  --dial-action-bg: var(--dial-violet-action-bg);
+  --dial-action-ink: var(--dial-violet-action-ink);
+  --dial-action-on: var(--dial-violet-action-on);
+  --dial-pattern: var(--dial-violet-pattern);
+  --dial-pattern-strong: var(--dial-violet-pattern-strong);
+  --dial-scrim: transparent;
+}
+
+.forest {
+  --dial-bezel: var(--dial-forest-bezel);
+  --dial-face: var(--dial-forest-face);
+  --dial-ring: var(--dial-forest-ring);
+  --dial-tick: var(--dial-forest-tick);
+  --dial-ink: var(--dial-forest-ink);
+  --dial-muted: var(--dial-forest-muted);
+  --dial-accent: var(--dial-forest-accent);
+  --dial-hand: var(--dial-forest-hand);
+  --dial-second: var(--dial-forest-second);
+  --dial-action-bg: var(--dial-forest-action-bg);
+  --dial-action-ink: var(--dial-forest-action-ink);
+  --dial-action-on: var(--dial-forest-action-on);
+  --dial-pattern: var(--dial-forest-pattern);
+  --dial-pattern-strong: var(--dial-forest-pattern-strong);
   --dial-scrim: transparent;
 }

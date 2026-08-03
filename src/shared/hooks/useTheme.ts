@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { ThemeMode } from '@shared'
+import type { ThemeAccent, ThemeMode } from '@shared'
+import { DEFAULT_THEME_ACCENT } from '@shared'
 
 function resolveSystemTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -10,16 +11,27 @@ function applyTheme(mode: ThemeMode): void {
   document.documentElement.dataset.theme = resolved
 }
 
+function applyAccent(accent: ThemeAccent): void {
+  document.documentElement.dataset.accent = accent
+}
+
 export function useTheme(): {
   theme: ThemeMode
   setTheme: (mode: ThemeMode) => Promise<void>
+  accent: ThemeAccent
+  setAccent: (accent: ThemeAccent) => Promise<void>
 } {
   const [theme, setThemeState] = useState<ThemeMode>('system')
+  const [accent, setAccentState] = useState<ThemeAccent>(DEFAULT_THEME_ACCENT)
 
   useEffect(() => {
     void window.treasureChest.getTheme().then((mode) => {
       setThemeState(mode)
       applyTheme(mode)
+    })
+    void window.treasureChest.getAccent().then((next) => {
+      setAccentState(next)
+      applyAccent(next)
     })
 
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
@@ -38,5 +50,11 @@ export function useTheme(): {
     applyTheme(next)
   }
 
-  return { theme, setTheme }
+  const setAccent = async (nextAccent: ThemeAccent): Promise<void> => {
+    const next = await window.treasureChest.setAccent(nextAccent)
+    setAccentState(next)
+    applyAccent(next)
+  }
+
+  return { theme, setTheme, accent, setAccent }
 }
