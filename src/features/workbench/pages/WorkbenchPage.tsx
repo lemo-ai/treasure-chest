@@ -207,7 +207,6 @@ export function WorkbenchPage(): React.JSX.Element {
   const [workflowTitle, setWorkflowTitle] = useState('')
   const [armedWorkflow, setArmedWorkflow] = useState<WorkflowId | null>(null)
   const [installedSkills, setInstalledSkills] = useState<InstalledSkillRow[]>([])
-  const [skillInstallRef, setSkillInstallRef] = useState('')
   const [skillCatalogs, setSkillCatalogs] = useState<
     Array<{ id: string; name: string; url: string; hint: string }>
   >([])
@@ -1563,38 +1562,14 @@ export function WorkbenchPage(): React.JSX.Element {
                 ))}
               </div>
               <div className={styles.skillInstall}>
-                <input
-                  value={skillInstallRef}
-                  onChange={(e) => setSkillInstallRef(e.target.value)}
-                  placeholder={t('workbench.skillInstallPlaceholder')}
-                />
-                <button
-                  type="button"
+                <Link
                   className={styles.ghostMini}
-                  disabled={!skillInstallRef.trim()}
-                  onClick={() => {
-                    void (async () => {
-                      try {
-                        await window.treasureChest.installSkillFromGithub(skillInstallRef.trim())
-                        const skills = await window.treasureChest.listSkills()
-                        setInstalledSkills(skills)
-                        setSkillInstallRef('')
-                      } catch (err) {
-                        const sessionId = ensureSession(activeAgent)
-                        appendMessage(
-                          sessionId,
-                          'system',
-                          t('workbench.skillInstallFailed', {
-                            error: err instanceof Error ? err.message : String(err),
-                          }),
-                        )
-                        refresh(sessionId)
-                      }
-                    })()
-                  }}
+                  to="/settings"
+                  state={{ section: 'skills' }}
+                  onClick={() => setSkillPickerOpen(false)}
                 >
-                  {t('workbench.skillInstall')}
-                </button>
+                  {t('workbench.skillManageInSettings')}
+                </Link>
               </div>
               {skillCatalogs.length ? (
                 <div className={styles.skillCatalogs}>

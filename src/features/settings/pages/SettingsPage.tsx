@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type {
   AppLocale,
@@ -41,6 +42,7 @@ import {
   IconLayers,
   IconMonitor,
   IconSettings,
+  IconSkill,
   IconStocks,
   IconTrash,
   IconTray,
@@ -63,6 +65,7 @@ const launchBehaviorMeta = {
 
 export function SettingsPage(): React.JSX.Element {
   const { t, i18n } = useTranslation()
+  const location = useLocation()
   const { theme, setTheme, accent, setAccent } = useTheme()
   const [widget, setWidget] = useState<DesktopWidgetView>({
     ...DEFAULT_DESKTOP_WIDGET,
@@ -101,6 +104,7 @@ export function SettingsPage(): React.JSX.Element {
     | 'models'
     | 'fortune'
     | 'stocks'
+    | 'skills'
     | 'mcp'
     | 'notifications'
     | 'data'
@@ -112,6 +116,7 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'models', labelKey: 'settings.nav.models', icon: <IconKey /> },
     { id: 'fortune', labelKey: 'settings.nav.fortune', icon: <IconSparkles /> },
     { id: 'stocks', labelKey: 'settings.nav.stocks', icon: <IconStocks /> },
+    { id: 'skills', labelKey: 'settings.nav.skills', icon: <IconSkill /> },
     { id: 'mcp', labelKey: 'settings.nav.mcp', icon: <IconLayers /> },
     { id: 'notifications', labelKey: 'settings.nav.notifications', icon: <IconBell /> },
     { id: 'data', labelKey: 'settings.nav.data', icon: <IconDownload /> },
@@ -133,6 +138,22 @@ export function SettingsPage(): React.JSX.Element {
   const [mcpStatuses, setMcpStatuses] = useState<McpServerStatus[]>([])
   const [mcpToolCount, setMcpToolCount] = useState(0)
   const [mcpRefreshing, setMcpRefreshing] = useState(false)
+
+  type SkillRow = {
+    id: string
+    name: string
+    description: string
+    source: string
+    sourceRef?: string
+    prompt: string
+  }
+  const [skills, setSkills] = useState<SkillRow[]>([])
+  const [skillCatalogs, setSkillCatalogs] = useState<
+    Array<{ id: string; name: string; url: string; hint: string }>
+  >([])
+  const [skillInstallRef, setSkillInstallRef] = useState('')
+  const [skillBusy, setSkillBusy] = useState(false)
+  const [skillHint, setSkillHint] = useState<string | null>(null)
 
   const toMcpDraft = (s: {
     id: string
@@ -160,6 +181,27 @@ export function SettingsPage(): React.JSX.Element {
     setMcpStatuses(snap.servers)
     setMcpToolCount(snap.toolCount)
   }
+
+  const refreshSkills = async (): Promise<void> => {
+    const [list, catalogs] = await Promise.all([
+      window.treasureChest.listSkills(),
+      window.treasureChest.listSkillCatalogs(),
+    ])
+    setSkills(list)
+    setSkillCatalogs(catalogs)
+  }
+
+  useEffect(() => {
+    const fromState = (location.state as { section?: SettingsSection } | null)?.section
+    if (fromState) setSection(fromState)
+  }, [location.state])
+
+  useEffect(() => {
+    if (section !== 'skills') return
+    void refreshSkills().catch(() => {
+      setSkillHint(t('settings.skills.loadFailed'))
+    })
+  }, [section, t])
 
   useEffect(() => {
     void window.treasureChest.getDesktopWidget().then(setWidget)
@@ -1163,6 +1205,147 @@ export function SettingsPage(): React.JSX.Element {
             })}
           </div>
         </div>
+      </div>
+
+      <div className={styles.group} hidden={section !== 'skills'}>
+        <h2 className={styles.label}>{t('settings.skills')}</h2>
+        <p className={styles.desc}>{t('settings.skillsDesc')}</p>
+
+        <div className={styles.faceBlock}>
+          <div className={styles.settingTitle}>{t('settings.skillsInstall')}</div>
+          <div className={styles.settingHint}>{t('settings.skillsInstallHint')}</div>
+          <div className={styles.skillInstallRow}>
+            <input
+              className={styles.aiInput}
+              value={skillInstallRef}
+              onChange={(e) => setSkillInstallRef(e.target.value)}
+              placeholder={t('settings.skillsInstallPlaceholder')}
+              disabled={skillBusy}
+            />
+            <SettingActionButton
+              icon={<IconDownload />}
+              label={skillBusy ? t('settings.skillsInstalling') : t('settings.skillsInstallAction')}
+              variant="primary"
+              disabled={skillBusy || !skillInstallRef.trim()}
+              onClick={() => {
+                setSkillHint(null)
+                setSkillBusy(true)
+                void window.treasureChest
+                  .installSkillFromGithub(skillInstallRef.trim())
+                  .then(async () => {
+                    setSkillInstallRef('')
+                    await refreshSkills()
+                    setSkillHint(t('settings.skillsInstallOk'))
+                  })
+                  .catch((err) => {
+                    setSkillHint(
+                      t('settings.skillsInstallFailed', {
+                        error: err instanceof Error ? err.message : String(err),
+                      }),
+                    )
+                  })
+                  .finally(() => setSkillBusy(false))
+              }}
+            />
+          </div>
+        </div>
+
+        {skillCatalogs.length > 0 ? (
+          <div className={styles.faceBlock}>
+            <div className={styles.settingTitle}>{t('settings.skillsCatalogs')}</div>
+            <div className={styles.settingHint}>{t('settings.skillsCatalogsHint')}</div>
+            <div className={styles.skillCatalogList}>
+              {skillCatalogs.map((c) => (
+                <a
+                  key={c.id}
+                  className={styles.skillCatalogCard}
+                  href={c.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <strong>{c.name}</strong>
+                  <span>{c.hint}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className={styles.faceBlock}>
+          <div className={styles.settingTitleRow}>
+            <span>{t('settings.skillsInstalled')}</span>
+            <span className={styles.skillCount}>
+              {t('settings.skillsCount', { count: skills.length })}
+            </span>
+          </div>
+          <div className={styles.settingHint}>{t('settings.skillsInstalledHint')}</div>
+          {skills.length === 0 ? (
+            <p className={styles.hint}>{t('settings.skillsEmpty')}</p>
+          ) : (
+            <ul className={styles.skillList}>
+              {skills.map((skill) => {
+                const builtin = skill.source === 'builtin'
+                return (
+                  <li key={skill.id} className={styles.skillItem}>
+                    <div className={styles.skillItemMain}>
+                      <div className={styles.skillItemHead}>
+                        <strong>{skill.name}</strong>
+                        <span
+                          className={`${styles.skillBadge} ${
+                            builtin ? styles.skillBadgeBuiltin : styles.skillBadgeCustom
+                          }`}
+                        >
+                          {t(`settings.skillsSource.${skill.source}` as 'settings.skillsSource.builtin')}
+                        </span>
+                      </div>
+                      {skill.description ? (
+                        <p className={styles.skillItemDesc}>{skill.description}</p>
+                      ) : null}
+                      {skill.sourceRef ? (
+                        <p className={styles.skillItemRef}>{skill.sourceRef}</p>
+                      ) : null}
+                    </div>
+                    {!builtin ? (
+                      <button
+                        type="button"
+                        className={styles.skillUninstall}
+                        disabled={skillBusy}
+                        title={t('settings.skillsUninstall')}
+                        aria-label={t('settings.skillsUninstall')}
+                        onClick={() => {
+                          setSkillHint(null)
+                          setSkillBusy(true)
+                          void window.treasureChest
+                            .uninstallSkill(skill.id)
+                            .then(async (ok) => {
+                              if (!ok) {
+                                setSkillHint(t('settings.skillsUninstallFailed'))
+                                return
+                              }
+                              await refreshSkills()
+                              setSkillHint(t('settings.skillsUninstallOk'))
+                            })
+                            .catch((err) => {
+                              setSkillHint(
+                                t('settings.skillsUninstallFailedDetail', {
+                                  error: err instanceof Error ? err.message : String(err),
+                                }),
+                              )
+                            })
+                            .finally(() => setSkillBusy(false))
+                        }}
+                      >
+                        <IconTrash />
+                      </button>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+
+        {skillHint ? <p className={styles.hint}>{skillHint}</p> : null}
       </div>
 
       <div className={styles.group} hidden={section !== 'mcp'}>
