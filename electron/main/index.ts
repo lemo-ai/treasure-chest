@@ -16,12 +16,21 @@ import { logger } from '../utils/logger'
 
 app.setName('袖里乾坤')
 
-app.whenReady().then(() => {
+const isHarnessHeadless = process.argv.includes('--harness-headless')
+
+if (isHarnessHeadless) {
+  void import('../harness-cli/runHeadless').then((m) => m.runHeadless())
+} else {
+  app.whenReady().then(() => {
   logger.info('app ready')
   applyAppDockIcon()
   // Re-apply after a tick; Dock sometimes ignores the first setIcon on cold start.
   setTimeout(() => applyAppDockIcon(), 300)
   initDatabase()
+  void import('../modules/harness/cordis/CordisConfig').then((c) => {
+    c.applyCordisStack()
+  })
+  void import('../modules/harness/coding/DshWebService').then((m) => m.ensureEmbeddedDshWebServer())
   initSettingsStore()
   initFortuneStore()
   syncLaunchAtLogin()
@@ -49,8 +58,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     showMainWindow()
   })
-})
+  })
+}
 
+if (!isHarnessHeadless) {
 app.on('window-all-closed', () => {
   const { keepAlive } = settingsStore.getDesktopWidget()
   if (keepAlive && getCalendarWindow()) {
@@ -66,6 +77,8 @@ app.on('before-quit', () => {
   stopFortuneNotificationScheduler()
   stopStocksScheduler()
   disposeAllMcpSessions()
+  void import('../modules/harness/coding/LspService').then((m) => m.shutdownLsp())
+  void import('../modules/harness/coding/DshWebService').then((m) => m.stopEmbeddedDshWeb())
   closeDatabase()
   const main = getMainWindow()
   if (main && !main.isDestroyed()) {
@@ -76,6 +89,7 @@ app.on('before-quit', () => {
   }
   destroyTray()
 })
+}
 
 app.on('browser-window-created', (_event, window) => {
   if (!app.isPackaged) {

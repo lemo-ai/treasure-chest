@@ -1,0 +1,148 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(28rem, 48vw);
+  min-width: 18rem;
+  border-left: 1px solid var(--color-border);
+  background: #0f1419;
+  color: #d6dde6;
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.head strong {
+  font-size: 0.92rem;
+  font-weight: 750;
+  color: #eef2f7;
+}
+
+.sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: rgba(214, 221, 230, 0.65);
+  line-height: 1.35;
+}
+
+.iconBtn {
+  border: none;
+  background: transparent;
+  color: rgba(214, 221, 230, 0.7);
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-full);
+}
+
+.iconBtn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 0.75rem 0.45rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tab,
+.tabActive {
+  border: none;
+  background: transparent;
+  color: rgba(214, 221, 230, 0.65);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.tabActive {
+  color: #eef2f7;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 0.65rem 0.75rem 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty {
+  margin: 0;
+  padding: 1rem 0.25rem;
+  color: rgba(214, 221, 230, 0.55);
+}
+
+.block {
+  margin-bottom: 0.85rem;
+}
+
+.prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.35rem;
+  color: #8fd19e;
+}
+
+.promptMark {
+  color: #6ee7a8;
+  font-weight: 700;
+}
+
+.prompt code {
+  color: #eef2f7;
+  word-break: break-word;
+}
+
+.cwd {
+  color: rgba(214, 221, 230, 0.45);
+  font-size: 0.68rem;
+}
+
+.badge {
+  margin-left: auto;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(214, 221, 230, 0.75);
+}
+
+.badge[data-exit='ok'] {
+  color: #6ee7a8;
+}
+
+.badge[data-exit='err'] {
+  color: #f87171;
+}
+
+.out {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d6dde6;
+}
+
+.err {
+  color: #fca5a5;
+}
+
+.block[data-status='running'] .prompt {
+  color: #fcd34d;
+}

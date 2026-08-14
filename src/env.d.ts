@@ -69,12 +69,75 @@ interface TreasureChestApi {
     onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
     onToolStep?: (step: import('@shared').LlmToolStep) => void,
     onToolApproval?: (request: import('@shared').ToolApprovalRequest) => void,
+    onSessionEvent?: (event: import('@shared').SessionEvent) => void,
+    onStreamStart?: (streamId: string) => void,
   ) => Promise<LlmChatResponse>
   resolveToolApproval: (payload: {
     streamId: string
     toolCallId: string
     approved: boolean
   }) => Promise<boolean>
+  cancelWorkbenchStream: (streamId: string) => Promise<boolean>
+  harnessGetStore: () => Promise<import('@shared').HarnessStoreSnapshot>
+  harnessMigrateLocal: (payload: import('@shared').MigrateLocalHarnessInput) => Promise<{ imported: number }>
+  harnessCreateSession: (agentId: string, title: string, id?: string) => Promise<import('@shared').AgentSession>
+  harnessRenameSession: (id: string, title: string) => Promise<boolean>
+  harnessDeleteSession: (id: string) => Promise<boolean>
+  harnessSetActiveSession: (id: string | null) => Promise<boolean>
+  harnessListMessages: (sessionId: string) => Promise<import('@shared').HarnessMessage[]>
+  harnessAppendUserMessage: (sessionId: string, content: string) => Promise<import('@shared').HarnessMessage>
+  harnessAppendSystemMessage: (sessionId: string, content: string) => Promise<import('@shared').HarnessMessage>
+  harnessListEvents: (sessionId: string) => Promise<import('@shared').SessionEvent[]>
+  harnessForkSession: (payload: import('@shared').ForkSessionInput) => Promise<import('@shared').AgentSession | null>
+  harnessListGoals: (sessionId: string, includeDone?: boolean) => Promise<import('@shared').AgentGoal[]>
+  harnessSetGoal: (sessionId: string, title: string, detail?: string) => Promise<import('@shared').AgentGoal>
+  harnessReloadPlugins: () => Promise<{ plugins: import('@shared').HarnessPluginInfo[]; tools: unknown[] }>
+  harnessListPlugins: () => Promise<import('@shared').HarnessPluginInfo[]>
+  harnessGetSandboxRoot: () => Promise<string>
+  harnessSetSandboxRoot: (path: string) => Promise<string>
+  harnessPickSandboxRoot: () => Promise<string | null>
+  harnessGetPluginsDir: () => Promise<string>
+  harnessGetDiagnostics: (path?: string) => Promise<import('@shared').SandboxDiagnostic[]>
+  harnessListPluginCatalog: () => Promise<import('@shared').HarnessPluginCatalogEntry[]>
+  harnessInstallPlugin: (payload: {
+    bundledId?: string
+    sourcePath?: string
+  }) => Promise<import('@shared').HarnessPluginInfo>
+  harnessPickInstallPlugin: () => Promise<import('@shared').HarnessPluginInfo | null>
+  harnessOpenPluginsDir: () => Promise<string>
+  harnessPtyCreate: (
+    cols: number,
+    rows: number,
+    onEvent: (ev: import('@shared').HarnessPtyEvent) => void,
+  ) => Promise<import('@shared').HarnessPtySessionInfo>
+  harnessPtyWrite: (ptyId: string, data: string) => Promise<boolean>
+  harnessPtyResize: (ptyId: string, cols: number, rows: number) => Promise<boolean>
+  harnessPtyKill: (ptyId: string) => Promise<boolean>
+  harnessGetCordisStack: () => Promise<import('@shared').CordisStackSnapshot>
+  harnessReloadCordisStack: () => Promise<import('@shared').CordisStackSnapshot>
+  harnessOpenCordisRoot: () => Promise<string>
+  harnessGetSandboxBackend: () => Promise<import('@shared').SandboxBackendInfo>
+  harnessLspDefinition: (
+    path: string,
+    line: number,
+    column: number,
+  ) => Promise<import('@shared').LspLocation | null>
+  harnessLspCompletion: (
+    path: string,
+    line: number,
+    column: number,
+  ) => Promise<import('@shared').LspCompletionItem[]>
+  harnessGetDshWebUrl: () => Promise<string>
+  harnessSetDshWebUrl: (url: string) => Promise<string>
+  harnessGetEmbeddedDshWebPreferred: () => Promise<boolean>
+  harnessSetEmbeddedDshWebPreferred: (enabled: boolean) => Promise<boolean>
+  harnessListCordisProfiles: () => Promise<string[]>
+  harnessListCordisBundles: () => Promise<string[]>
+  harnessSaveCordisSettings: (
+    payload: import('@shared').SaveCordisSettingsInput,
+  ) => Promise<import('@shared').CordisStackSnapshot>
+  harnessCreateCordisProfile: (payload: import('@shared').CreateCordisProfileInput) => Promise<string>
+  harnessCreateCordisBundle: (payload: import('@shared').CreateCordisBundleInput) => Promise<string>
   listKnowledgeDocuments: (collectionId?: string) => Promise<import('@shared').KnowledgeDocument[]>
   ingestKnowledgeText: (
     payload: import('@shared').KnowledgeIngestInput,

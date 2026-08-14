@@ -899,6 +899,24 @@
   filter: grayscale(0.2);
 }
 
+.stopBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: none;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-danger, #c0392b) 88%, black);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-danger, #c0392b) 35%, transparent);
+}
+
+.stopBtn:hover {
+  transform: translateY(-1px);
+}
+
 .hint {
   margin: var(--space-2) auto 0;
   max-width: min(92%, 72rem);

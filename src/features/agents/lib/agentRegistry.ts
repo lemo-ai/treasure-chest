@@ -29,6 +29,12 @@ export interface AgentDef {
   knowledgeCollectionIds?: string[]
   /** Always enable knowledge search for this agent */
   alwaysUseKnowledge?: boolean
+  /** Allow coding sandbox tools (read/write/shell). Default true for custom agents. */
+  enableCodingTools?: boolean
+  /** Allow harness plugin tools. Default true for custom agents. */
+  enablePluginTools?: boolean
+  /** Allow spawn_subagent. Default true for custom agents. */
+  enableSpawnSubagent?: boolean
 }
 
 const STORAGE_KEY = 'qiankun.agents.v1'
@@ -78,6 +84,9 @@ export interface CreateAgentInput {
   enabledMcpServerIds?: string[]
   knowledgeCollectionIds?: string[]
   alwaysUseKnowledge?: boolean
+  enableCodingTools?: boolean
+  enablePluginTools?: boolean
+  enableSpawnSubagent?: boolean
 }
 
 interface CustomAgentsStore {
@@ -107,6 +116,9 @@ function applyBindings(agent: AgentDef, input: Partial<CreateAgentInput>): void 
   if (input.alwaysUseKnowledge !== undefined) {
     agent.alwaysUseKnowledge = input.alwaysUseKnowledge || undefined
   }
+  if (input.enableCodingTools !== undefined) agent.enableCodingTools = input.enableCodingTools
+  if (input.enablePluginTools !== undefined) agent.enablePluginTools = input.enablePluginTools
+  if (input.enableSpawnSubagent !== undefined) agent.enableSpawnSubagent = input.enableSpawnSubagent
 }
 
 function readCustom(): AgentDef[] {

@@ -108,8 +108,11 @@ const api = {
     onCitations?: (citations: import('@shared').KnowledgeCitation[]) => void,
     onToolStep?: (step: import('@shared').LlmToolStep) => void,
     onToolApproval?: (request: import('@shared').ToolApprovalRequest) => void,
+    onSessionEvent?: (event: import('@shared').SessionEvent) => void,
+    onStreamStart?: (streamId: string) => void,
   ): Promise<LlmChatResponse> => {
     const streamId = `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    onStreamStart?.(streamId)
     return new Promise((resolve, reject) => {
       let lastCitations: import('@shared').KnowledgeCitation[] | undefined
       let lastToolSteps: import('@shared').LlmToolStep[] = []
@@ -154,13 +157,28 @@ const api = {
           })
           return
         }
-        finish({
-          ok: false,
-          error: ev.error,
-          model: ev.model,
-          providerName: ev.providerName,
-          toolSteps: lastToolSteps,
-        })
+        if (ev.type === 'session_event') {
+          onSessionEvent?.(ev.event)
+          return
+        }
+        if (ev.type === 'cancelled') {
+          finish({
+            ok: false,
+            error: 'cancelled',
+            text: ev.text,
+            toolSteps: ev.toolSteps,
+          })
+          return
+        }
+        if (ev.type === 'error') {
+          finish({
+            ok: false,
+            error: ev.error,
+            model: ev.model,
+            providerName: ev.providerName,
+            toolSteps: lastToolSteps,
+          })
+        }
       }
 
       ipcRenderer.on(IpcChannels.workbench.chatStreamEvent, handler)
@@ -177,6 +195,125 @@ const api = {
     toolCallId: string
     approved: boolean
   }): Promise<boolean> => ipcRenderer.invoke(IpcChannels.workbench.resolveToolApproval, payload),
+  cancelWorkbenchStream: (streamId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.workbench.cancelStream, streamId),
+  harnessGetStore: (): Promise<import('@shared').HarnessStoreSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.harness.getStore),
+  harnessMigrateLocal: (payload: import('@shared').MigrateLocalHarnessInput): Promise<{ imported: number }> =>
+    ipcRenderer.invoke(IpcChannels.harness.migrateLocal, payload),
+  harnessCreateSession: (agentId: string, title: string, id?: string): Promise<import('@shared').AgentSession> =>
+    ipcRenderer.invoke(IpcChannels.harness.createSession, { agentId, title, id }),
+  harnessRenameSession: (id: string, title: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.renameSession, { id, title }),
+  harnessDeleteSession: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.deleteSession, id),
+  harnessSetActiveSession: (id: string | null): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.setActiveSession, id),
+  harnessListMessages: (sessionId: string): Promise<import('@shared').HarnessMessage[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.listMessages, sessionId),
+  harnessAppendUserMessage: (sessionId: string, content: string): Promise<import('@shared').HarnessMessage> =>
+    ipcRenderer.invoke(IpcChannels.harness.appendUserMessage, { sessionId, content }),
+  harnessAppendSystemMessage: (sessionId: string, content: string): Promise<import('@shared').HarnessMessage> =>
+    ipcRenderer.invoke(IpcChannels.harness.appendSystemMessage, { sessionId, content }),
+  harnessListEvents: (sessionId: string): Promise<import('@shared').SessionEvent[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.listEvents, sessionId),
+  harnessForkSession: (payload: import('@shared').ForkSessionInput): Promise<import('@shared').AgentSession | null> =>
+    ipcRenderer.invoke(IpcChannels.harness.forkSession, payload),
+  harnessListGoals: (sessionId: string, includeDone?: boolean): Promise<import('@shared').AgentGoal[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.listGoals, { sessionId, includeDone }),
+  harnessSetGoal: (
+    sessionId: string,
+    title: string,
+    detail?: string,
+  ): Promise<import('@shared').AgentGoal> =>
+    ipcRenderer.invoke(IpcChannels.harness.setGoal, { sessionId, title, detail }),
+  harnessReloadPlugins: (): Promise<{ plugins: import('@shared').HarnessPluginInfo[]; tools: unknown[] }> =>
+    ipcRenderer.invoke(IpcChannels.harness.reloadPlugins),
+  harnessListPlugins: (): Promise<import('@shared').HarnessPluginInfo[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.listPlugins),
+  harnessGetSandboxRoot: (): Promise<string> => ipcRenderer.invoke(IpcChannels.harness.getSandboxRoot),
+  harnessSetSandboxRoot: (path: string): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.harness.setSandboxRoot, path),
+  harnessPickSandboxRoot: (): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.harness.pickSandboxRoot),
+  harnessGetPluginsDir: (): Promise<string> => ipcRenderer.invoke(IpcChannels.harness.getPluginsDir),
+  harnessGetDiagnostics: (path?: string): Promise<import('@shared').SandboxDiagnostic[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.getDiagnostics, path),
+  harnessListPluginCatalog: (): Promise<import('@shared').HarnessPluginCatalogEntry[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.listPluginCatalog),
+  harnessInstallPlugin: (payload: {
+    bundledId?: string
+    sourcePath?: string
+  }): Promise<import('@shared').HarnessPluginInfo> =>
+    ipcRenderer.invoke(IpcChannels.harness.installPlugin, payload),
+  harnessPickInstallPlugin: (): Promise<import('@shared').HarnessPluginInfo | null> =>
+    ipcRenderer.invoke(IpcChannels.harness.pickInstallPlugin),
+  harnessOpenPluginsDir: (): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.harness.openPluginsDir),
+  harnessPtyCreate: (
+    cols: number,
+    rows: number,
+    onEvent: (ev: import('@shared').HarnessPtyEvent) => void,
+  ): Promise<import('@shared').HarnessPtySessionInfo> => {
+    const handler = (_event: IpcRendererEvent, ev: import('@shared').HarnessPtyEvent): void => {
+      onEvent(ev)
+    }
+    ipcRenderer.on(IpcChannels.harness.ptyEvent, handler)
+    return ipcRenderer
+      .invoke(IpcChannels.harness.ptyCreate, { cols, rows })
+      .then((info: import('@shared').HarnessPtySessionInfo) => info)
+      .catch((err) => {
+        ipcRenderer.removeListener(IpcChannels.harness.ptyEvent, handler)
+        throw err
+      })
+  },
+  harnessPtyWrite: (ptyId: string, data: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.ptyWrite, { ptyId, data }),
+  harnessPtyResize: (ptyId: string, cols: number, rows: number): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.ptyResize, { ptyId, cols, rows }),
+  harnessPtyKill: (ptyId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.ptyKill, ptyId),
+  harnessGetCordisStack: (): Promise<import('@shared').CordisStackSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.harness.getCordisStack),
+  harnessReloadCordisStack: (): Promise<import('@shared').CordisStackSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.harness.reloadCordisStack),
+  harnessOpenCordisRoot: (): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.harness.openCordisRoot),
+  harnessGetSandboxBackend: (): Promise<import('@shared').SandboxBackendInfo> =>
+    ipcRenderer.invoke(IpcChannels.harness.getSandboxBackend),
+  harnessLspDefinition: (
+    path: string,
+    line: number,
+    column: number,
+  ): Promise<import('@shared').LspLocation | null> =>
+    ipcRenderer.invoke(IpcChannels.harness.lspDefinition, { path, line, column }),
+  harnessLspCompletion: (
+    path: string,
+    line: number,
+    column: number,
+  ): Promise<import('@shared').LspCompletionItem[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.lspCompletion, { path, line, column }),
+  harnessGetDshWebUrl: (): Promise<string> => ipcRenderer.invoke(IpcChannels.harness.getDshWebUrl),
+  harnessSetDshWebUrl: (url: string): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.harness.setDshWebUrl, url),
+  harnessGetEmbeddedDshWebPreferred: (): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.getEmbeddedDshWebPreferred),
+  harnessSetEmbeddedDshWebPreferred: (enabled: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.setEmbeddedDshWebPreferred, enabled),
+  harnessListCordisProfiles: (): Promise<string[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.listCordisProfiles),
+  harnessListCordisBundles: (): Promise<string[]> =>
+    ipcRenderer.invoke(IpcChannels.harness.listCordisBundles),
+  harnessSaveCordisSettings: (
+    payload: import('@shared').SaveCordisSettingsInput,
+  ): Promise<import('@shared').CordisStackSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.harness.saveCordisSettings, payload),
+  harnessCreateCordisProfile: (
+    payload: import('@shared').CreateCordisProfileInput,
+  ): Promise<string> => ipcRenderer.invoke(IpcChannels.harness.createCordisProfile, payload),
+  harnessCreateCordisBundle: (
+    payload: import('@shared').CreateCordisBundleInput,
+  ): Promise<string> => ipcRenderer.invoke(IpcChannels.harness.createCordisBundle, payload),
   reembedKnowledgeDocument: (id: string): Promise<import('@shared').KnowledgeDocument> =>
     ipcRenderer.invoke(IpcChannels.knowledge.reembedDocument, id),
   reembedKnowledgeCollection: (

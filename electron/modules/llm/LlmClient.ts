@@ -5,6 +5,12 @@ import type {
   LlmToolCall,
   LlmToolSpec,
 } from '@shared'
+import {
+  normalizeAnthropicMessages,
+  parseAnthropicResponse,
+  toAnthropicMessages,
+  toAnthropicTools,
+} from './AnthropicAdapter'
 import { logger } from '../../utils/logger'
 
 function trimTrailingSlash(url: string): string {
@@ -58,7 +64,8 @@ interface ChatCompletionResponse {
 }
 
 interface AnthropicResponse {
-  content?: Array<{ type?: string; text?: string }>
+  content?: Array<{ type?: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }>
+  stop_reason?: string
   error?: { message?: string }
 }
 
@@ -198,9 +205,7 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
         .map((m) => m.content)
         .join('\n\n')
         .trim()
-      const turns = options.messages
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content }))
+      const turns = normalizeAnthropicMessages(toAnthropicMessages(options.messages))
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -208,17 +213,22 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
       }
       if (apiKey) headers['x-api-key'] = apiKey
 
+      const body: Record<string, unknown> = {
+        model,
+        max_tokens: options.maxTokens ?? 2048,
+        temperature: options.temperature ?? 0.7,
+        ...(system ? { system } : {}),
+        messages: turns,
+      }
+      if (options.tools?.length) {
+        body.tools = toAnthropicTools(options.tools)
+      }
+
       const response = await fetch(`${baseUrl}/messages`, {
         method: 'POST',
         signal: controller.signal,
         headers,
-        body: JSON.stringify({
-          model,
-          max_tokens: options.maxTokens ?? 2048,
-          temperature: options.temperature ?? 0.7,
-          ...(system ? { system } : {}),
-          messages: turns,
-        }),
+        body: JSON.stringify(body),
       })
       const data = (await safeJson(response)) as AnthropicResponse
       if (!response.ok) {
@@ -226,17 +236,21 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
         logger.warn(`[${tag}] failed status=${response.status} body=${shortText(data)} err=${err}`)
         return { ok: false, error: err, providerName, model }
       }
-      const text = (data.content ?? [])
-        .filter((part) => part.type === 'text' && typeof part.text === 'string')
-        .map((part) => part.text?.trim() ?? '')
-        .join('\n')
-        .trim()
-      if (!text) {
+      const parsed = parseAnthropicResponse(data.content ?? [])
+      if (!parsed.text && !parsed.toolCalls.length) {
         logger.warn(`[${tag}] empty anthropic response body=${shortText(data)}`)
         return { ok: false, error: 'Empty AI response.', providerName, model }
       }
-      logger.info(`[${tag}] success format=anthropic text_len=${text.length}`)
-      return { ok: true, text, providerName, model }
+      logger.info(
+        `[${tag}] success format=anthropic text_len=${parsed.text.length} tools=${parsed.toolCalls.length}`,
+      )
+      return {
+        ok: true,
+        text: parsed.text,
+        toolCalls: parsed.toolCalls.length ? parsed.toolCalls : undefined,
+        providerName,
+        model,
+      }
     }
 
     const headers: Record<string, string> = {
@@ -345,9 +359,7 @@ export async function callLlmChatStream(
         .map((m) => m.content)
         .join('\n\n')
         .trim()
-      const turns = options.messages
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content }))
+      const turns = normalizeAnthropicMessages(toAnthropicMessages(options.messages))
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

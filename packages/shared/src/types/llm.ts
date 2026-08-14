@@ -29,6 +29,10 @@ export interface LlmToolSpec {
 export interface LlmChatRequest {
   /** Agent id for system prompt / routing */
   agentId: string
+  /** Harness session id; when set, history is loaded from the append-only event log */
+  sessionId?: string
+  /** Internal: nested subagent depth (0 = root). */
+  subagentDepth?: number
   /** Optional override model; falls back to settings.aiModel */
   model?: string
   /** Conversation turns excluding system (main process injects system) */
@@ -50,6 +54,16 @@ export interface LlmChatRequest {
   enabledMcpServerIds?: string[]
   /** Cross-session memory facts injected into system prompt */
   memoryFacts?: string[]
+  /** Override agent-default coding tools (shell / file ops). */
+  enableCodingTools?: boolean
+  /** Override harness agent tools (goals / subagent). */
+  enableHarnessTools?: boolean
+  /** Override Cordis-style plugin tools. */
+  enablePluginTools?: boolean
+  /** Override spawn_subagent availability. */
+  enableSpawnSubagent?: boolean
+  /** Override MCP tools (domain agents default off). */
+  enableMcpTools?: boolean
 }
 
 export type ToolSensitivityTier = 'auto' | 'confirm' | 'block'
@@ -137,11 +151,23 @@ export type LlmChatStreamEvent =
     }
   | {
       streamId: string
+      type: 'session_event'
+      event: import('./harness').SessionEvent
+    }
+  | {
+      streamId: string
       type: 'done'
       text: string
       model?: string
       providerName?: string
       citations?: KnowledgeCitation[]
+      toolSteps?: LlmToolStep[]
+      sessionId?: string
+    }
+  | {
+      streamId: string
+      type: 'cancelled'
+      text?: string
       toolSteps?: LlmToolStep[]
     }
   | {

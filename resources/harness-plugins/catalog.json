@@ -1,0 +1,9 @@
+[
+  {
+    "id": "hello",
+    "name": "Hello Example",
+    "version": "1.0.0",
+    "description": "Sample greet tool and agent/pre-step hook demonstrating Cordis-style plugins.",
+    "bundledPath": "hello"
+  }
+]

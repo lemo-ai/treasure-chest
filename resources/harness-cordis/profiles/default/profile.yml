@@ -1,0 +1,9 @@
+id: default
+harness:
+  maxContextMessages: 48
+  compactionThreshold: 40
+  maxSubagentDepth: 2
+  enableCodingTools: true
+  maxGoalContinuations: 3
+sandbox:
+  mode: local

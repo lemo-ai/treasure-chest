@@ -6,6 +6,12 @@ const BUILTIN_AUTO = new Set([
   'get_stock_quote',
   'get_latest_stocks_report',
   'search_knowledge',
+  'read_file',
+  'list_dir',
+  'search_files',
+  'grep_content',
+  'git_status',
+  'git_diff',
 ])
 
 const BLOCK_RE =
@@ -45,6 +51,11 @@ export function classifyToolSensitivity(
 
   if (CONFIRM_NAME_RE.test(bare) || CONFIRM_NAME_RE.test(raw) || CONFIRM_ARGS_RE.test(argsJson || '')) {
     return { tier: 'confirm', reason: 'destructive_or_write' }
+  }
+
+  // Coding / harness write paths
+  if (/\b(write_file|str_replace_file|apply_patch|run_shell|run_shell_background|kill_job|spawn_subagent|git_commit)\b/i.test(name)) {
+    return { tier: 'confirm', reason: 'coding_side_effect' }
   }
 
   // Unknown MCP tools that look write-ish via description keywords in the name

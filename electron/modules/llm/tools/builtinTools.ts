@@ -119,7 +119,51 @@ export function toolStatusLabel(name: string, locale: string): string {
       return en ? 'Loading stocks report…' : '正在读取荐股报告…'
     case 'search_knowledge':
       return en ? 'Searching knowledge base…' : '正在检索知识库…'
+    case 'read_file':
+      return en ? 'Reading file…' : '正在读取文件…'
+    case 'list_dir':
+      return en ? 'Listing directory…' : '正在列出目录…'
+    case 'search_files':
+      return en ? 'Searching files…' : '正在搜索文件…'
+    case 'grep_content':
+      return en ? 'Searching file contents…' : '正在搜索文件内容…'
+    case 'apply_patch':
+      return en ? 'Applying patch…' : '正在应用补丁…'
+    case 'git_status':
+      return en ? 'Git status…' : '正在读取 Git 状态…'
+    case 'git_diff':
+      return en ? 'Git diff…' : '正在读取 Git diff…'
+    case 'git_commit':
+      return en ? 'Git commit…' : '正在 Git 提交…'
+    case 'write_file':
+      return en ? 'Writing file…' : '正在写入文件…'
+    case 'str_replace_file':
+      return en ? 'Editing file…' : '正在编辑文件…'
+    case 'run_shell':
+      return en ? 'Running shell…' : '正在执行命令…'
+    case 'run_shell_background':
+      return en ? 'Starting background shell…' : '正在启动后台命令…'
+    case 'get_job_status':
+      return en ? 'Checking job…' : '正在查询任务…'
+    case 'kill_job':
+      return en ? 'Stopping job…' : '正在停止任务…'
+    case 'list_jobs':
+      return en ? 'Listing jobs…' : '正在列出任务…'
+    case 'get_diagnostics':
+      return en ? 'Running diagnostics…' : '正在运行诊断…'
+    case 'set_goal':
+      return en ? 'Setting goal…' : '正在设定目标…'
+    case 'update_goal':
+      return en ? 'Updating goal…' : '正在更新目标…'
+    case 'list_goals':
+      return en ? 'Listing goals…' : '正在读取目标…'
+    case 'spawn_subagent':
+      return en ? 'Spawning subagent…' : '正在启动子智能体…'
     default:
+      if (name.startsWith('plugin__')) {
+        const short = name.replace(/^plugin__/, '').replace(/__/g, ' / ')
+        return en ? `Plugin: ${short}…` : `插件：${short}…`
+      }
       if (name.startsWith('mcp__')) {
         const short = name.replace(/^mcp__/, '').replace(/__/g, ' / ')
         return en ? `MCP: ${short}…` : `MCP：${short}…`
@@ -141,7 +185,50 @@ export function toolDisplayName(name: string, locale: string): string {
       return en ? 'Stocks report' : '荐股报告'
     case 'search_knowledge':
       return en ? 'Knowledge search' : '知识库检索'
+    case 'read_file':
+      return en ? 'Read file' : '读文件'
+    case 'list_dir':
+      return en ? 'List directory' : '列目录'
+    case 'search_files':
+      return en ? 'Search files' : '搜文件'
+    case 'grep_content':
+      return en ? 'Grep' : '内容搜索'
+    case 'apply_patch':
+      return en ? 'Apply patch' : '应用补丁'
+    case 'git_status':
+      return en ? 'Git status' : 'Git 状态'
+    case 'git_diff':
+      return en ? 'Git diff' : 'Git diff'
+    case 'git_commit':
+      return en ? 'Git commit' : 'Git 提交'
+    case 'write_file':
+      return en ? 'Write file' : '写文件'
+    case 'str_replace_file':
+      return en ? 'Edit file' : '编辑文件'
+    case 'run_shell':
+      return en ? 'Shell' : '终端命令'
+    case 'run_shell_background':
+      return en ? 'Background shell' : '后台命令'
+    case 'get_job_status':
+      return en ? 'Job status' : '任务状态'
+    case 'kill_job':
+      return en ? 'Kill job' : '停止任务'
+    case 'list_jobs':
+      return en ? 'List jobs' : '任务列表'
+    case 'get_diagnostics':
+      return en ? 'Diagnostics' : '代码诊断'
+    case 'set_goal':
+      return en ? 'Set goal' : '设定目标'
+    case 'update_goal':
+      return en ? 'Update goal' : '更新目标'
+    case 'list_goals':
+      return en ? 'List goals' : '目标列表'
+    case 'spawn_subagent':
+      return en ? 'Subagent' : '子智能体'
     default:
+      if (name.startsWith('plugin__')) {
+        return name.replace(/^plugin__/, '').replace(/__/g, ' · ')
+      }
       if (name.startsWith('mcp__')) {
         return name.replace(/^mcp__/, '').replace(/__/g, ' · ')
       }

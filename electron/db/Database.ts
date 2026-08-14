@@ -212,6 +212,46 @@ function runMigrations(database: Database.Database): void {
     }
     database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(6)
   }
+  if (current < 7) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS agent_sessions (
+        id          TEXT PRIMARY KEY NOT NULL,
+        agent_id    TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        forked_from TEXT,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS agent_session_events (
+        id         TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+        seq        INTEGER NOT NULL,
+        type       TEXT NOT NULL,
+        payload    TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(session_id, seq)
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_session_events_session
+        ON agent_session_events(session_id, seq);
+    `)
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(7)
+  }
+  if (current < 8) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS agent_goals (
+        id          TEXT PRIMARY KEY NOT NULL,
+        session_id  TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        detail      TEXT,
+        status      TEXT NOT NULL DEFAULT 'active',
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_goals_session
+        ON agent_goals(session_id, status);
+    `)
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(8)
+  }
 }
 
 function setSetting(database: Database.Database, key: string, value: unknown): void {

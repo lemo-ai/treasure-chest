@@ -1,7 +1,7 @@
 import { app, dialog } from 'electron'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
-import type { AppSettingsSnapshot, BirthProfile, KnowledgeSettings, WatchlistItem } from '@shared'
+import type { AppSettingsSnapshot, BirthProfile, HarnessBackupSection, KnowledgeSettings, WatchlistItem } from '@shared'
 import { DEFAULT_KNOWLEDGE_SETTINGS } from '@shared'
 import { settingsStore } from '../settings/SettingsStore'
 import { fortuneStore } from '../fortune/FortuneStore'
@@ -14,9 +14,10 @@ import {
   notifyDesktopWidgetUpdated,
   syncDesktopWidgetFromSettings,
 } from '../../windows/createCalendarWindow'
+import { exportHarnessBackup, importHarnessBackup } from '../harness/HarnessBackup'
 
 const BACKUP_MAGIC = 'treasure-chest-backup'
-const FORMAT_VERSION = 2
+const FORMAT_VERSION = 3
 
 export interface BackupPayload {
   magic: typeof BACKUP_MAGIC
@@ -29,6 +30,7 @@ export interface BackupPayload {
     bazi_profiles: BirthProfile[]
     watchlist?: WatchlistItem[]
     knowledge_settings?: KnowledgeSettings
+    harness?: HarnessBackupSection
   }
   checksum: string
 }
@@ -52,6 +54,7 @@ function buildPayload(): BackupPayload {
       bazi_profiles: profile ? [profile] : [],
       watchlist: stocksStore.getWatchlist(),
       knowledge_settings: getKnowledgeSettings(),
+      harness: exportHarnessBackup(),
     },
   } satisfies Omit<BackupPayload, 'checksum'>
   return { ...body, checksum: checksum(body) }
@@ -138,6 +141,9 @@ export async function importBackup(): Promise<{ ok: boolean; error?: string }> {
         ...DEFAULT_KNOWLEDGE_SETTINGS,
         ...data.sections.knowledge_settings,
       })
+    }
+    if (data.sections.harness) {
+      importHarnessBackup(data.sections.harness)
     }
     syncLaunchAtLogin()
     syncDesktopWidgetFromSettings()

@@ -36,6 +36,9 @@ export function CreateAgentModal({
   const [alwaysUseKnowledge, setAlwaysUseKnowledge] = useState(
     Boolean(editing?.alwaysUseKnowledge),
   )
+  const [enableCodingTools, setEnableCodingTools] = useState(editing?.enableCodingTools !== false)
+  const [enablePluginTools, setEnablePluginTools] = useState(editing?.enablePluginTools !== false)
+  const [enableSpawnSubagent, setEnableSpawnSubagent] = useState(editing?.enableSpawnSubagent !== false)
   const [mcpServerIds, setMcpServerIds] = useState<string[]>(editing?.enabledMcpServerIds ?? [])
   const [collectionIds, setCollectionIds] = useState<string[]>(
     editing?.knowledgeCollectionIds ?? [],
@@ -87,6 +90,9 @@ export function CreateAgentModal({
       enabledMcpServerIds: mcpServerIds,
       knowledgeCollectionIds: collectionIds,
       alwaysUseKnowledge,
+      enableCodingTools,
+      enablePluginTools,
+      enableSpawnSubagent,
     }
     if (!input.name.trim()) {
       setError(t('agents.create.nameRequired'))
@@ -212,6 +218,35 @@ export function CreateAgentModal({
             />
             <span>{t('agents.create.alwaysKnowledge')}</span>
           </label>
+
+          <fieldset className={styles.bindField}>
+            <legend>{t('agents.create.tools')}</legend>
+            <p className={styles.hint}>{t('agents.create.toolsHint')}</p>
+            <label className={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={enableCodingTools}
+                onChange={(e) => setEnableCodingTools(e.target.checked)}
+              />
+              <span>{t('agents.create.enableCoding')}</span>
+            </label>
+            <label className={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={enablePluginTools}
+                onChange={(e) => setEnablePluginTools(e.target.checked)}
+              />
+              <span>{t('agents.create.enablePlugins')}</span>
+            </label>
+            <label className={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={enableSpawnSubagent}
+                onChange={(e) => setEnableSpawnSubagent(e.target.checked)}
+              />
+              <span>{t('agents.create.enableSubagent')}</span>
+            </label>
+          </fieldset>
 
           <fieldset className={styles.bindField}>
             <legend>{t('agents.create.knowledge')}</legend>

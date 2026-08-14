@@ -10,6 +10,8 @@ import {
   type LlmChatRequest,
   type LlmChatStreamEvent,
   type LlmChatStreamStart,
+  type ForkSessionInput,
+  type MigrateLocalHarnessInput,
   type StockMarket,
   type StocksReport,
   type LaunchBehavior,
@@ -35,7 +37,52 @@ import {
   runWorkbenchChatStream,
   resolvePendingToolApproval,
   waitForToolApprovalFromIpc,
+  cancelWorkbenchStream,
 } from '../modules/llm/WorkbenchChatService'
+import {
+  appendHarnessSystemMessage,
+  appendHarnessUserMessage,
+  createHarnessSession,
+  deleteHarnessSession,
+  forkHarnessSession,
+  getHarnessPlugins,
+  getHarnessSandboxRoot,
+  getHarnessStore,
+  listHarnessEvents,
+  listHarnessGoals,
+  setHarnessGoal,
+  listHarnessMessages,
+  listHarnessSessions,
+  migrateHarnessFromLocal,
+  reloadHarnessPluginRegistry,
+  renameHarnessSession,
+  setHarnessActiveSessionId,
+  setHarnessSandboxRoot,
+  getHarnessPluginsDir,
+  getHarnessDiagnostics,
+  getHarnessPluginCatalog,
+  installHarnessPluginFrom,
+  openHarnessPluginsDirectory,
+  createHarnessPty,
+  writeHarnessPty,
+  resizeHarnessPty,
+  killHarnessPty,
+  getHarnessCordisStack,
+  reloadHarnessCordisStack,
+  openHarnessCordisRoot,
+  getHarnessSandboxBackend,
+  getHarnessLspDefinition,
+  getHarnessLspCompletion,
+  getHarnessDshWebUrl,
+  setHarnessDshWebUrl,
+  getHarnessEmbeddedDshWebPreferred,
+  setHarnessEmbeddedDshWebPreferred,
+  listHarnessCordisProfiles,
+  listHarnessCordisBundles,
+  saveHarnessCordisSettings,
+  createHarnessCordisProfile,
+  createHarnessCordisBundle,
+} from '../modules/harness/HarnessService'
 import {
   createKnowledgeCollection,
   deleteKnowledgeCollection,
@@ -252,8 +299,18 @@ export function registerAllIpc(): void {
               send({ streamId, type: 'tool_approval', request })
               return waitForToolApprovalFromIpc(streamId, request.toolCallId)
             },
+            (event) => {
+              send({ streamId, type: 'session_event', event })
+            },
           )
-          if (result.ok && result.text?.trim()) {
+          if (result.error === 'cancelled') {
+            send({
+              streamId,
+              type: 'cancelled',
+              text: result.text,
+              toolSteps: result.toolSteps,
+            })
+          } else if (result.ok && result.text?.trim()) {
             send({
               streamId,
               type: 'done',
@@ -262,6 +319,7 @@ export function registerAllIpc(): void {
               providerName: result.providerName,
               citations: result.citations,
               toolSteps: result.toolSteps,
+              sessionId: payload.sessionId,
             })
           } else {
             send({
@@ -281,6 +339,9 @@ export function registerAllIpc(): void {
       return { streamId }
     },
   )
+  ipcMain.handle(IpcChannels.workbench.cancelStream, (_e, streamId: string) =>
+    cancelWorkbenchStream(String(streamId || '')),
+  )
   ipcMain.handle(
     IpcChannels.workbench.resolveToolApproval,
     (
@@ -294,6 +355,156 @@ export function registerAllIpc(): void {
       )
     },
   )
+
+  ipcMain.handle(IpcChannels.harness.getStore, () => getHarnessStore())
+  ipcMain.handle(IpcChannels.harness.migrateLocal, (_e, payload: MigrateLocalHarnessInput) =>
+    migrateHarnessFromLocal(payload),
+  )
+  ipcMain.handle(IpcChannels.harness.listSessions, (_e, agentId?: string) =>
+    listHarnessSessions(agentId),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.createSession,
+    (_e, payload: { agentId: string; title: string; id?: string }) =>
+      createHarnessSession(payload.agentId, payload.title, payload.id),
+  )
+  ipcMain.handle(IpcChannels.harness.renameSession, (_e, payload: { id: string; title: string }) =>
+    renameHarnessSession(payload.id, payload.title),
+  )
+  ipcMain.handle(IpcChannels.harness.deleteSession, (_e, id: string) => deleteHarnessSession(id))
+  ipcMain.handle(IpcChannels.harness.setActiveSession, (_e, id: string | null) => {
+    setHarnessActiveSessionId(id)
+    return true
+  })
+  ipcMain.handle(IpcChannels.harness.listEvents, (_e, sessionId: string) =>
+    listHarnessEvents(sessionId),
+  )
+  ipcMain.handle(IpcChannels.harness.listMessages, (_e, sessionId: string) =>
+    listHarnessMessages(sessionId),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.appendUserMessage,
+    (_e, payload: { sessionId: string; content: string }) =>
+      appendHarnessUserMessage(payload.sessionId, payload.content),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.appendSystemMessage,
+    (_e, payload: { sessionId: string; content: string }) =>
+      appendHarnessSystemMessage(payload.sessionId, payload.content),
+  )
+  ipcMain.handle(IpcChannels.harness.forkSession, (_e, payload: ForkSessionInput) =>
+    forkHarnessSession(payload),
+  )
+  ipcMain.handle(IpcChannels.harness.listGoals, (_e, payload: { sessionId: string; includeDone?: boolean }) =>
+    listHarnessGoals(payload.sessionId, payload.includeDone ?? true),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.setGoal,
+    (_e, payload: { sessionId: string; title: string; detail?: string }) =>
+      setHarnessGoal(payload.sessionId, payload.title, payload.detail),
+  )
+  ipcMain.handle(IpcChannels.harness.reloadPlugins, async () => reloadHarnessPluginRegistry())
+  ipcMain.handle(IpcChannels.harness.listPlugins, async () => getHarnessPlugins())
+  ipcMain.handle(IpcChannels.harness.getSandboxRoot, () => getHarnessSandboxRoot())
+  ipcMain.handle(IpcChannels.harness.setSandboxRoot, (_e, path: string) => setHarnessSandboxRoot(path))
+  ipcMain.handle(IpcChannels.harness.getPluginsDir, () => getHarnessPluginsDir())
+  ipcMain.handle(IpcChannels.harness.getDiagnostics, async (_e, path?: string) => getHarnessDiagnostics(path))
+  ipcMain.handle(IpcChannels.harness.listPluginCatalog, () => getHarnessPluginCatalog())
+  ipcMain.handle(
+    IpcChannels.harness.installPlugin,
+    async (_e, payload: { bundledId?: string; sourcePath?: string }) =>
+      installHarnessPluginFrom(payload),
+  )
+  ipcMain.handle(IpcChannels.harness.openPluginsDir, () => openHarnessPluginsDirectory())
+  ipcMain.handle(
+    IpcChannels.harness.ptyCreate,
+    (event, payload: { cols: number; rows: number }) =>
+      createHarnessPty(
+        payload.cols,
+        payload.rows,
+        (ptyId, data) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send(IpcChannels.harness.ptyEvent, { ptyId, type: 'data', data })
+          }
+        },
+        (ptyId, exitCode) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send(IpcChannels.harness.ptyEvent, { ptyId, type: 'exit', exitCode })
+          }
+        },
+      ),
+  )
+  ipcMain.handle(IpcChannels.harness.ptyWrite, (_e, payload: { ptyId: string; data: string }) =>
+    writeHarnessPty(payload.ptyId, payload.data),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.ptyResize,
+    (_e, payload: { ptyId: string; cols: number; rows: number }) =>
+      resizeHarnessPty(payload.ptyId, payload.cols, payload.rows),
+  )
+  ipcMain.handle(IpcChannels.harness.ptyKill, (_e, ptyId: string) => killHarnessPty(ptyId))
+  ipcMain.handle(IpcChannels.harness.getCordisStack, () => getHarnessCordisStack())
+  ipcMain.handle(IpcChannels.harness.reloadCordisStack, () => reloadHarnessCordisStack())
+  ipcMain.handle(IpcChannels.harness.openCordisRoot, () => openHarnessCordisRoot())
+  ipcMain.handle(IpcChannels.harness.getSandboxBackend, () => getHarnessSandboxBackend())
+  ipcMain.handle(
+    IpcChannels.harness.lspDefinition,
+    (_e, payload: { path: string; line: number; column: number }) =>
+      getHarnessLspDefinition(payload.path, payload.line, payload.column),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.lspCompletion,
+    (_e, payload: { path: string; line: number; column: number }) =>
+      getHarnessLspCompletion(payload.path, payload.line, payload.column),
+  )
+  ipcMain.handle(IpcChannels.harness.getDshWebUrl, () => getHarnessDshWebUrl())
+  ipcMain.handle(IpcChannels.harness.setDshWebUrl, (_e, url: string) => setHarnessDshWebUrl(url))
+  ipcMain.handle(IpcChannels.harness.getEmbeddedDshWebPreferred, () => getHarnessEmbeddedDshWebPreferred())
+  ipcMain.handle(IpcChannels.harness.setEmbeddedDshWebPreferred, (_e, enabled: boolean) =>
+    setHarnessEmbeddedDshWebPreferred(enabled),
+  )
+  ipcMain.handle(IpcChannels.harness.listCordisProfiles, () => listHarnessCordisProfiles())
+  ipcMain.handle(IpcChannels.harness.listCordisBundles, () => listHarnessCordisBundles())
+  ipcMain.handle(
+    IpcChannels.harness.saveCordisSettings,
+    (_e, payload: import('@shared').SaveCordisSettingsInput) => saveHarnessCordisSettings(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.createCordisProfile,
+    (_e, payload: import('@shared').CreateCordisProfileInput) => createHarnessCordisProfile(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.createCordisBundle,
+    (_e, payload: import('@shared').CreateCordisBundleInput) => createHarnessCordisBundle(payload),
+  )
+  ipcMain.handle(IpcChannels.harness.pickInstallPlugin, async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const { canceled, filePaths } = win
+      ? await dialog.showOpenDialog(win, {
+          title: 'Select plugin folder (contains plugin.json)',
+          properties: ['openDirectory'],
+        })
+      : await dialog.showOpenDialog({
+          title: 'Select plugin folder (contains plugin.json)',
+          properties: ['openDirectory'],
+        })
+    if (canceled || !filePaths[0]) return null
+    return installHarnessPluginFrom({ sourcePath: filePaths[0] })
+  })
+  ipcMain.handle(IpcChannels.harness.pickSandboxRoot, async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const { canceled, filePaths } = win
+      ? await dialog.showOpenDialog(win, {
+          title: 'Select coding sandbox folder',
+          properties: ['openDirectory', 'createDirectory'],
+        })
+      : await dialog.showOpenDialog({
+          title: 'Select coding sandbox folder',
+          properties: ['openDirectory', 'createDirectory'],
+        })
+    if (canceled || !filePaths[0]) return null
+    return setHarnessSandboxRoot(filePaths[0])
+  })
 
   ipcMain.handle(IpcChannels.stocks.getWatchlist, () => stocksStore.getWatchlist())
   ipcMain.handle(

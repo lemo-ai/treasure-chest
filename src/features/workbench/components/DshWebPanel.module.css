@@ -1,0 +1,40 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.url {
+  font-size: 11px;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.frame {
+  flex: 1;
+  min-height: 0;
+  border: none;
+  background: #111;
+  width: 100%;
+}
+
+.empty {
+  padding: 16px;
+  color: var(--text-muted, #888);
+  font-size: 13px;
+}

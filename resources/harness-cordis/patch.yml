@@ -1,0 +1,10 @@
+version: 1
+profile: default
+bundles:
+  - core-coding
+plugins:
+  dir: "${userData}/harness-plugins"
+overrides:
+  sandboxRoot: null
+  enablePluginTools: true
+  dshWebUrl: http://127.0.0.1:8787

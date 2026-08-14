@@ -1,0 +1,8 @@
+id: core-coding
+version: 1.0.0
+description: Coding sandbox bundle with hello example plugin
+plugins:
+  - id: hello
+    path: plugins/hello
+profiles:
+  - default

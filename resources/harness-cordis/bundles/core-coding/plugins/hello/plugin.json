@@ -1,0 +1,22 @@
+{
+  "id": "hello",
+  "name": "Hello Example",
+  "version": "1.0.0",
+  "description": "Sample greet tool and agent/pre-step hook.",
+  "entry": "index.mjs",
+  "tools": [
+    {
+      "name": "greet",
+      "description": "Return a friendly greeting JSON",
+      "handler": "greet",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" }
+        },
+        "required": ["name"]
+      }
+    }
+  ],
+  "hooks": [{ "name": "agent/pre-step", "handler": "onPreStep" }]
+}

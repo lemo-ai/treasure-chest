@@ -48,8 +48,10 @@ import {
   IconTray,
   IconUpload,
   IconSparkles,
+  IconPlus,
 } from '@renderer/shared/ui/icons'
 import { BirthProfileForm } from '@renderer/features/fortune/components/BirthProfileForm'
+import { HarnessPluginMarketplace } from '../components/HarnessPluginMarketplace'
 import styles from './SettingsPage.module.css'
 
 const themes: ThemeMode[] = ['light', 'dark', 'system']
@@ -97,6 +99,24 @@ export function SettingsPage(): React.JSX.Element {
   const [aiTesting, setAiTesting] = useState(false)
   const [aiTestHint, setAiTestHint] = useState<string | null>(null)
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
+  const [harnessSandboxRoot, setHarnessSandboxRoot] = useState('')
+  const [harnessPluginsDir, setHarnessPluginsDir] = useState('')
+  const [harnessHint, setHarnessHint] = useState<string | null>(null)
+  const [cordisProfile, setCordisProfile] = useState('')
+  const [cordisBundles, setCordisBundles] = useState('')
+  const [sandboxBackend, setSandboxBackend] = useState('')
+  const [dshWebDraft, setDshWebDraft] = useState('')
+  const [embeddedDshDraft, setEmbeddedDshDraft] = useState(true)
+  const [sandboxModeDraft, setSandboxModeDraft] = useState<'local' | 'ssh' | 'container'>('local')
+  const [sshHostDraft, setSshHostDraft] = useState('')
+  const [sshUserDraft, setSshUserDraft] = useState('')
+  const [sshPathDraft, setSshPathDraft] = useState('')
+  const [sshPortDraft, setSshPortDraft] = useState('')
+  const [containerNameDraft, setContainerNameDraft] = useState('')
+  const [containerWorkspaceDraft, setContainerWorkspaceDraft] = useState('/workspace')
+  const [newProfileDraft, setNewProfileDraft] = useState('')
+  const [newBundleDraft, setNewBundleDraft] = useState('')
+  const [cordisProfileOptions, setCordisProfileOptions] = useState<string[]>([])
 
   type SettingsSection =
     | 'general'
@@ -202,6 +222,35 @@ export function SettingsPage(): React.JSX.Element {
       setSkillHint(t('settings.skills.loadFailed'))
     })
   }, [section, t])
+
+  useEffect(() => {
+    if (section !== 'data') return
+    void Promise.all([
+      window.treasureChest.harnessGetSandboxRoot(),
+      window.treasureChest.harnessGetPluginsDir(),
+      window.treasureChest.harnessGetCordisStack(),
+      window.treasureChest.harnessGetSandboxBackend(),
+      window.treasureChest.harnessGetDshWebUrl(),
+      window.treasureChest.harnessGetEmbeddedDshWebPreferred(),
+      window.treasureChest.harnessListCordisProfiles(),
+    ]).then(([sandbox, plugins, stack, backend, dshUrl, embeddedDsh, profiles]) => {
+      setHarnessSandboxRoot(sandbox)
+      setHarnessPluginsDir(plugins)
+      setCordisProfile(stack.profileId)
+      setCordisBundles(stack.bundleIds.join(', '))
+      setSandboxBackend(`${backend.mode}: ${backend.label}`)
+      setDshWebDraft(dshUrl)
+      setEmbeddedDshDraft(embeddedDsh)
+      setSandboxModeDraft(stack.sandboxMode)
+      setSshHostDraft(stack.ssh?.host ?? '')
+      setSshUserDraft(stack.ssh?.user ?? '')
+      setSshPathDraft(stack.ssh?.remotePath ?? '')
+      setSshPortDraft(stack.ssh?.port ? String(stack.ssh.port) : '')
+      setContainerNameDraft(stack.container?.containerName ?? '')
+      setContainerWorkspaceDraft(stack.container?.workspacePath ?? '/workspace')
+      setCordisProfileOptions(profiles)
+    })
+  }, [section])
 
   useEffect(() => {
     void window.treasureChest.getDesktopWidget().then(setWidget)
@@ -391,6 +440,16 @@ export function SettingsPage(): React.JSX.Element {
         setWidget(w)
       } else if (result.error) {
         setBackupMsg(t('settings.backupFailed', { error: result.error }))
+      }
+    })
+  }
+
+  const onPickHarnessSandbox = (): void => {
+    setHarnessHint(null)
+    void window.treasureChest.harnessPickSandboxRoot().then((path) => {
+      if (path) {
+        setHarnessSandboxRoot(path)
+        setHarnessHint(t('settings.harnessSandboxUpdated'))
       }
     })
   }
@@ -1705,6 +1764,246 @@ export function SettingsPage(): React.JSX.Element {
             onChange={onStocksDailyNotify}
           />
         </div>
+      </div>
+
+      <div className={styles.group} hidden={section !== 'data'}>
+        <h2 className={styles.label}>{t('settings.harness')}</h2>
+        <p className={styles.desc}>{t('settings.harnessDesc')}</p>
+
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.harnessSandbox')}</span>
+          <input className={styles.aiInput} value={harnessSandboxRoot} readOnly />
+        </label>
+        <div className={styles.actionRow}>
+          <SettingActionButton
+            icon={<IconUpload />}
+            label={t('settings.harnessSandboxBrowse')}
+            variant="secondary"
+            onClick={onPickHarnessSandbox}
+          />
+        </div>
+
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.harnessPluginsDir')}</span>
+          <input className={styles.aiInput} value={harnessPluginsDir} readOnly />
+        </label>
+
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.harnessCordisProfile')}</span>
+          <input
+            className={styles.aiInput}
+            list="cordis-profile-options"
+            value={cordisProfile}
+            onChange={(e) => setCordisProfile(e.target.value)}
+          />
+          <datalist id="cordis-profile-options">
+            {cordisProfileOptions.map((p) => (
+              <option key={p} value={p} />
+            ))}
+          </datalist>
+        </label>
+        <div className={styles.actionRow}>
+          <input
+            className={styles.aiInput}
+            value={newProfileDraft}
+            onChange={(e) => setNewProfileDraft(e.target.value)}
+            placeholder={t('settings.harnessNewProfilePlaceholder')}
+          />
+          <SettingActionButton
+            icon={<IconPlus />}
+            label={t('settings.harnessCreateProfile')}
+            variant="secondary"
+            onClick={() => {
+              const id = newProfileDraft.trim()
+              if (!id) return
+              void window.treasureChest.harnessCreateCordisProfile({ profileId: id }).then((profileId) => {
+                setNewProfileDraft('')
+                setCordisProfile(profileId)
+                setHarnessHint(t('settings.harnessProfileCreated', { id: profileId }))
+                return window.treasureChest.harnessListCordisProfiles()
+              }).then((profiles) => setCordisProfileOptions(profiles))
+            }}
+          />
+        </div>
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.harnessCordisBundles')}</span>
+          <input
+            className={styles.aiInput}
+            value={cordisBundles}
+            onChange={(e) => setCordisBundles(e.target.value)}
+            placeholder="core-coding"
+          />
+        </label>
+        <div className={styles.actionRow}>
+          <input
+            className={styles.aiInput}
+            value={newBundleDraft}
+            onChange={(e) => setNewBundleDraft(e.target.value)}
+            placeholder={t('settings.harnessNewBundlePlaceholder')}
+          />
+          <SettingActionButton
+            icon={<IconPlus />}
+            label={t('settings.harnessCreateBundle')}
+            variant="secondary"
+            onClick={() => {
+              const id = newBundleDraft.trim()
+              if (!id) return
+              void window.treasureChest.harnessCreateCordisBundle({ bundleId: id }).then((bundleId) => {
+                setNewBundleDraft('')
+                setCordisBundles((prev) => (prev.trim() ? `${prev}, ${bundleId}` : bundleId))
+                setHarnessHint(t('settings.harnessBundleCreated', { id: bundleId }))
+              })
+            }}
+          />
+        </div>
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.harnessSandboxMode')}</span>
+          <select
+            className={styles.aiInput}
+            value={sandboxModeDraft}
+            onChange={(e) => setSandboxModeDraft(e.target.value as 'local' | 'ssh' | 'container')}
+          >
+            <option value="local">{t('settings.harnessSandboxModeLocal')}</option>
+            <option value="ssh">{t('settings.harnessSandboxModeSsh')}</option>
+            <option value="container">{t('settings.harnessSandboxModeContainer')}</option>
+          </select>
+        </label>
+        {sandboxModeDraft === 'ssh' ? (
+          <>
+            <label className={styles.aiField}>
+              <span className={styles.aiLabel}>{t('settings.harnessSshHost')}</span>
+              <input className={styles.aiInput} value={sshHostDraft} onChange={(e) => setSshHostDraft(e.target.value)} />
+            </label>
+            <label className={styles.aiField}>
+              <span className={styles.aiLabel}>{t('settings.harnessSshUser')}</span>
+              <input className={styles.aiInput} value={sshUserDraft} onChange={(e) => setSshUserDraft(e.target.value)} />
+            </label>
+            <label className={styles.aiField}>
+              <span className={styles.aiLabel}>{t('settings.harnessSshRemotePath')}</span>
+              <input className={styles.aiInput} value={sshPathDraft} onChange={(e) => setSshPathDraft(e.target.value)} />
+            </label>
+            <label className={styles.aiField}>
+              <span className={styles.aiLabel}>{t('settings.harnessSshPort')}</span>
+              <input className={styles.aiInput} value={sshPortDraft} onChange={(e) => setSshPortDraft(e.target.value)} />
+            </label>
+          </>
+        ) : null}
+        {sandboxModeDraft === 'container' ? (
+          <>
+            <label className={styles.aiField}>
+              <span className={styles.aiLabel}>{t('settings.harnessContainerName')}</span>
+              <input
+                className={styles.aiInput}
+                value={containerNameDraft}
+                onChange={(e) => setContainerNameDraft(e.target.value)}
+                placeholder="my-devcontainer"
+              />
+            </label>
+            <label className={styles.aiField}>
+              <span className={styles.aiLabel}>{t('settings.harnessContainerWorkspace')}</span>
+              <input
+                className={styles.aiInput}
+                value={containerWorkspaceDraft}
+                onChange={(e) => setContainerWorkspaceDraft(e.target.value)}
+                placeholder="/workspace"
+              />
+            </label>
+            <p className={styles.desc}>{t('settings.harnessContainerHint')}</p>
+          </>
+        ) : null}
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.harnessSandboxBackend')}</span>
+          <input className={styles.aiInput} value={sandboxBackend} readOnly />
+        </label>
+        <ToggleSwitch
+          checked={embeddedDshDraft}
+          label={t('settings.harnessEmbeddedDshWeb')}
+          onChange={(next) => {
+            setEmbeddedDshDraft(next)
+            void window.treasureChest.harnessSetEmbeddedDshWebPreferred(next).then(() => {
+              if (next) {
+                void window.treasureChest.harnessGetDshWebUrl().then(setDshWebDraft)
+              }
+              setHarnessHint(t('settings.harnessEmbeddedDshWebSaved'))
+            })
+          }}
+        />
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.harnessDshWebUrl')}</span>
+          <input
+            className={styles.aiInput}
+            value={dshWebDraft}
+            onChange={(e) => setDshWebDraft(e.target.value)}
+            disabled={embeddedDshDraft}
+          />
+        </label>
+        <div className={styles.actionRow}>
+          <SettingActionButton
+            icon={<IconUpload />}
+            label={t('settings.harnessSaveCordis')}
+            variant="secondary"
+            onClick={() => {
+              void window.treasureChest
+                .harnessSaveCordisSettings({
+                  profileId: cordisProfile.trim(),
+                  bundleIds: cordisBundles
+                    .split(',')
+                    .map((b) => b.trim())
+                    .filter(Boolean),
+                  dshWebUrl: dshWebDraft.trim(),
+                  sandboxMode: sandboxModeDraft,
+                  sshHost: sshHostDraft.trim(),
+                  sshUser: sshUserDraft.trim(),
+                  sshRemotePath: sshPathDraft.trim() || '.',
+                  sshPort: sshPortDraft.trim() ? Number(sshPortDraft) : undefined,
+                  containerName: containerNameDraft.trim(),
+                  containerWorkspacePath: containerWorkspaceDraft.trim() || '/workspace',
+                })
+                .then((stack) => {
+                  setCordisProfile(stack.profileId)
+                  setCordisBundles(stack.bundleIds.join(', '))
+                  setSandboxModeDraft(stack.sandboxMode)
+                  setContainerNameDraft(stack.container?.containerName ?? '')
+                  setContainerWorkspaceDraft(stack.container?.workspacePath ?? '/workspace')
+                  setHarnessHint(t('settings.harnessCordisSaved'))
+                  return window.treasureChest.harnessGetSandboxBackend()
+                })
+                .then((backend) => setSandboxBackend(`${backend.mode}: ${backend.label}`))
+            }}
+          />
+          <SettingActionButton
+            icon={<IconUpload />}
+            label={t('settings.harnessDshWebSave')}
+            variant="secondary"
+            onClick={() => {
+              void window.treasureChest.harnessSetDshWebUrl(dshWebDraft.trim()).then((url) => {
+                setDshWebDraft(url)
+                setHarnessHint(t('settings.harnessDshWebSaved'))
+              })
+            }}
+          />
+          <SettingActionButton
+            icon={<IconUpload />}
+            label={t('settings.harnessReloadCordis')}
+            variant="secondary"
+            onClick={() => {
+              void window.treasureChest.harnessReloadCordisStack().then((stack) => {
+                setCordisProfile(stack.profileId)
+                setCordisBundles(stack.bundleIds.join(', '))
+                setHarnessHint(t('settings.harnessCordisReloaded'))
+              })
+            }}
+          />
+          <SettingActionButton
+            icon={<IconUpload />}
+            label={t('settings.harnessOpenCordisRoot')}
+            variant="secondary"
+            onClick={() => void window.treasureChest.harnessOpenCordisRoot()}
+          />
+        </div>
+
+        <HarnessPluginMarketplace onHint={setHarnessHint} />
+        {harnessHint ? <p className={styles.hint}>{harnessHint}</p> : null}
       </div>
 
       <div className={styles.group} hidden={section !== 'data'}>
