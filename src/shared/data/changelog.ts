@@ -7,53 +7,35 @@ export interface ChangelogRelease {
   items: Record<ChangelogLocale, string[]>
 }
 
-/** 导航栏「版本变更」面板数据源；发版时在此追加最新一条。 */
+/** 版本变更页数据源；发版时在此追加最新一条。 */
 export const CHANGELOG: ChangelogRelease[] = [
   {
     version: '0.2.0',
-    date: '2026-07-31',
+    date: '2026-09-03',
     title: {
-      'zh-CN': '袖里乾坤 · 工作台壳',
-      'en-US': 'Qiankun · Workbench shell',
+      'zh-CN': '工作台 · 联网对话与供应商模型',
+      'en-US': 'Workbench · live web chat & provider models',
     },
     items: {
       'zh-CN': [
-        '品牌更名为「袖里乾坤」，视觉系统圆润鲜明焕新',
-        '默认进入智能体工作台：会话侧栏、对话空态、输入胶囊',
-        '内置「今日运势」「股票参谋」Agent 入口；经典页长期并存',
-        '知识库页占位上线，完整 RAG 管线按技术方案推进',
+        '直连会话与智能体拆分：直连默认聊天；股票/运势/自定义智能体才带领域人设与工具链',
+        '工作台「联网」能力（默认开启）：搜索网页、解析公司代码、拉取行情后再回答；关闭即为纯模型',
+        '对话流式输出：边生成边渲染；工具过程不塞进主气泡，完整轨迹仍可在「轨迹」面板查看',
+        '模型与 API：按供应商管理；添加模型可用勾选声明图/视频等输入输出能力（不必再单独填媒体模型框）',
+        '对话与智能体创建时，模型选择按供应商分组',
+        '股票工具增强：中文公司名检索、A 股东财行情回退、网页抓取等，避免仅靠训练记忆误判上市状态',
+        '思考态动画与更清晰的工作台能力栏',
+        '打包产物：macOS DMG、Linux AppImage/deb；Windows 提供便携 zip',
       ],
       'en-US': [
-        'Rebranded to Qiankun with a rounder, more vivid design system',
-        'Default landing is the agent workbench: sessions, empty state, composer',
-        'Built-in Fortune & Stock agents; classic pages remain available',
-        'Knowledge page placeholder; full RAG pipeline follows the tech plan',
-      ],
-    },
-  },
-  {
-    version: '0.1.0',
-    date: '2026-07-30',
-    title: {
-      'zh-CN': '首个可用版本（原百宝箱）',
-      'en-US': 'First usable release (Treasure Chest)',
-    },
-    items: {
-      'zh-CN': [
-        '万年历：公历/农历、宜忌与桌面圆形表盘挂件',
-        '今日运势：生辰档案、卦象分析，支持多模型 AI 增强解读',
-        '股票推荐：自选与扫描池、区间超额收益、资讯与 AI 报告',
-        '股票走势：点击查看 K 线区间、悬停查看 OHLC 与涨跌幅',
-        '设置：主题/语言、开机自启、通知、备份导入导出',
-        '应用图标与品牌标识焕新',
-      ],
-      'en-US': [
-        'Calendar: solar/lunar dates, almanac, and desktop dial widget',
-        'Fortune: birth profile, hexagram analysis, multi-provider AI insights',
-        'Stocks: watchlist & scanner, excess returns, news, and AI reports',
-        'Stock trends: range charts with hover OHLC and percent change',
-        'Settings: theme/locale, launch at login, notifications, backup',
-        'Refreshed app icon and brand mark',
+        'Split direct chat from agents: plain chat by default; Fortune/Stocks/custom agents keep persona + tools',
+        'Workbench “Web” toggle (on by default): search, resolve tickers, and fetch quotes before answering; off = raw model',
+        'Token streaming in the composer bubble; tool details stay in Trajectory, not the main chat',
+        'Models & API: per-provider configs; add models with modality checkboxes (image/video in/out) instead of separate media fields',
+        'Chat and agent pickers group models by provider',
+        'Stronger stock tooling: CN name lookup, Eastmoney quote fallback, page fetch — fewer false “unlisted” answers',
+        'Thinking indicator and a clearer capability bar',
+        'Packaging: macOS DMG, Linux AppImage/deb; Windows portable zip',
       ],
     },
   },

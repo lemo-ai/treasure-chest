@@ -7,6 +7,7 @@ import { StocksPage } from '@renderer/features/stocks/pages/StocksPage'
 import { SettingsPage } from '@renderer/features/settings/pages/SettingsPage'
 import { WorkbenchPage } from '@renderer/features/workbench/pages/WorkbenchPage'
 import { KnowledgePage } from '@renderer/features/knowledge/pages/KnowledgePage'
+import { ChangelogPage } from '@renderer/features/changelog/pages/ChangelogPage'
 
 export const router = createHashRouter([
   {
@@ -24,6 +25,7 @@ export const router = createHashRouter([
       { path: 'fortune', element: <FortunePage /> },
       { path: 'stocks', element: <StocksPage /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'changelog', element: <ChangelogPage /> },
     ],
   },
 ])

@@ -19,7 +19,6 @@ import {
   type AgentDef,
 } from '@renderer/features/agents/lib/agentRegistry'
 import { CreateAgentModal } from '@renderer/features/agents/components/CreateAgentModal'
-import { ChangelogModal } from './ChangelogModal'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import styles from './AppLayout.module.css'
 
@@ -35,7 +34,6 @@ export function AppLayout(): React.JSX.Element {
   const location = useLocation()
   const navigate = useNavigate()
   const [version, setVersion] = useState('')
-  const [changelogOpen, setChangelogOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
   const [agents, setAgents] = useState<AgentDef[]>(() => listAgents())
@@ -43,7 +41,8 @@ export function AppLayout(): React.JSX.Element {
     location.pathname === '/' ||
     location.pathname.startsWith('/workbench') ||
     location.pathname.startsWith('/knowledge') ||
-    location.pathname.startsWith('/settings')
+    location.pathname.startsWith('/settings') ||
+    location.pathname.startsWith('/changelog')
 
   const activeAgentParam = new URLSearchParams(location.search).get('agent')
   const onWorkbench =
@@ -154,25 +153,22 @@ export function AppLayout(): React.JSX.Element {
           </NavLink>
 
           {version ? (
-            <button
-              type="button"
-              className={styles.versionBtn}
-              onClick={() => setChangelogOpen(true)}
+            <NavLink
+              to="/changelog"
+              className={({ isActive }) =>
+                isActive ? `${styles.versionBtn} ${styles.versionBtnActive}` : styles.versionBtn
+              }
               title={t('changelog.openHint')}
             >
               <span className={styles.versionLabel}>{t('nav.version')}</span>
               <span className={styles.versionValue}>v{version}</span>
-            </button>
+            </NavLink>
           ) : null}
         </div>
       </aside>
       <main className={flushMain ? styles.mainFlush : styles.main}>
         <Outlet />
       </main>
-
-      {changelogOpen ? (
-        <ChangelogModal version={version} onClose={() => setChangelogOpen(false)} />
-      ) : null}
 
       {createOpen ? (
         <CreateAgentModal

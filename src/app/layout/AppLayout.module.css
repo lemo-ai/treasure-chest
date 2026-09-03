@@ -110,6 +110,7 @@
   color: var(--color-ink-tertiary);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
   transition:
     background 0.15s ease,
     color 0.15s ease;
@@ -118,6 +119,13 @@
 .versionBtn:hover {
   color: var(--color-brand);
   background: var(--color-brand-soft);
+}
+
+.versionBtnActive {
+  color: var(--color-brand-strong);
+  background: var(--color-bg-elevated);
+  font-weight: 650;
+  box-shadow: var(--shadow-soft);
 }
 
 .versionLabel {

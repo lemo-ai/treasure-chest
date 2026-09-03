@@ -163,7 +163,7 @@ class McpStdioSession extends McpSession {
     await this.request('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      clientInfo: { name: 'qiankun', version: '0.1.0' },
+      clientInfo: { name: 'qiankun', version: '0.2.0' },
     })
     this.proc.stdin.write(
       `${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`,
@@ -281,7 +281,7 @@ class McpSseSession extends McpSession {
     await this.postRpc('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      clientInfo: { name: 'qiankun', version: '0.1.0' },
+      clientInfo: { name: 'qiankun', version: '0.2.0' },
     })
     // Best-effort initialized notification
     try {
