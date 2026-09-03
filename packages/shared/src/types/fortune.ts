@@ -1,3 +1,4 @@
+import type { AiModelConfig } from '../aiModels'
 import type { MediaProfileId } from './media'
 
 /** Calendar system used for birth date input. */
@@ -45,7 +46,7 @@ export interface FortuneAiProviderConfig {
   name: string
   baseUrl: string
   apiFormat: 'openai' | 'anthropic'
-  models: string[]
+  models: AiModelConfig[]
   apiKey: string
   /**
    * Media protocol profile for image/video/music.

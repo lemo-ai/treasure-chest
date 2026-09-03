@@ -13,7 +13,7 @@ import type {
 import { DEFAULT_HARNESS_CONFIG, HARNESS_ABSOLUTE_MAX_STEPS, isDirectChatAgentId } from '@shared'
 import { callLlmChat, callLlmChatStream } from '../llm/LlmClient'
 import { appendEvent, listEvents } from './SessionRepo'
-import { ToolRegistry, eventsToChatMessages, wantsKnowledge } from './ToolRegistry'
+import { ToolRegistry, eventsToChatMessages, wantsKnowledge, wantsWebSearch } from './ToolRegistry'
 import { assembleSystemPrompt, settingsToLlmEndpoint } from './SystemPrompt'
 import { maybeCompactSession } from './Compaction'
 import { previewJson } from '../llm/tools/builtinTools'
@@ -202,6 +202,7 @@ async function runAgentTurnInner(
   const tools = await registry.load({
     agentId: req.agentId || 'direct',
     useKnowledge: wantsKnowledge(req),
+    useWebSearch: wantsWebSearch(req),
     enabledMcpServerIds: req.enabledMcpServerIds,
     sessionId: sessionId || undefined,
     streamId: req.streamId,

@@ -1,4 +1,5 @@
 export type WorkbenchCapabilityId =
+  | 'websearch'
   | 'upload'
   | 'knowledge'
   | 'mcp'
@@ -20,6 +21,7 @@ export interface WorkbenchCapability {
 
 /** All capabilities; primary row shows a subset, the rest live under「更多」. */
 export const WORKBENCH_CAPABILITIES: WorkbenchCapability[] = [
+  { id: 'websearch', labelKey: 'workbench.cap.websearch', status: 'ready' },
   { id: 'upload', labelKey: 'workbench.cap.upload', status: 'ready' },
   { id: 'knowledge', labelKey: 'workbench.cap.knowledge', status: 'ready' },
   { id: 'mcp', labelKey: 'workbench.cap.mcp', status: 'ready' },
@@ -35,6 +37,7 @@ export const WORKBENCH_CAPABILITIES: WorkbenchCapability[] = [
 
 /** Shown inline on the same row as the model picker (keep short so it never wraps). */
 export const WORKBENCH_PRIMARY_CAP_IDS: WorkbenchCapabilityId[] = [
+  'websearch',
   'upload',
   'knowledge',
   'mcp',

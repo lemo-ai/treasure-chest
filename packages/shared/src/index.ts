@@ -1,5 +1,6 @@
 export * from './constants/ipc'
 export * from './chatMode'
+export * from './aiModels'
 export * from './types/settings'
 export * from './types/calendar'
 export * from './types/fortune'

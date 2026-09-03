@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type {
+  AiModelConfig,
   AppLocale,
   DesktopWidgetView,
   DialFaceStyle,
@@ -26,6 +27,11 @@ import {
   HEXAGRAM_SCHOOLS,
   MEDIA_PROFILE_IDS,
   THEME_ACCENTS,
+  aiModelIds,
+  defaultAiModelConfig,
+  firstModelId,
+  mediaIdsFromModels,
+  modelsFromProviderPreset,
 } from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
@@ -52,6 +58,7 @@ import {
 } from '@renderer/shared/ui/icons'
 import { BirthProfileForm } from '@renderer/features/fortune/components/BirthProfileForm'
 import { HarnessPluginMarketplace } from '../components/HarnessPluginMarketplace'
+import { AddModelModal } from '../components/AddModelModal'
 import styles from './SettingsPage.module.css'
 
 const themes: ThemeMode[] = ['light', 'dark', 'system']
@@ -87,14 +94,10 @@ export function SettingsPage(): React.JSX.Element {
   const [aiProviderName, setAiProviderName] = useState(DEFAULT_FORTUNE_SETTINGS.aiProviderName)
   const [aiBaseUrl, setAiBaseUrl] = useState(DEFAULT_FORTUNE_SETTINGS.aiBaseUrl)
   const [aiApiFormat, setAiApiFormat] = useState(DEFAULT_FORTUNE_SETTINGS.aiApiFormat)
-  const [aiModels, setAiModels] = useState<string[]>(DEFAULT_FORTUNE_SETTINGS.aiModels)
   const [aiModel, setAiModel] = useState(DEFAULT_FORTUNE_SETTINGS.aiModel)
-  const [aiModelDraft, setAiModelDraft] = useState('')
   const [aiApiKey, setAiApiKey] = useState(DEFAULT_FORTUNE_SETTINGS.aiApiKey)
   const [aiMediaProfile, setAiMediaProfile] = useState<MediaProfileId>('auto')
-  const [aiImageModel, setAiImageModel] = useState('')
-  const [aiVideoModel, setAiVideoModel] = useState('')
-  const [aiMusicModel, setAiMusicModel] = useState('')
+  const [modelModal, setModelModal] = useState<AiModelConfig | null | 'new'>(null)
   const [aiSavedHint, setAiSavedHint] = useState<string | null>(null)
   const [aiTesting, setAiTesting] = useState(false)
   const [aiTestHint, setAiTestHint] = useState<string | null>(null)
@@ -267,7 +270,6 @@ export function SettingsPage(): React.JSX.Element {
       setAiProviderName(snap.fortune?.aiProviderName ?? DEFAULT_FORTUNE_SETTINGS.aiProviderName)
       setAiBaseUrl(snap.fortune?.aiBaseUrl ?? DEFAULT_FORTUNE_SETTINGS.aiBaseUrl)
       setAiApiFormat(snap.fortune?.aiApiFormat ?? DEFAULT_FORTUNE_SETTINGS.aiApiFormat)
-      setAiModels(snap.fortune?.aiModels ?? DEFAULT_FORTUNE_SETTINGS.aiModels)
       setAiModel(snap.fortune?.aiModel ?? DEFAULT_FORTUNE_SETTINGS.aiModel)
       setAiApiKey(snap.fortune?.aiApiKey ?? DEFAULT_FORTUNE_SETTINGS.aiApiKey)
       {
@@ -275,9 +277,6 @@ export function SettingsPage(): React.JSX.Element {
           (snap.fortune?.aiProviders ?? []).find((p) => p.id === snap.fortune?.aiActiveProviderId) ??
           snap.fortune?.aiProviders?.[0]
         setAiMediaProfile(active?.mediaProfile ?? 'auto')
-        setAiImageModel(active?.imageModel ?? '')
-        setAiVideoModel(active?.videoModel ?? '')
-        setAiMusicModel(active?.musicModel ?? '')
       }
     })
     void window.treasureChest.getMcpSettings().then((mcp) => {
@@ -422,7 +421,6 @@ export function SettingsPage(): React.JSX.Element {
         setAiProviderName(snap.fortune?.aiProviderName ?? DEFAULT_FORTUNE_SETTINGS.aiProviderName)
         setAiBaseUrl(snap.fortune?.aiBaseUrl ?? DEFAULT_FORTUNE_SETTINGS.aiBaseUrl)
         setAiApiFormat(snap.fortune?.aiApiFormat ?? DEFAULT_FORTUNE_SETTINGS.aiApiFormat)
-        setAiModels(snap.fortune?.aiModels ?? DEFAULT_FORTUNE_SETTINGS.aiModels)
         setAiModel(snap.fortune?.aiModel ?? DEFAULT_FORTUNE_SETTINGS.aiModel)
         setAiApiKey(snap.fortune?.aiApiKey ?? DEFAULT_FORTUNE_SETTINGS.aiApiKey)
         {
@@ -430,9 +428,6 @@ export function SettingsPage(): React.JSX.Element {
             (snap.fortune?.aiProviders ?? []).find((p) => p.id === snap.fortune?.aiActiveProviderId) ??
             snap.fortune?.aiProviders?.[0]
           setAiMediaProfile(active?.mediaProfile ?? 'auto')
-          setAiImageModel(active?.imageModel ?? '')
-          setAiVideoModel(active?.videoModel ?? '')
-          setAiMusicModel(active?.musicModel ?? '')
         }
         const login = await window.treasureChest.getLaunchAtLogin()
         setLaunchAtLogin(login.configured)
@@ -456,16 +451,12 @@ export function SettingsPage(): React.JSX.Element {
 
   const onSaveAiConfig = (): void => {
     setAiSavedHint(null)
-    const normalizedModels = Array.from(new Set(aiModels.map((m) => m.trim()).filter(Boolean)))
-    const resolvedModels =
-      normalizedModels.length > 0
-        ? normalizedModels
-        : aiModel.trim()
-          ? [aiModel.trim()]
-          : []
-    const resolvedModel = resolvedModels.includes(aiModel.trim())
-      ? aiModel.trim()
-      : (resolvedModels[0] ?? '')
+    const current =
+      aiProviders.find((p) => p.id === aiActiveProviderId) ?? aiProviders[0]
+    const resolvedModels = current?.models ?? []
+    const ids = aiModelIds(resolvedModels)
+    const resolvedModel = ids.includes(aiModel.trim()) ? aiModel.trim() : (ids[0] ?? '')
+    const media = mediaIdsFromModels(resolvedModels)
     const nextProviders = aiProviders.map((provider) =>
       provider.id === aiActiveProviderId
         ? {
@@ -476,9 +467,9 @@ export function SettingsPage(): React.JSX.Element {
             models: resolvedModels,
             apiKey: aiApiKey.trim(),
             mediaProfile: aiMediaProfile,
-            imageModel: aiImageModel.trim() || undefined,
-            videoModel: aiVideoModel.trim() || undefined,
-            musicModel: aiMusicModel.trim() || undefined,
+            imageModel: media.imageModel,
+            videoModel: media.videoModel,
+            musicModel: media.musicModel,
           }
         : provider,
     )
@@ -488,7 +479,7 @@ export function SettingsPage(): React.JSX.Element {
         aiProviderName: aiProviderName.trim(),
         aiBaseUrl: aiBaseUrl.trim(),
         aiApiFormat,
-        aiModels: resolvedModels,
+        aiModels: ids,
         aiModel: resolvedModel,
         aiApiKey: aiApiKey.trim(),
         aiProviders: nextProviders,
@@ -500,24 +491,20 @@ export function SettingsPage(): React.JSX.Element {
         setAiProviderName(next.aiProviderName)
         setAiBaseUrl(next.aiBaseUrl)
         setAiApiFormat(next.aiApiFormat)
-        setAiModels(next.aiModels)
         setAiModel(next.aiModel)
         setAiApiKey(next.aiApiKey)
         {
           const active =
             next.aiProviders.find((p) => p.id === next.aiActiveProviderId) ?? next.aiProviders[0]
           setAiMediaProfile(active?.mediaProfile ?? 'auto')
-          setAiImageModel(active?.imageModel ?? '')
-          setAiVideoModel(active?.videoModel ?? '')
-          setAiMusicModel(active?.musicModel ?? '')
         }
         setAiSavedHint(t('settings.fortuneAiConfigSaved'))
       })
   }
 
   const onTestAiConnection = (): void => {
-    const resolvedModels = Array.from(new Set(aiModels.map((m) => m.trim()).filter(Boolean)))
-    const model = aiModel.trim() || resolvedModels[0] || ''
+    const current = aiProviders.find((p) => p.id === aiActiveProviderId)
+    const model = aiModel.trim() || firstModelId(current?.models ?? [])
     if (!model) {
       setAiTestHint(t('settings.fortuneAiNeedModel'))
       return
@@ -527,7 +514,7 @@ export function SettingsPage(): React.JSX.Element {
       name: aiProviderName.trim() || 'Provider',
       baseUrl: aiBaseUrl.trim(),
       apiFormat: aiApiFormat,
-      models: resolvedModels.length > 0 ? resolvedModels : [model],
+      models: current?.models?.length ? current.models : [defaultAiModelConfig(model)],
       apiKey: aiApiKey.trim(),
     }
     setAiTesting(true)
@@ -538,25 +525,29 @@ export function SettingsPage(): React.JSX.Element {
     })
   }
 
-  const onAddAiModel = (): void => {
-    const next = aiModelDraft.trim()
-    if (!next) return
-    setAiModels((prev) => (prev.includes(next) ? prev : [...prev, next]))
-    setAiModel(next)
-    setAiModelDraft('')
+  const patchActiveModels = (models: AiModelConfig[]): void => {
+    setAiProviders((prev) =>
+      prev.map((p) => (p.id === aiActiveProviderId ? { ...p, models } : p)),
+    )
+    const ids = aiModelIds(models)
+    if (!ids.includes(aiModel)) setAiModel(ids[0] ?? '')
   }
 
-  const onRemoveAiModel = (model: string): void => {
-    setAiModels((prev) => {
-      const next = prev.filter((m) => m !== model)
-      if (next.length > 0 && aiModel === model) {
-        setAiModel(next[0]!)
-      }
-      if (next.length === 0) {
-        setAiModel('')
-      }
-      return next
-    })
+  const onSaveAiModel = (model: AiModelConfig): void => {
+    const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
+    const oldId = typeof modelModal === 'object' && modelModal ? modelModal.id : ''
+    const without = oldId ? current.filter((m) => m.id !== oldId) : current.filter((m) => m.id !== model.id)
+    const next = without.some((m) => m.id === model.id)
+      ? without.map((m) => (m.id === model.id ? model : m))
+      : [...without, model]
+    patchActiveModels(next)
+    setAiModel(model.id)
+    setModelModal(null)
+  }
+
+  const onRemoveAiModel = (modelId: string): void => {
+    const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
+    patchActiveModels(current.filter((m) => m.id !== modelId))
   }
 
   const onSelectProvider = (id: string): void => {
@@ -566,13 +557,9 @@ export function SettingsPage(): React.JSX.Element {
     setAiProviderName(provider.name)
     setAiBaseUrl(provider.baseUrl)
     setAiApiFormat(provider.apiFormat)
-    setAiModels(provider.models)
-    setAiModel(provider.models[0] ?? '')
+    setAiModel(firstModelId(provider.models))
     setAiApiKey(provider.apiKey)
     setAiMediaProfile(provider.mediaProfile ?? 'auto')
-    setAiImageModel(provider.imageModel ?? '')
-    setAiVideoModel(provider.videoModel ?? '')
-    setAiMusicModel(provider.musicModel ?? '')
   }
 
   const onAddProvider = (): void => {
@@ -592,57 +579,59 @@ export function SettingsPage(): React.JSX.Element {
     setAiProviderName(next.name)
     setAiBaseUrl(next.baseUrl)
     setAiApiFormat(next.apiFormat)
-    setAiModels(next.models)
-    setAiModel(next.models[0] ?? '')
+    setAiModel('')
     setAiApiKey(next.apiKey)
     setAiMediaProfile('auto')
-    setAiImageModel('')
-    setAiVideoModel('')
-    setAiMusicModel('')
   }
 
   const applyCloudPreset = (presetId: string): void => {
     const preset = AI_PROVIDER_PRESETS.find((p) => p.id === presetId)
     if (!preset) return
+    const models = modelsFromProviderPreset(preset)
     setAiProviderName(t(preset.nameKey))
     setAiBaseUrl(preset.baseUrl)
     setAiApiFormat(preset.apiFormat)
     setAiMediaProfile(preset.mediaProfile)
-    setAiModels(preset.models)
-    setAiModel(preset.models[0] ?? '')
-    setAiImageModel(preset.imageModel ?? '')
-    setAiVideoModel(preset.videoModel ?? '')
-    setAiMusicModel(preset.musicModel ?? '')
+    setAiProviders((prev) =>
+      prev.map((p) =>
+        p.id === aiActiveProviderId
+          ? {
+              ...p,
+              name: t(preset.nameKey),
+              baseUrl: preset.baseUrl,
+              apiFormat: preset.apiFormat,
+              mediaProfile: preset.mediaProfile,
+              models,
+              imageModel: preset.imageModel,
+              videoModel: preset.videoModel,
+              musicModel: preset.musicModel,
+            }
+          : p,
+      ),
+    )
+    setAiModel(firstModelId(models))
   }
 
   const applyLocalPreset = (kind: 'ollama' | 'lmstudio'): void => {
-    if (kind === 'ollama') {
-      setAiProviderName('Ollama')
-      setAiBaseUrl('http://127.0.0.1:11434/v1')
-      setAiApiFormat('openai')
-      setAiApiKey('')
-      setAiMediaProfile('openai_compat')
-      setAiImageModel('')
-      setAiVideoModel('')
-      setAiMusicModel('')
-      if (aiModels.length === 0) {
-        setAiModels(['qwen2.5:7b'])
-        setAiModel('qwen2.5:7b')
-      }
-      return
-    }
-    setAiProviderName('LM Studio')
-    setAiBaseUrl('http://127.0.0.1:1234/v1')
+    const isOllama = kind === 'ollama'
+    const name = isOllama ? 'Ollama' : 'LM Studio'
+    const baseUrl = isOllama ? 'http://127.0.0.1:11434/v1' : 'http://127.0.0.1:1234/v1'
+    const fallbackId = isOllama ? 'qwen2.5:7b' : 'local-model'
+    const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
+    const models = current.length > 0 ? current : [defaultAiModelConfig(fallbackId)]
+    setAiProviderName(name)
+    setAiBaseUrl(baseUrl)
     setAiApiFormat('openai')
     setAiApiKey('')
     setAiMediaProfile('openai_compat')
-    setAiImageModel('')
-    setAiVideoModel('')
-    setAiMusicModel('')
-    if (aiModels.length === 0) {
-      setAiModels(['local-model'])
-      setAiModel('local-model')
-    }
+    setAiProviders((prev) =>
+      prev.map((p) =>
+        p.id === aiActiveProviderId
+          ? { ...p, name, baseUrl, apiFormat: 'openai', mediaProfile: 'openai_compat', models }
+          : p,
+      ),
+    )
+    if (current.length === 0) setAiModel(fallbackId)
   }
 
   const onRemoveProvider = (id: string): void => {
@@ -655,13 +644,9 @@ export function SettingsPage(): React.JSX.Element {
       setAiProviderName(first.name)
       setAiBaseUrl(first.baseUrl)
       setAiApiFormat(first.apiFormat)
-      setAiModels(first.models)
-      setAiModel(first.models[0] ?? '')
+      setAiModel(firstModelId(first.models))
       setAiApiKey(first.apiKey)
       setAiMediaProfile(first.mediaProfile ?? 'auto')
-      setAiImageModel(first.imageModel ?? '')
-      setAiVideoModel(first.videoModel ?? '')
-      setAiMusicModel(first.musicModel ?? '')
     }
   }
 
@@ -1081,64 +1066,58 @@ export function SettingsPage(): React.JSX.Element {
               ))}
             </select>
           </label>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.mediaImageModel')}</span>
-            <input
-              className={styles.aiInput}
-              value={aiImageModel}
-              onChange={(e) => setAiImageModel(e.target.value)}
-              placeholder={t('settings.mediaModelOptional')}
-            />
-          </label>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.mediaVideoModel')}</span>
-            <input
-              className={styles.aiInput}
-              value={aiVideoModel}
-              onChange={(e) => setAiVideoModel(e.target.value)}
-              placeholder={t('settings.mediaModelOptional')}
-            />
-          </label>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.mediaMusicModel')}</span>
-            <input
-              className={styles.aiInput}
-              value={aiMusicModel}
-              onChange={(e) => setAiMusicModel(e.target.value)}
-              placeholder={t('settings.mediaModelOptional')}
-            />
-          </label>
         </div>
         <p className={styles.settingHint}>{t('settings.mediaProfileHint')}</p>
         <div className={styles.aiModelBlock}>
           <div className={styles.aiLabel}>{t('settings.fortuneAiModelList')}</div>
-          <div className={styles.aiModelAddRow}>
-            <input
-              className={styles.aiInput}
-              value={aiModelDraft}
-              onChange={(e) => setAiModelDraft(e.target.value)}
-              placeholder={t('settings.fortuneAiModelPlaceholder')}
-            />
-            <button type="button" className={styles.aiAddBtn} onClick={onAddAiModel}>
-              + {t('settings.fortuneAiModelAdd')}
-            </button>
-          </div>
-          <div className={styles.aiModelChips}>
-            {aiModels.map((model) => (
+          <p className={styles.settingHint}>{t('settings.fortuneAiModelHint')}</p>
+          <button type="button" className={styles.aiAddBtn} onClick={() => setModelModal('new')}>
+            + {t('settings.fortuneAiModelAdd')}
+          </button>
+          <div className={styles.aiModelList}>
+            {(aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []).map((model) => (
               <div
-                key={model}
-                className={`${styles.aiModelChip} ${aiModel === model ? styles.aiModelChipActive : ''}`}
+                key={model.id}
+                className={`${styles.aiModelRow} ${aiModel === model.id ? styles.aiModelRowActive : ''}`}
               >
-                <button type="button" className={styles.aiModelPickBtn} onClick={() => setAiModel(model)}>
-                  {model}
+                <button type="button" className={styles.aiModelPickBtn} onClick={() => setAiModel(model.id)}>
+                  <span className={styles.aiModelId}>{model.id}</span>
+                  <span className={styles.aiModelCaps}>
+                    {model.inputModalities.filter((m) => m !== 'text').map((m) => (
+                      <span key={`in-${m}`} className={styles.aiModelCap}>
+                        {t(`settings.modelModal.modality.${m}`)}
+                        {t('settings.modelModal.capIn')}
+                      </span>
+                    ))}
+                    {model.outputModalities.filter((m) => m !== 'text').map((m) => (
+                      <span key={`out-${m}`} className={styles.aiModelCap}>
+                        {t(`settings.modelModal.modality.${m}`)}
+                        {t('settings.modelModal.capOut')}
+                      </span>
+                    ))}
+                  </span>
                 </button>
-                <button type="button" className={styles.aiModelRemoveBtn} onClick={() => onRemoveAiModel(model)}>
+                <button
+                  type="button"
+                  className={styles.aiModelEditBtn}
+                  onClick={() => setModelModal(model)}
+                >
+                  {t('settings.fortuneAiModelEdit')}
+                </button>
+                <button type="button" className={styles.aiModelRemoveBtn} onClick={() => onRemoveAiModel(model.id)}>
                   ×
                 </button>
               </div>
             ))}
           </div>
         </div>
+        {modelModal !== null ? (
+          <AddModelModal
+            initial={modelModal === 'new' ? null : modelModal}
+            onClose={() => setModelModal(null)}
+            onSave={onSaveAiModel}
+          />
+        ) : null}
         <div className={styles.aiActionRow}>
           <SettingActionButton
             icon={<IconSparkles />}

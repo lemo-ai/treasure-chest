@@ -6,6 +6,10 @@ import type {
   FortuneAiResponse,
   FortuneSettings,
 } from '@shared'
+import {
+  aiModelIds,
+  firstModelId,
+} from '@shared'
 import { callLlmChat, isLocalLlmEndpoint } from '../llm/LlmClient'
 
 function buildPrompt(fortune: DailyFortune, locale: string): string {
@@ -73,14 +77,15 @@ function buildPrompt(fortune: DailyFortune, locale: string): string {
 }
 
 function providerToSettings(provider: FortuneAiProviderConfig, model: string): FortuneSettings {
-  const safeModel = model.trim() || provider.models[0] || ''
+  const ids = aiModelIds(provider.models)
+  const safeModel = model.trim() || firstModelId(provider.models)
   return {
     hexagramSchool: 'daymaster',
     aiPolish: true,
     aiBaseUrl: provider.baseUrl,
     aiProviderName: provider.name,
     aiApiFormat: provider.apiFormat,
-    aiModels: provider.models.length > 0 ? provider.models : safeModel ? [safeModel] : [],
+    aiModels: ids.length > 0 ? ids : safeModel ? [safeModel] : [],
     aiModel: safeModel,
     aiApiKey: provider.apiKey,
     aiProviders: [provider],

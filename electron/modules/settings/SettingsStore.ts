@@ -32,6 +32,10 @@ import {
   DEFAULT_THEME_ACCENT,
   HEXAGRAM_SCHOOLS,
   THEME_ACCENTS,
+  aiModelIds,
+  hydrateLegacyMediaModels,
+  mediaIdsFromModels,
+  parseAiModelList,
 } from '@shared'
 import { getSetting, setSetting } from '../../db/AppSettingsRepo'
 import { resolveDialBackgroundUrl } from './DialBackground'
@@ -184,19 +188,14 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
           ? r.baseUrl.trim()
           : DEFAULT_FORTUNE_SETTINGS.aiBaseUrl
       const apiFormat: 'openai' | 'anthropic' = r.apiFormat === 'anthropic' ? 'anthropic' : 'openai'
-      const models = Array.isArray(r.models)
-        ? Array.from(
-            new Set(
-              r.models
-                .filter((m): m is string => typeof m === 'string')
-                .map((m) => m.trim())
-                .filter(Boolean),
-            ),
-          )
-        : []
+      const models = hydrateLegacyMediaModels(parseAiModelList(r.models), {
+        imageModel: typeof r.imageModel === 'string' ? r.imageModel.trim() || undefined : undefined,
+        videoModel: typeof r.videoModel === 'string' ? r.videoModel.trim() || undefined : undefined,
+        musicModel: typeof r.musicModel === 'string' ? r.musicModel.trim() || undefined : undefined,
+      })
       const apiKey = typeof r.apiKey === 'string' ? r.apiKey.trim() : ''
       const scrubbedModels =
-        !apiKey && id === 'default-openai' && models.length === 1 && models[0] === 'gpt-4o-mini'
+        !apiKey && id === 'default-openai' && models.length === 1 && models[0]?.id === 'gpt-4o-mini'
           ? []
           : models
       const mediaProfileRaw = typeof r.mediaProfile === 'string' ? r.mediaProfile.trim() : 'auto'
@@ -213,9 +212,13 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
       ).includes(mediaProfileRaw as 'auto')
         ? (mediaProfileRaw as FortuneAiProviderConfig['mediaProfile'])
         : 'auto'
-      const imageModel = typeof r.imageModel === 'string' ? r.imageModel.trim() || undefined : undefined
-      const videoModel = typeof r.videoModel === 'string' ? r.videoModel.trim() || undefined : undefined
-      const musicModel = typeof r.musicModel === 'string' ? r.musicModel.trim() || undefined : undefined
+      const derivedMedia = mediaIdsFromModels(scrubbedModels)
+      const imageModel =
+        (typeof r.imageModel === 'string' ? r.imageModel.trim() || undefined : undefined) ?? derivedMedia.imageModel
+      const videoModel =
+        (typeof r.videoModel === 'string' ? r.videoModel.trim() || undefined : undefined) ?? derivedMedia.videoModel
+      const musicModel =
+        (typeof r.musicModel === 'string' ? r.musicModel.trim() || undefined : undefined) ?? derivedMedia.musicModel
       return {
         id,
         name,
@@ -245,7 +248,7 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
       src.aiApiFormat === 'anthropic' || src.aiApiFormat === 'openai'
         ? src.aiApiFormat
         : DEFAULT_FORTUNE_SETTINGS.aiApiFormat,
-    models: modelList,
+    models: parseAiModelList(modelList),
     apiKey: typeof src.aiApiKey === 'string' ? src.aiApiKey.trim() : '',
     mediaProfile: 'auto',
   }
@@ -253,9 +256,8 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
   const providers = parsedProviders.length > 0 ? parsedProviders : [fallbackProvider]
   const activeIdRaw = typeof src.aiActiveProviderId === 'string' ? src.aiActiveProviderId.trim() : ''
   const activeProvider = providers.find((p) => p.id === activeIdRaw) ?? providers[0]!
-  const activeModel = activeProvider.models.includes(selectedModel)
-    ? selectedModel
-    : (activeProvider.models[0] ?? '')
+  const activeIds = aiModelIds(activeProvider.models)
+  const activeModel = activeIds.includes(selectedModel) ? selectedModel : (activeIds[0] ?? '')
 
   return {
     hexagramSchool: parseHexagramSchool(src.hexagramSchool),
@@ -263,7 +265,7 @@ function parseFortuneSettings(raw: unknown): FortuneSettings {
     aiBaseUrl: activeProvider.baseUrl,
     aiProviderName: activeProvider.name,
     aiApiFormat: activeProvider.apiFormat,
-    aiModels: activeProvider.models,
+    aiModels: activeIds,
     aiModel: activeModel,
     aiApiKey: activeProvider.apiKey,
     aiProviders: providers,
@@ -503,14 +505,11 @@ export const settingsStore = {
           ? p.baseUrl.trim()
           : DEFAULT_FORTUNE_SETTINGS.aiBaseUrl
         const apiFormat: 'openai' | 'anthropic' = p.apiFormat === 'anthropic' ? 'anthropic' : 'openai'
-        const models = Array.from(
-          new Set(
-            (Array.isArray(p.models) ? p.models : [])
-              .filter((m): m is string => typeof m === 'string')
-              .map((m) => m.trim())
-              .filter(Boolean),
-          ),
-        )
+        const models = hydrateLegacyMediaModels(parseAiModelList(p.models), {
+          imageModel: typeof p.imageModel === 'string' ? p.imageModel.trim() || undefined : undefined,
+          videoModel: typeof p.videoModel === 'string' ? p.videoModel.trim() || undefined : undefined,
+          musicModel: typeof p.musicModel === 'string' ? p.musicModel.trim() || undefined : undefined,
+        })
         const apiKey = typeof p.apiKey === 'string' ? p.apiKey.trim() : ''
         const mediaProfile =
           p.mediaProfile === 'openai_compat' ||
@@ -522,6 +521,7 @@ export const settingsStore = {
           p.mediaProfile === 'auto'
             ? p.mediaProfile
             : 'auto'
+        const derivedMedia = mediaIdsFromModels(models)
         return {
           id,
           name,
@@ -530,15 +530,23 @@ export const settingsStore = {
           models,
           apiKey,
           mediaProfile,
-          imageModel: typeof p.imageModel === 'string' ? p.imageModel.trim() || undefined : undefined,
-          videoModel: typeof p.videoModel === 'string' ? p.videoModel.trim() || undefined : undefined,
-          musicModel: typeof p.musicModel === 'string' ? p.musicModel.trim() || undefined : undefined,
+          imageModel:
+            (typeof p.imageModel === 'string' ? p.imageModel.trim() || undefined : undefined) ?? derivedMedia.imageModel,
+          videoModel:
+            (typeof p.videoModel === 'string' ? p.videoModel.trim() || undefined : undefined) ?? derivedMedia.videoModel,
+          musicModel:
+            (typeof p.musicModel === 'string' ? p.musicModel.trim() || undefined : undefined) ?? derivedMedia.musicModel,
         }
       })
       .filter((p) => Boolean(p.id))
     const safeProviders = nextProviders.length > 0 ? nextProviders : memory.fortune.aiProviders
     const activeId = partial.aiActiveProviderId !== undefined ? partial.aiActiveProviderId.trim() : memory.fortune.aiActiveProviderId
     const activeProvider = safeProviders.find((p) => p.id === activeId) ?? safeProviders[0]!
+
+    const activeIds = aiModelIds(activeProvider.models)
+    const selectedOnProvider = activeIds.includes(nextSelectedModel)
+      ? nextSelectedModel
+      : (activeIds[0] ?? '')
 
     memory.fortune = {
       ...memory.fortune,
@@ -550,10 +558,8 @@ export const settingsStore = {
       aiBaseUrl: activeProvider.baseUrl,
       aiProviderName: activeProvider.name,
       aiApiFormat: activeProvider.apiFormat,
-      aiModels: activeProvider.models.length > 0 ? activeProvider.models : normalizedModels,
-      aiModel: activeProvider.models.includes(nextSelectedModel)
-        ? nextSelectedModel
-        : (activeProvider.models[0] ?? ''),
+      aiModels: activeIds.length > 0 ? activeIds : normalizedModels,
+      aiModel: selectedOnProvider,
       aiApiKey: activeProvider.apiKey,
       aiProviders: safeProviders,
       aiActiveProviderId: activeProvider.id,

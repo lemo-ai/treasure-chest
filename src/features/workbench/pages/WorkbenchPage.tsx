@@ -10,6 +10,7 @@ import {
   IconClose,
   IconFortune,
   IconGrid,
+  IconGlobe,
   IconImage,
   IconKey,
   IconMcp,
@@ -53,7 +54,13 @@ import {
   type CapOptionGroupId,
   type CapOptionValues,
 } from '../lib/capabilityOptions'
+import {
+  decodeChatModelRef,
+  encodeChatModelRef,
+  groupedChatModels,
+} from '../lib/chatModelOptions'
 import type {
+  FortuneAiProviderConfig,
   KnowledgeCitation,
   LlmToolStep,
   MediaCapabilitiesSnapshot,
@@ -84,7 +91,6 @@ import {
   type WorkbenchSession,
 } from '../lib/sessionStore'
 import { MarkdownMessage } from '../components/MarkdownMessage'
-import { ToolStepsCard } from '../components/ToolStepsCard'
 import { ThinkingIndicator } from '../components/ThinkingIndicator'
 import { ArtifactsPanel } from '../components/ArtifactsPanel'
 import { MemoryPanel } from '../components/MemoryPanel'
@@ -110,6 +116,7 @@ import type { ToolApprovalRequest } from '@shared'
 import styles from './WorkbenchPage.module.css'
 
 const PANEL_KEY = 'qiankun.workbench.sessionPanelOpen'
+const WEB_SEARCH_KEY = 'qiankun.workbench.webSearch'
 
 interface WorkbenchAttachment {
   id: string
@@ -156,6 +163,16 @@ function readPanelOpen(): boolean {
   }
 }
 
+function readWebSearchOn(): boolean {
+  try {
+    const raw = localStorage.getItem(WEB_SEARCH_KEY)
+    if (raw === null) return true
+    return raw === '1'
+  } catch {
+    return true
+  }
+}
+
 function agentIcon(agent: AgentDef): React.JSX.Element {
   if (isDirectChatId(String(agent.id))) return <IconChatBubble />
   if (agent.id === 'fortune') return <IconFortune />
@@ -165,6 +182,8 @@ function agentIcon(agent: AgentDef): React.JSX.Element {
 
 function capabilityIcon(id: WorkbenchCapabilityId): ReactNode {
   switch (id) {
+    case 'websearch':
+      return <IconGlobe />
     case 'upload':
       return <IconPaperclip />
     case 'knowledge':
@@ -203,6 +222,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const [messages, setMessages] = useState<WorkbenchMessage[]>([])
   const [draft, setDraft] = useState('')
   const [activeCap, setActiveCap] = useState<WorkbenchCapabilityId | null>(null)
+  const [webSearchOn, setWebSearchOn] = useState(readWebSearchOn)
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null)
   const [skillPickerOpen, setSkillPickerOpen] = useState(false)
   const [streamCitations, setStreamCitations] = useState<KnowledgeCitation[]>([])
@@ -233,6 +253,8 @@ export function WorkbenchPage(): React.JSX.Element {
   const capMeasureRef = useRef<HTMLDivElement>(null)
   const [inlinePrimaryCount, setInlinePrimaryCount] = useState(WORKBENCH_PRIMARY_CAP_IDS.length)
   const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelGroups, setModelGroups] = useState<Array<{ id: string; name: string; models: string[] }>>([])
+  const [activeProviderId, setActiveProviderId] = useState('')
   const [selectedModel, setSelectedModel] = useState('')
   const [aiBaseUrl, setAiBaseUrl] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
@@ -322,24 +344,34 @@ export function WorkbenchPage(): React.JSX.Element {
     }, 4000)
   }
 
-  useEffect(() => {
-    const applyAiSettings = (fortune: {
-      aiModels?: string[]
-      aiModel?: string
-      aiApiKey?: string
-      aiBaseUrl?: string
-    } | undefined): void => {
-      const models = (fortune?.aiModels ?? []).map((m) => m.trim()).filter(Boolean)
-      setModelOptions(models)
-      const selected =
-        fortune?.aiModel && models.includes(fortune.aiModel)
-          ? fortune.aiModel
-          : (models[0] ?? '')
-      setSelectedModel(selected)
-      setAiBaseUrl(fortune?.aiBaseUrl || '')
-      setHasApiKey(Boolean(fortune?.aiApiKey?.trim()))
-    }
+  const applyAiSettings = (fortune: {
+    aiModels?: string[]
+    aiModel?: string
+    aiApiKey?: string
+    aiBaseUrl?: string
+    aiActiveProviderId?: string
+    aiProviders?: FortuneAiProviderConfig[]
+  } | undefined): void => {
+    const groups = groupedChatModels(fortune?.aiProviders)
+    setModelGroups(groups)
+    const models = groups.flatMap((g) => g.models)
+    setModelOptions(models.length ? models : (fortune?.aiModels ?? []).map((m) => m.trim()).filter(Boolean))
+    const providerId =
+      fortune?.aiActiveProviderId && groups.some((g) => g.id === fortune.aiActiveProviderId)
+        ? fortune.aiActiveProviderId
+        : (groups[0]?.id ?? '')
+    setActiveProviderId(providerId)
+    const group = groups.find((g) => g.id === providerId)
+    const selected =
+      fortune?.aiModel && group?.models.includes(fortune.aiModel)
+        ? fortune.aiModel
+        : (group?.models[0] ?? models[0] ?? '')
+    setSelectedModel(selected)
+    setAiBaseUrl(fortune?.aiBaseUrl || '')
+    setHasApiKey(Boolean(fortune?.aiApiKey?.trim()))
+  }
 
+  useEffect(() => {
     const loadAi = (): void => {
       void window.treasureChest.getSettingsSnapshot().then((snap) => {
         applyAiSettings(snap.fortune)
@@ -369,15 +401,12 @@ export function WorkbenchPage(): React.JSX.Element {
 
   useEffect(() => {
     const agent = getAgent(activeAgent)
-    if (
-      agent &&
-      !agent.builtin &&
-      agent.preferredModel &&
-      modelOptions.includes(agent.preferredModel)
-    ) {
-      setSelectedModel(agent.preferredModel)
-    }
-  }, [activeAgent, modelOptions])
+    if (!agent || agent.builtin || !agent.preferredModel) return
+    const group = modelGroups.find((g) => g.models.includes(agent.preferredModel!))
+    if (!group) return
+    setActiveProviderId(group.id)
+    setSelectedModel(agent.preferredModel)
+  }, [activeAgent, modelGroups])
 
   useEffect(() => {
     try {
@@ -386,6 +415,14 @@ export function WorkbenchPage(): React.JSX.Element {
       /* ignore */
     }
   }, [panelOpen])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WEB_SEARCH_KEY, webSearchOn ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [webSearchOn])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -400,6 +437,8 @@ export function WorkbenchPage(): React.JSX.Element {
 
   const activeAgentDef = getAgent(activeAgent) ?? DIRECT_CHAT_DEF
   const directMode = isDirectChatId(String(activeAgent))
+  const enableWebSearch =
+    String(activeAgent) === 'stocks' || activeCap === 'research' || webSearchOn
   const activeAgentName = directMode
     ? t('nav.workbench')
     : agentDisplayName(activeAgentDef, t)
@@ -540,6 +579,7 @@ export function WorkbenchPage(): React.JSX.Element {
             !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
           locale: i18n.language,
           useKnowledge: Boolean(opts.useKnowledge),
+          enableWebSearch,
           knowledgeCollectionId,
           ...toolFlags,
           memoryFacts: memoryFactsForPrompt(String(activeAgent)),
@@ -914,6 +954,7 @@ export function WorkbenchPage(): React.JSX.Element {
               !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
             locale: i18n.language,
             useKnowledge,
+            enableWebSearch,
             knowledgeCollectionId,
             ...toolFlags,
             memoryFacts: memoryFactsForPrompt(String(activeAgent)),
@@ -1003,6 +1044,14 @@ export function WorkbenchPage(): React.JSX.Element {
     setMoreOpen(false)
     const capMeta = WORKBENCH_CAPABILITIES.find((c) => c.id === id)
     const capName = capMeta ? t(capMeta.labelKey) : id
+    if (id === 'websearch') {
+      if (String(activeAgent) === 'stocks') {
+        setWebSearchOn(true)
+        return
+      }
+      setWebSearchOn((v) => !v)
+      return
+    }
     if (id === 'upload') {
       setActiveCap(id)
       fileRef.current?.click()
@@ -1160,14 +1209,18 @@ export function WorkbenchPage(): React.JSX.Element {
     setAttachments((prev) => prev.filter((a) => a.id !== id))
   }
 
-  const onModelChange = async (model: string): Promise<void> => {
+  const onModelChange = async (value: string): Promise<void> => {
+    const parsed = decodeChatModelRef(value)
+    const providerId = parsed?.providerId || activeProviderId
+    const model = parsed?.modelId || value
+    setActiveProviderId(providerId)
     setSelectedModel(model)
     try {
-      const next = await window.treasureChest.setFortuneSettings({ aiModel: model })
-      const models = (next.aiModels ?? []).map((m) => m.trim()).filter(Boolean)
-      setModelOptions(models)
-      setSelectedModel(models.includes(next.aiModel) ? next.aiModel : (models[0] ?? ''))
-      setHasApiKey(Boolean(next.aiApiKey?.trim()))
+      const next = await window.treasureChest.setFortuneSettings({
+        aiActiveProviderId: providerId,
+        aiModel: model,
+      })
+      applyAiSettings(next)
       void window.treasureChest.getMediaCapabilities().then(setMediaCaps)
     } catch {
       /* ignore */
@@ -1284,19 +1337,25 @@ export function WorkbenchPage(): React.JSX.Element {
     const mediaLevel = mediaLevelOf(cap.id)
     const unavailable = mediaLevel === 'no'
     const uncertain = mediaLevel === 'maybe'
-    const title = unavailable
-      ? t('workbench.media.unsupportedTitle', { name: t(cap.labelKey) })
-      : uncertain
-        ? t('workbench.media.maybeTitle', { name: t(cap.labelKey) })
-        : cap.status === 'soon'
-          ? t('workbench.capSoonHint', { name: t(cap.labelKey) })
-          : t(cap.labelKey)
+    const webActive = cap.id === 'websearch' ? enableWebSearch : activeCap === cap.id
+    const title =
+      cap.id === 'websearch'
+        ? enableWebSearch
+          ? t('workbench.webSearchHintOn')
+          : t('workbench.webSearchHintOff')
+        : unavailable
+          ? t('workbench.media.unsupportedTitle', { name: t(cap.labelKey) })
+          : uncertain
+            ? t('workbench.media.maybeTitle', { name: t(cap.labelKey) })
+            : cap.status === 'soon'
+              ? t('workbench.capSoonHint', { name: t(cap.labelKey) })
+              : t(cap.labelKey)
     return (
       <button
         key={cap.id}
         type="button"
         className={`${styles.capItem} ${compact ? styles.capItemMenu : ''} ${
-          activeCap === cap.id ? styles.capItemActive : ''
+          webActive ? styles.capItemActive : ''
         } ${unavailable ? styles.capItemUnavailable : ''} ${uncertain ? styles.capItemMaybe : ''}`.trim()}
         onClick={() => onCapability(cap.id)}
         title={title}
@@ -1599,7 +1658,6 @@ export function WorkbenchPage(): React.JSX.Element {
                 return (
                   <div key={msg.id} className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
                     <div className={styles.assistantMessage}>
-                      {msg.toolSteps?.length ? <ToolStepsCard steps={msg.toolSteps} /> : null}
                       <MarkdownMessage content={msg.content} />
                       {msg.citations?.length ? (
                         <div className={styles.citations}>
@@ -1622,16 +1680,18 @@ export function WorkbenchPage(): React.JSX.Element {
               {sending && streamSessionId === activeId ? (
                 <div className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
                   <div className={styles.assistantMessage}>
-                    {streamToolSteps.length > 0 ? (
-                      <ToolStepsCard steps={streamToolSteps} defaultOpen />
-                    ) : null}
                     {streamText ? (
                       <MarkdownMessage content={streamText} streaming />
-                    ) : streamToolSteps.length === 0 ? (
-                      <ThinkingIndicator label={streamStatus || t('workbench.thinking')} />
-                    ) : streamStatus ? (
-                      <ThinkingIndicator label={streamStatus} />
-                    ) : null}
+                    ) : (
+                      <ThinkingIndicator
+                        label={
+                          streamStatus ||
+                          (streamToolSteps.length > 0
+                            ? t('workbench.tools.running', { count: streamToolSteps.length })
+                            : t('workbench.thinking'))
+                        }
+                      />
+                    )}
                     {streamCitations.length > 0 && streamText ? (
                       <div className={styles.citations}>
                         <div className={styles.citationsTitle}>{t('workbench.citations')}</div>
@@ -1891,18 +1951,26 @@ export function WorkbenchPage(): React.JSX.Element {
                 ) : null}
               </div>
               <div className={styles.composerRight} ref={composerRightRef}>
-                {modelOptions.length > 0 ? (
+                {modelGroups.length > 0 ? (
                   <label className={styles.modelSelectWrap}>
                     <select
                       className={styles.modelSelect}
-                      value={selectedModel}
+                      value={
+                        activeProviderId && selectedModel
+                          ? encodeChatModelRef(activeProviderId, selectedModel)
+                          : ''
+                      }
                       onChange={(e) => void onModelChange(e.target.value)}
                       title={t('workbench.selectModel')}
                     >
-                      {modelOptions.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
+                      {modelGroups.map((group) => (
+                        <optgroup key={group.id} label={group.name}>
+                          {group.models.map((m) => (
+                            <option key={`${group.id}::${m}`} value={encodeChatModelRef(group.id, m)}>
+                              {m}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </label>
@@ -1911,7 +1979,7 @@ export function WorkbenchPage(): React.JSX.Element {
                     {t('workbench.configureModel')}
                   </Link>
                 )}
-                {modelOptions.length > 0 && !hasApiKey && !localEndpoint ? (
+                {modelGroups.length > 0 && !hasApiKey && !localEndpoint ? (
                   <Link className={styles.keyWarn} to="/settings">
                     {t('workbench.missingApiKey')}
                   </Link>

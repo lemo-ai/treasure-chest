@@ -48,6 +48,11 @@ export interface LlmChatRequest {
   streamId?: string
   /** Prefer knowledge search when user @mentioned knowledge */
   useKnowledge?: boolean
+  /**
+   * Attach live web/quote lookup tools (ChatGPT-style browsing).
+   * Omit = default on for workbench chat; false = pure model, no search.
+   */
+  enableWebSearch?: boolean
   /** Optional knowledge collection scope for search_knowledge */
   knowledgeCollectionId?: string
   /** Restrict MCP tools to these server ids; empty/undefined = all connected */

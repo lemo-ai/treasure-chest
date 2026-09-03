@@ -48,6 +48,7 @@ export interface ToolExecCtx {
 export interface ToolRegistryOptions {
   agentId: string
   useKnowledge?: boolean
+  useWebSearch?: boolean
   enabledMcpServerIds?: string[]
   sessionId?: string
   streamId?: string
@@ -111,7 +112,10 @@ export class ToolRegistry {
       enableSpawnSubagent: opts.enableSpawnSubagent,
       enableMcpTools: opts.enableMcpTools,
     })
-    const builtin = builtinToolsForAgent(opts.agentId, { useKnowledge: opts.useKnowledge })
+    const builtin = builtinToolsForAgent(opts.agentId, {
+      useKnowledge: opts.useKnowledge,
+      useWebSearch: opts.useWebSearch,
+    })
     for (const spec of builtin) {
       const name = spec.function.name
       this.tools.set(name, {
@@ -316,6 +320,16 @@ export class ToolRegistry {
 export function wantsKnowledge(req: LlmChatRequest): boolean {
   if (req.useKnowledge) return true
   return req.messages.some((m) => /@知识库|@knowledge/i.test(m.content))
+}
+
+/** ChatGPT-style live lookup; stocks agent always on; explicit false = pure model. */
+export function wantsWebSearch(req: LlmChatRequest): boolean {
+  const id = (req.agentId || 'direct').trim()
+  if (id === 'stocks') return true
+  if (req.capabilityMode === 'research') return true
+  if (req.enableWebSearch === false) return false
+  if (req.enableWebSearch === true) return true
+  return id !== 'fortune'
 }
 
 /** Build model-visible history from session events. */

@@ -8,6 +8,8 @@ import {
   type CreateAgentInput,
   type AgentDef,
 } from '../lib/agentRegistry'
+import type { FortuneAiProviderConfig } from '@shared'
+import { groupedChatModels } from '@renderer/features/workbench/lib/chatModelOptions'
 import styles from './CreateAgentModal.module.css'
 
 const TONES: AgentTone[] = ['brand', 'accent', 'highlight']
@@ -43,7 +45,9 @@ export function CreateAgentModal({
   const [collectionIds, setCollectionIds] = useState<string[]>(
     editing?.knowledgeCollectionIds ?? [],
   )
-  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelGroups, setModelGroups] = useState<Array<{ id: string; name: string; models: string[] }>>(
+    [],
+  )
   const [mcpServers, setMcpServers] = useState<Array<{ id: string; name: string; enabled: boolean }>>(
     [],
   )
@@ -54,9 +58,11 @@ export function CreateAgentModal({
     void (async () => {
       try {
         const snap = await window.treasureChest.getSettingsSnapshot()
-        setModelOptions((snap.fortune?.aiModels ?? []).map((m) => m.trim()).filter(Boolean))
+        const fortune = snap.fortune as { aiProviders?: FortuneAiProviderConfig[] } | undefined
+        const groups = groupedChatModels(fortune?.aiProviders)
+        setModelGroups(groups)
       } catch {
-        setModelOptions([])
+        setModelGroups([])
       }
       try {
         const status = await window.treasureChest.refreshMcpStatus()
@@ -182,10 +188,14 @@ export function CreateAgentModal({
               onChange={(e) => setPreferredModel(e.target.value)}
             >
               <option value="">{t('agents.create.modelDefault')}</option>
-              {modelOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
+              {modelGroups.map((group) => (
+                <optgroup key={group.id} label={group.name}>
+                  {group.models.map((m) => (
+                    <option key={`${group.id}::${m}`} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <span className={styles.hint}>{t('agents.create.modelHint')}</span>

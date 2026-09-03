@@ -133,22 +133,31 @@ const fetchUrlTool: LlmToolSpec = {
 
 export function builtinToolsForAgent(
   agentId: string,
-  opts?: { useKnowledge?: boolean },
+  opts?: { useKnowledge?: boolean; useWebSearch?: boolean },
 ): LlmToolSpec[] {
   const id = (agentId || 'direct').trim()
+  const web = [
+    webSearchTool,
+    stockSearchTool,
+    quoteTool,
+    fetchUrlTool,
+  ]
+  const useWeb = opts?.useWebSearch !== false
 
-  // Direct chat: model text only. Tools belong to named agents.
   if (isDirectChatAgentId(id)) {
-    return opts?.useKnowledge ? [knowledgeTool] : []
+    const tools: LlmToolSpec[] = useWeb ? [...web] : []
+    if (opts?.useKnowledge) tools.push(knowledgeTool)
+    return tools
   }
 
   const tools: LlmToolSpec[] = []
   if (id === 'fortune') {
     tools.push(fortuneTool, weatherTool)
   } else if (id === 'stocks') {
-    tools.push(webSearchTool, stockSearchTool, quoteTool, fetchUrlTool, reportTool)
+    tools.push(...web, reportTool)
   } else {
-    tools.push(weatherTool, webSearchTool, stockSearchTool, quoteTool, fetchUrlTool)
+    tools.push(weatherTool)
+    if (useWeb) tools.push(...web)
     if (opts?.useKnowledge || id.startsWith('custom_')) tools.push(knowledgeTool)
   }
 

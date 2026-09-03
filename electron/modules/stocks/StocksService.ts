@@ -5,7 +5,7 @@ import type {
   StocksReport,
   WatchlistItem,
 } from '@shared'
-import { getMarketSessionStatus } from '@shared'
+import { getMarketSessionStatus, firstModelId } from '@shared'
 import { settingsStore } from '../settings/SettingsStore'
 import { stocksStore, type CompanyProfileSource } from './StocksStore'
 import { getQuoteSnapshot, zeroRanges } from './PriceRangeService'
@@ -683,7 +683,7 @@ function activeAiProvider(): {
       baseUrl: provider.baseUrl,
       apiKey: provider.apiKey.trim() || key,
     },
-    model: f.aiModel || provider.models[0] || 'gpt-4o-mini',
+      model: f.aiModel || firstModelId(provider.models) || 'gpt-4o-mini',
   }
 }
 
@@ -1027,7 +1027,7 @@ async function aiEnhanceRecommendations(base: StockRecommendation[]): Promise<St
   if (!f.aiApiKey.trim()) return base
   const provider = f.aiProviders.find((p) => p.id === f.aiActiveProviderId)
   if (!provider) return base
-  const model = f.aiModel || provider.models[0] || 'gpt-4o-mini'
+  const model = f.aiModel || firstModelId(provider.models) || 'gpt-4o-mini'
 
   const payload = {
     date: todayDate(),

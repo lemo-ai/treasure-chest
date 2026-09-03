@@ -128,7 +128,13 @@ export async function assembleSystemPrompt(
   const parts: string[] = []
   const isDirect = isDirectChatAgentId(agentId)
 
-  if (!isDirect) {
+  if (isDirect) {
+    parts.push(
+      isEn
+        ? 'Answer the user directly. You are not a domain specialist unless asked.'
+        : '直接回答用户。除非用户要求，否则不要扮演垂直领域助手。',
+    )
+  } else {
     const custom = req.systemPrompt?.trim()
     if (custom) {
       parts.push(
@@ -151,9 +157,9 @@ export async function assembleSystemPrompt(
         )
       }
     }
-    if (toolNames.length) parts.push(liveDataPolicy(isEn))
   }
 
+  if (toolNames.length) parts.push(liveDataPolicy(isEn))
   parts.push(modeHint, knowledgeHint, memoryHint(req, isEn), toolHint)
   if (sessionId && !isDirect) {
     const goals = goalsPromptSection(sessionId)
