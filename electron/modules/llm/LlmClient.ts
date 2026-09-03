@@ -121,43 +121,143 @@ async function readSseLines(
   }
 }
 
-function parseOpenAiDelta(data: string): string | null | 'done' {
+type ToolCallAcc = Map<number, { id: string; name: string; arguments: string }>
+
+function toOpenAiChatMessages(messages: LlmChatMessage[]): Record<string, unknown>[] {
+  return messages.map((m) => {
+    const row: Record<string, unknown> = {
+      role: m.role,
+      content: m.content,
+    }
+    if (m.tool_calls?.length) row.tool_calls = m.tool_calls
+    if (m.tool_call_id) row.tool_call_id = m.tool_call_id
+    if (m.name) row.name = m.name
+    return row
+  })
+}
+
+function mergeToolCallDeltas(
+  acc: ToolCallAcc,
+  deltas: Array<{
+    index?: number
+    id?: string
+    function?: { name?: string; arguments?: string }
+  }>,
+): void {
+  for (const d of deltas) {
+    const idx = typeof d.index === 'number' ? d.index : acc.size
+    const cur = acc.get(idx) ?? { id: '', name: '', arguments: '' }
+    if (d.id) cur.id = d.id
+    if (d.function?.name) cur.name += d.function.name
+    if (typeof d.function?.arguments === 'string') cur.arguments += d.function.arguments
+    acc.set(idx, cur)
+  }
+}
+
+function finalizedToolCalls(acc: ToolCallAcc): LlmToolCall[] {
+  return [...acc.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, c], i) => ({
+      id: c.id || `call_${i}`,
+      type: 'function' as const,
+      function: { name: c.name, arguments: c.arguments || '{}' },
+    }))
+    .filter((c) => c.function.name)
+}
+
+function parseOpenAiDelta(
+  data: string,
+  toolAcc: ToolCallAcc,
+): { content?: string } | 'done' | null {
   const trimmed = data.trim()
   if (!trimmed) return null
   if (trimmed === '[DONE]') return 'done'
   try {
     const json = JSON.parse(trimmed) as {
-      choices?: Array<{ delta?: { content?: string | null } }>
+      choices?: Array<{
+        delta?: {
+          content?: string | null
+          tool_calls?: Array<{
+            index?: number
+            id?: string
+            function?: { name?: string; arguments?: string }
+          }>
+        }
+        message?: {
+          content?: string | null
+          tool_calls?: LlmToolCall[]
+        }
+      }>
       error?: { message?: string }
     }
     if (json.error?.message) throw new Error(json.error.message)
-    const content = json.choices?.[0]?.delta?.content
-    return typeof content === 'string' && content.length > 0 ? content : null
+    const choice = json.choices?.[0]
+    const deltaCalls = choice?.delta?.tool_calls
+    if (deltaCalls?.length) mergeToolCallDeltas(toolAcc, deltaCalls)
+    const msgCalls = choice?.message?.tool_calls
+    if (msgCalls?.length) {
+      msgCalls.forEach((c, i) => {
+        mergeToolCallDeltas(toolAcc, [
+          {
+            index: i,
+            id: c.id,
+            function: { name: c.function?.name, arguments: c.function?.arguments },
+          },
+        ])
+      })
+    }
+    const content = choice?.delta?.content ?? choice?.message?.content
+    if (typeof content === 'string' && content.length > 0) return { content }
+    return null
   } catch (err) {
     if (err instanceof SyntaxError) return null
     throw err
   }
 }
 
-function parseAnthropicSse(eventName: string, data: string): string | null | 'done' {
+function parseAnthropicSse(
+  eventName: string,
+  data: string,
+  toolBlocks: Array<{ id: string; name: string; json: string }>,
+): { content?: string } | 'done' | null {
   const trimmed = data.trim()
   if (!trimmed) return null
   try {
     const json = JSON.parse(trimmed) as {
       type?: string
-      delta?: { type?: string; text?: string }
+      index?: number
+      content_block?: { type?: string; id?: string; name?: string; text?: string }
+      delta?: { type?: string; text?: string; partial_json?: string }
       error?: { message?: string }
     }
     if (json.type === 'error' || json.error?.message) {
       throw new Error(json.error?.message || 'Anthropic stream error')
     }
     if (eventName === 'message_stop' || json.type === 'message_stop') return 'done'
+    if (json.type === 'content_block_start' && json.content_block?.type === 'tool_use') {
+      const idx = json.index ?? toolBlocks.length
+      toolBlocks[idx] = {
+        id: json.content_block.id || `call_${idx}`,
+        name: json.content_block.name || '',
+        json: '',
+      }
+      return null
+    }
+    if (
+      (eventName === 'content_block_delta' || json.type === 'content_block_delta') &&
+      json.delta?.type === 'input_json_delta' &&
+      typeof json.delta.partial_json === 'string'
+    ) {
+      const idx = json.index ?? toolBlocks.length - 1
+      if (idx >= 0 && toolBlocks[idx]) toolBlocks[idx]!.json += json.delta.partial_json
+      return null
+    }
     if (
       (eventName === 'content_block_delta' || json.type === 'content_block_delta') &&
       json.delta?.type === 'text_delta' &&
       typeof json.delta.text === 'string'
     ) {
-      return json.delta.text
+      return { content: json.delta.text }
     }
     return null
   } catch (err) {
@@ -268,16 +368,7 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
         model,
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens ?? 2048,
-        messages: options.messages.map((m) => {
-          const row: Record<string, unknown> = {
-            role: m.role,
-            content: m.content,
-          }
-          if (m.tool_calls?.length) row.tool_calls = m.tool_calls
-          if (m.tool_call_id) row.tool_call_id = m.tool_call_id
-          if (m.name) row.name = m.name
-          return row
-        }),
+        messages: toOpenAiChatMessages(options.messages),
         ...(options.tools?.length
           ? { tools: options.tools, tool_choice: 'auto' }
           : {}),
@@ -318,7 +409,7 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
   }
 }
 
-/** Streaming chat; calls onDelta for each text piece, returns final aggregate. */
+/** Streaming chat; calls onDelta for each text piece, returns final aggregate + optional tool calls. */
 export async function callLlmChatStream(
   options: LlmCallOptions,
   onDelta: StreamDeltaHandler,
@@ -342,7 +433,7 @@ export async function callLlmChatStream(
   }
 
   logger.info(
-    `[${tag}] stream-start provider=${providerName} format=${format} model=${model} base=${baseUrl} local=${local}`,
+    `[${tag}] stream-start provider=${providerName} format=${format} model=${model} base=${baseUrl} local=${local} tools=${options.tools?.length ?? 0}`,
   )
 
   const controller = new AbortController()
@@ -351,6 +442,20 @@ export async function callLlmChatStream(
   options.signal?.addEventListener('abort', onAbort)
 
   let assembled = ''
+  const openaiTools: ToolCallAcc = new Map()
+  const anthropicTools: Array<{ id: string; name: string; json: string }> = []
+
+  const finishOk = (text: string, toolCalls?: LlmToolCall[]): LlmChatResponse => {
+    const calls = toolCalls?.length ? toolCalls : undefined
+    if (!text && !calls?.length) {
+      logger.warn(`[${tag}] empty stream assembled`)
+      return { ok: false, error: 'Empty AI response.', providerName, model }
+    }
+    logger.info(
+      `[${tag}] stream-success text_len=${text.length} tools=${calls?.map((c) => c.function.name).join(',') || '-'}`,
+    )
+    return { ok: true, text: text || undefined, toolCalls: calls, providerName, model }
+  }
 
   try {
     if (format === 'anthropic') {
@@ -367,18 +472,21 @@ export async function callLlmChatStream(
       }
       if (apiKey) headers['x-api-key'] = apiKey
 
+      const body: Record<string, unknown> = {
+        model,
+        max_tokens: options.maxTokens ?? 2048,
+        temperature: options.temperature ?? 0.7,
+        stream: true,
+        ...(system ? { system } : {}),
+        messages: turns,
+      }
+      if (options.tools?.length) body.tools = toAnthropicTools(options.tools)
+
       const response = await fetch(`${baseUrl}/messages`, {
         method: 'POST',
         signal: controller.signal,
         headers,
-        body: JSON.stringify({
-          model,
-          max_tokens: options.maxTokens ?? 2048,
-          temperature: options.temperature ?? 0.7,
-          stream: true,
-          ...(system ? { system } : {}),
-          messages: turns,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -401,11 +509,11 @@ export async function callLlmChatStream(
           }
           if (!line.startsWith('data:')) return
           const payload = line.slice(5).trimStart()
-          const piece = parseAnthropicSse(eventName, payload)
+          const piece = parseAnthropicSse(eventName, payload, anthropicTools)
           if (piece === 'done') return 'stop'
-          if (typeof piece === 'string') {
-            assembled += piece
-            onDelta(piece)
+          if (piece && typeof piece === 'object' && piece.content) {
+            assembled += piece.content
+            onDelta(piece.content)
           }
         },
         controller.signal,
@@ -425,7 +533,8 @@ export async function callLlmChatStream(
           temperature: options.temperature ?? 0.7,
           max_tokens: options.maxTokens ?? 2048,
           stream: true,
-          messages: options.messages.map((m) => ({ role: m.role, content: m.content })),
+          messages: toOpenAiChatMessages(options.messages),
+          ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
         }),
       })
 
@@ -439,18 +548,18 @@ export async function callLlmChatStream(
         return { ok: false, error: 'Empty stream body.', providerName, model }
       }
 
-      // Some local servers ignore stream and return JSON — fallback once.
       const contentType = response.headers.get('content-type') || ''
       if (contentType.includes('application/json') && !contentType.includes('event-stream')) {
         const data = (await safeJson(response)) as ChatCompletionResponse
-        const text = data.choices?.[0]?.message?.content?.trim() ?? ''
-        if (!text) {
-          return { ok: false, error: 'Empty AI response.', providerName, model }
+        const message = data.choices?.[0]?.message
+        const toolCalls = message?.tool_calls?.filter((c) => c?.function?.name) ?? []
+        const text = message?.content?.trim() ?? ''
+        if (text) {
+          assembled = text
+          onDelta(text)
         }
-        assembled = text
-        onDelta(text)
-        logger.info(`[${tag}] stream-fallback-json text_len=${text.length}`)
-        return { ok: true, text, providerName, model }
+        logger.info(`[${tag}] stream-fallback-json text_len=${text.length} tools=${toolCalls.length}`)
+        return finishOk(text, toolCalls)
       }
 
       await readSseLines(
@@ -458,29 +567,34 @@ export async function callLlmChatStream(
         (line) => {
           if (!line.startsWith('data:')) return
           const payload = line.slice(5).trimStart()
-          const piece = parseOpenAiDelta(payload)
+          const piece = parseOpenAiDelta(payload, openaiTools)
           if (piece === 'done') return 'stop'
-          if (typeof piece === 'string') {
-            assembled += piece
-            onDelta(piece)
+          if (piece && typeof piece === 'object' && piece.content) {
+            assembled += piece.content
+            onDelta(piece.content)
           }
         },
         controller.signal,
       )
     }
 
-    const text = assembled.trim()
-    if (!text) {
-      logger.warn(`[${tag}] empty stream assembled`)
-      return { ok: false, error: 'Empty AI response.', providerName, model }
-    }
-    logger.info(`[${tag}] stream-success text_len=${text.length}`)
-    return { ok: true, text, providerName, model }
+    const toolCalls =
+      format === 'anthropic'
+        ? anthropicTools
+            .filter((b) => b.name)
+            .map((b) => ({
+              id: b.id,
+              type: 'function' as const,
+              function: { name: b.name, arguments: b.json || '{}' },
+            }))
+        : finalizedToolCalls(openaiTools)
+    return finishOk(assembled.trim(), toolCalls)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     logger.warn(`[${tag}] stream error: ${msg}`)
-    if (assembled.trim()) {
-      return { ok: true, text: assembled.trim(), providerName, model }
+    const toolCalls = finalizedToolCalls(openaiTools)
+    if (assembled.trim() || toolCalls.length) {
+      return { ok: true, text: assembled.trim() || undefined, toolCalls: toolCalls.length ? toolCalls : undefined, providerName, model }
     }
     return { ok: false, error: msg, providerName, model }
   } finally {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_STOCKS_RANGE_KEYS, KNOWLEDGE_VECTOR_STORES } from '../src/index'
+import { ALL_STOCKS_RANGE_KEYS, KNOWLEDGE_VECTOR_STORES, isDirectChatAgentId } from '../src/index'
 
 describe('shared constants', () => {
   it('exposes stock range keys', () => {
@@ -11,5 +11,13 @@ describe('shared constants', () => {
     expect(KNOWLEDGE_VECTOR_STORES).toEqual(
       expect.arrayContaining(['sqlite_json', 'qdrant', 'chroma', 'pinecone', 'weaviate']),
     )
+  })
+
+  it('treats empty / none / direct as workbench chat, not an agent', () => {
+    expect(isDirectChatAgentId('direct')).toBe(true)
+    expect(isDirectChatAgentId('')).toBe(true)
+    expect(isDirectChatAgentId('none')).toBe(true)
+    expect(isDirectChatAgentId('stocks')).toBe(false)
+    expect(isDirectChatAgentId('custom_abc')).toBe(false)
   })
 })

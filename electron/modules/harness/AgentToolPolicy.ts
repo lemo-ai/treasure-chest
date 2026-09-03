@@ -1,3 +1,5 @@
+import { isDirectChatAgentId } from '@shared'
+
 /** Resolved tool surface for one agent + optional request overrides. */
 export interface AgentToolPolicy {
   enableCodingTools: boolean
@@ -20,19 +22,30 @@ export function resolveAgentToolPolicy(
   overrides: AgentToolPolicyOverrides = {},
 ): AgentToolPolicy {
   const id = (agentId || 'direct').trim()
+  if (isDirectChatAgentId(id)) {
+    return {
+      enableCodingTools: false,
+      enableHarnessTools: false,
+      enablePluginTools: false,
+      enableSpawnSubagent: false,
+      enableMcpTools: false,
+    }
+  }
+
   const isDomainBuiltin = id === 'fortune' || id === 'stocks'
-  const isOpenAgent = id === 'direct' || id === 'none' || id === '' || id.startsWith('custom_')
+  const isCustom = id.startsWith('custom_')
 
   const policy: AgentToolPolicy = {
-    enableCodingTools: isOpenAgent,
-    enableHarnessTools: true,
-    enablePluginTools: isOpenAgent,
-    enableSpawnSubagent: isOpenAgent,
-    enableMcpTools: isOpenAgent,
+    enableCodingTools: isCustom,
+    enableHarnessTools: isCustom,
+    enablePluginTools: isCustom,
+    enableSpawnSubagent: isCustom,
+    enableMcpTools: isCustom,
   }
 
   if (isDomainBuiltin) {
     policy.enableCodingTools = false
+    policy.enableHarnessTools = false
     policy.enablePluginTools = false
     policy.enableSpawnSubagent = false
     policy.enableMcpTools = false

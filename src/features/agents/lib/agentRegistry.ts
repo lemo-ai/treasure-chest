@@ -1,9 +1,11 @@
+import { DIRECT_CHAT_AGENT_ID, isDirectChatAgentId } from '@shared'
+
 export type AgentTone = 'brand' | 'accent' | 'highlight'
 
 export type BuiltinAgentId = 'fortune' | 'stocks'
 
 /** Direct model chat without a domain agent persona. */
-export const DIRECT_CHAT_ID = 'direct' as const
+export const DIRECT_CHAT_ID = DIRECT_CHAT_AGENT_ID as typeof DIRECT_CHAT_AGENT_ID
 
 /** Builtin ids, direct mode, or custom ids like `custom_xxx`. */
 export type AgentId = BuiltinAgentId | typeof DIRECT_CHAT_ID | (string & {})
@@ -138,7 +140,7 @@ function writeCustom(agents: AgentDef[]): void {
 }
 
 export function isDirectChatId(id: string): boolean {
-  return id === DIRECT_CHAT_ID || id === 'none' || id === ''
+  return isDirectChatAgentId(id)
 }
 
 /** Domain agents only (excludes direct chat). */

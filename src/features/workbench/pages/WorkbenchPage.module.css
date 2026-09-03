@@ -525,25 +525,11 @@
   gap: 0.35rem;
 }
 
-.streamStatusHint {
-  font-size: 0.8rem;
-  color: var(--color-ink-tertiary);
-  padding: 0.15rem 0.1rem;
-}
-
 .bubbleAssistant {
   background: var(--color-bg-elevated);
   color: var(--color-ink);
   border: 1px solid var(--color-border);
   border-bottom-left-radius: 10px;
-}
-
-.bubbleThinking {
-  opacity: 0.85;
-  font-style: italic;
-  color: var(--color-ink-secondary);
-  font-size: 0.92rem;
-  padding: 0.35rem 0.1rem;
 }
 
 .localTag {

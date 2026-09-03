@@ -1,10 +1,12 @@
-import type { BirthProfile, FortuneSettings, StockMarket } from '@shared'
+import type { BirthProfile, FortuneSettings, StockMarket, StocksReport } from '@shared'
 import { computeDailyFortune } from '../../../../src/features/fortune/lib/FortuneService'
 import { fortuneStore } from '../../fortune/FortuneStore'
 import { settingsStore } from '../../settings/SettingsStore'
 import { getQuoteSnapshot } from '../../stocks/PriceRangeService'
+import { generateStocksReportFromWatchlist } from '../../stocks/StocksService'
 import { stocksStore } from '../../stocks/StocksStore'
 import { searchKnowledge } from '../../knowledge/KnowledgeStore'
+import { fetchWebPage, searchStockSymbols, searchWeb } from './webLookup'
 import { logger } from '../../../utils/logger'
 
 export interface ToolExecContext {
@@ -98,13 +100,23 @@ async function getStockQuote(args: Record<string, unknown>): Promise<string> {
   }
   try {
     const quote = await getQuoteSnapshot({ market: market as StockMarket, symbol })
+    const recent = quote.bars.slice(-12).map((b) => ({
+      date: b.date,
+      close: b.close,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+    }))
     return JSON.stringify({
       market,
       symbol,
+      asOf: recent[recent.length - 1]?.date,
       price: quote.price,
       currency: quote.currency,
-      ranges: quote.ranges,
+      rangesPct: quote.ranges,
+      recentBars: recent,
       fromCache: quote.fromCache,
+      disclaimer: 'Not investment advice. Past range ≠ future return.',
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -112,17 +124,13 @@ async function getStockQuote(args: Record<string, unknown>): Promise<string> {
   }
 }
 
-function getLatestReport(): string {
-  const report = stocksStore.getLatestReport()
-  if (!report) {
-    return JSON.stringify({
-      error: 'No local stocks report yet. User can generate one on the Stocks page.',
-    })
-  }
+function formatReportPayload(report: StocksReport, generatedNow: boolean): string {
   return JSON.stringify({
     date: report.date,
     generatedAt: report.generatedAt,
+    generatedNow,
     marketStatus: report.marketStatus,
+    disclaimer: report.disclaimer,
     recommendations: (report.recommendations ?? []).slice(0, 12).map((r) => ({
       market: r.market,
       symbol: r.symbol,
@@ -134,6 +142,25 @@ function getLatestReport(): string {
       ranges: r.ranges,
     })),
   })
+}
+
+/** Prefer cached report; if none, generate once (same as daily-brief workflow). */
+async function getLatestReport(): Promise<string> {
+  const existing = stocksStore.getLatestReport()
+  if (existing) return formatReportPayload(existing, false)
+
+  try {
+    const report = await generateStocksReportFromWatchlist()
+    return formatReportPayload(report, true)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.warn(`get_latest_stocks_report auto-generate failed: ${msg}`)
+    return JSON.stringify({
+      error: 'No local stocks report yet, and auto-generate failed.',
+      detail: msg,
+      hint: 'Open the Stocks page, add watchlist/scanner symbols, then click Generate.',
+    })
+  }
 }
 
 async function searchKb(args: Record<string, unknown>): Promise<string> {
@@ -169,9 +196,15 @@ export async function executeBuiltinTool(
       case 'get_stock_quote':
         return await getStockQuote(args)
       case 'get_latest_stocks_report':
-        return getLatestReport()
+        return await getLatestReport()
       case 'search_knowledge':
         return await searchKb(args)
+      case 'search_web':
+        return await searchWeb(String(args.query || ''))
+      case 'search_stock':
+        return await searchStockSymbols(String(args.query || ''))
+      case 'fetch_url':
+        return await fetchWebPage(String(args.url || ''))
       default:
         return JSON.stringify({ error: `unknown tool: ${name}` })
     }

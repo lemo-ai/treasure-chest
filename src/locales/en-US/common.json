@@ -126,7 +126,6 @@
   "workbench.memoryDelete": "Delete",
   "workbench.memoryEmpty": "No facts yet. Memory persists across sessions for this agent.",
   "workbench.trajectory": "Trajectory",
-  "workbench.stepTimeline": "Run timeline",
   "workbench.trajectorySub": "Session event log: turns, steps, tools, subagents, and goals.",
   "workbench.trajectoryClose": "Close trajectory",
   "workbench.trajectoryEmpty": "No events yet. Send a message to record the full run trace.",

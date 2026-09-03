@@ -1,4 +1,5 @@
 import type { LlmToolSpec } from '@shared'
+import { isDirectChatAgentId } from '@shared'
 
 const weatherTool: LlmToolSpec = {
   type: 'function',
@@ -39,12 +40,12 @@ const quoteTool: LlmToolSpec = {
   function: {
     name: 'get_stock_quote',
     description:
-      'Fetch a stock quote snapshot (last close and range returns) for a CN or US symbol.',
+      'Fetch last close, range returns, and recent daily bars for a CN or US symbol. A-share examples: 688836.SH / 688836. Yahoo may fail; CN quotes fall back to Eastmoney. Call after search_stock if the ticker was unknown.',
     parameters: {
       type: 'object',
       properties: {
         market: { type: 'string', enum: ['CN', 'US'], description: 'Market' },
-        symbol: { type: 'string', description: 'Ticker, e.g. 600519 or AAPL' },
+        symbol: { type: 'string', description: 'Ticker, e.g. 688836.SH / 600519 / AAPL' },
       },
       required: ['market', 'symbol'],
     },
@@ -56,7 +57,7 @@ const reportTool: LlmToolSpec = {
   function: {
     name: 'get_latest_stocks_report',
     description:
-      'Load the latest local stocks recommendation report (watchlist/scanner). Prefer this before inventing picks.',
+      'Load the latest local stocks recommendation report (watchlist/scanner). If none exists, generates one first. Prefer this before inventing picks.',
     parameters: {
       type: 'object',
       properties: {},
@@ -82,20 +83,74 @@ const knowledgeTool: LlmToolSpec = {
   },
 }
 
+const webSearchTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'search_web',
+    description:
+      'Live web search (Bing News + Google News + Wikipedia). MUST call for current events, IPO/listing status, prices, company news, or anything after your training cutoff. You may call it in parallel with search_stock. Do not answer listing/price questions from memory.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query, e.g. 宇树科技 股票代码' },
+      },
+      required: ['query'],
+    },
+  },
+}
+
+const stockSearchTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'search_stock',
+    description:
+      'Resolve a company name to listed tickers (Eastmoney + Sina + Yahoo). MUST call when the user names a company without a ticker (e.g. 宇树科技). Then call get_stock_quote. Empty quotes means lookup failed, NOT that the company is private.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Company name or ticker, e.g. 宇树科技 / Unitree / AAPL' },
+      },
+      required: ['query'],
+    },
+  },
+}
+
+const fetchUrlTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'fetch_url',
+    description:
+      'Open a public HTTP(S) page and return extracted text. Use after search_web when a headline is relevant and you need the article body (like ChatGPT browsing).',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Full http(s) URL from search results' },
+      },
+      required: ['url'],
+    },
+  },
+}
+
 export function builtinToolsForAgent(
   agentId: string,
   opts?: { useKnowledge?: boolean },
 ): LlmToolSpec[] {
   const id = (agentId || 'direct').trim()
-  const tools: LlmToolSpec[] = [weatherTool]
 
-  if (id === 'fortune') tools.push(fortuneTool)
-  if (id === 'stocks') tools.push(quoteTool, reportTool)
-  if (id === 'direct' || id === 'none' || id === '' || opts?.useKnowledge) {
-    tools.push(knowledgeTool)
+  // Direct chat: model text only. Tools belong to named agents.
+  if (isDirectChatAgentId(id)) {
+    return opts?.useKnowledge ? [knowledgeTool] : []
   }
-  // Custom agents also get weather + knowledge
-  if (id.startsWith('custom_')) tools.push(knowledgeTool)
+
+  const tools: LlmToolSpec[] = []
+  if (id === 'fortune') {
+    tools.push(fortuneTool, weatherTool)
+  } else if (id === 'stocks') {
+    tools.push(webSearchTool, stockSearchTool, quoteTool, fetchUrlTool, reportTool)
+  } else {
+    tools.push(weatherTool, webSearchTool, stockSearchTool, quoteTool, fetchUrlTool)
+    if (opts?.useKnowledge || id.startsWith('custom_')) tools.push(knowledgeTool)
+  }
 
   // Deduplicate by name
   const seen = new Set<string>()
@@ -119,6 +174,12 @@ export function toolStatusLabel(name: string, locale: string): string {
       return en ? 'Loading stocks report…' : '正在读取荐股报告…'
     case 'search_knowledge':
       return en ? 'Searching knowledge base…' : '正在检索知识库…'
+    case 'search_web':
+      return en ? 'Searching the web…' : '正在搜索网络…'
+    case 'search_stock':
+      return en ? 'Looking up ticker…' : '正在查找股票代码…'
+    case 'fetch_url':
+      return en ? 'Opening page…' : '正在打开网页…'
     case 'read_file':
       return en ? 'Reading file…' : '正在读取文件…'
     case 'list_dir':
@@ -185,6 +246,12 @@ export function toolDisplayName(name: string, locale: string): string {
       return en ? 'Stocks report' : '荐股报告'
     case 'search_knowledge':
       return en ? 'Knowledge search' : '知识库检索'
+    case 'search_web':
+      return en ? 'Web search' : '网络搜索'
+    case 'search_stock':
+      return en ? 'Ticker lookup' : '股票代码查找'
+    case 'fetch_url':
+      return en ? 'Open page' : '打开网页'
     case 'read_file':
       return en ? 'Read file' : '读文件'
     case 'list_dir':

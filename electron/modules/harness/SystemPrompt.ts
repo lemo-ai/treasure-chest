@@ -1,4 +1,5 @@
 import type { FortuneSettings, LlmChatRequest } from '@shared'
+import { isDirectChatAgentId } from '@shared'
 import { wantsKnowledge } from './ToolRegistry'
 import { goalsPromptSection } from './GoalsStore'
 import { runInjectHooks } from './plugins/PluginHooks'
@@ -22,16 +23,39 @@ const BUILTIN_SYSTEM: Record<string, { zh: string; en: string }> = {
     zh: [
       '你是「袖里乾坤」内置智能体「股票参谋」。',
       '帮助用户理解行情、资讯与荐股报告逻辑，给出可核对的分析思路。',
-      '需要行情时调用 get_stock_quote；需要本地荐股报告时调用 get_latest_stocks_report。',
-      '不做保证收益的承诺；提醒风险与信息时效。',
+      '需要行情时调用 get_stock_quote；不知道代码时并行调用 search_stock + search_web。需要文章细节时 fetch_url。',
+      '上市与否、涨跌数字只采工具。search_stock 无结果要再搜，不能直接说未上市。不编造精确未来涨跌。',
     ].join('\n'),
     en: [
       'You are Qiankun’s built-in “Stock Advisor” agent.',
       'Help users reason about quotes, news, and report logic with checkable steps.',
-      'Use get_stock_quote for prices and get_latest_stocks_report for the local report.',
-      'Never promise returns; call out risk and data freshness.',
+      'Use get_stock_quote for prices. Unknown ticker: call search_stock and search_web in parallel. Use fetch_url for article bodies.',
+      'Listing status and prices come from tools only. Empty lookup is not “unlisted”. No promised return forecasts.',
     ].join('\n'),
   },
+}
+
+function todayLocalYmd(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function liveDataPolicy(isEn: boolean): string {
+  const today = todayLocalYmd()
+  return isEn
+    ? [
+        `Today's local date is ${today}. Your training cutoff is NOT current time.`,
+        'For news, listing/IPO status, stock prices, weather, or any fact that can change: call tools FIRST (search_web, search_stock, get_stock_quote, fetch_url). You may call several in parallel.',
+        'If tools conflict with memory, trust tools. Empty search ≠ unlisted/does-not-exist — retry or fetch_url a result link.',
+        'Cite source titles. Do not invent tickers or prices. No guaranteed return forecasts.',
+      ].join('\n')
+    : [
+        `今天本地日期是 ${today}。你的训练截止日期不等于今天。`,
+        '新闻、是否上市、股价、天气等会变的事实：必须先调工具（search_web、search_stock、get_stock_quote、fetch_url），可并行调用。',
+        '工具结果与记忆冲突时以工具为准。检索为空只表示本次失败，不是「未上市/不存在」。',
+        '回答时点出来源标题。禁止编造代码或价格。禁止保证收益的趋势预测。',
+      ].join('\n')
 }
 
 function memoryHint(req: LlmChatRequest, isEn: boolean): string {
@@ -102,14 +126,9 @@ export async function assembleSystemPrompt(
     : ''
 
   const parts: string[] = []
+  const isDirect = isDirectChatAgentId(agentId)
 
-  if (!agentId || agentId === 'direct' || agentId === 'none') {
-    parts.push(
-      isEn
-        ? 'Answer the user directly and helpfully. Do not role-play as a fortune or stock specialist unless the user asks.'
-        : '直接、清楚地回答用户问题。除非用户明确要求，否则不要扮演运势或股票等垂直领域助手。',
-    )
-  } else {
+  if (!isDirect) {
     const custom = req.systemPrompt?.trim()
     if (custom) {
       parts.push(
@@ -132,10 +151,11 @@ export async function assembleSystemPrompt(
         )
       }
     }
+    if (toolNames.length) parts.push(liveDataPolicy(isEn))
   }
 
   parts.push(modeHint, knowledgeHint, memoryHint(req, isEn), toolHint)
-  if (sessionId) {
+  if (sessionId && !isDirect) {
     const goals = goalsPromptSection(sessionId)
     if (goals) parts.push(goals)
     const inject = await runInjectHooks({

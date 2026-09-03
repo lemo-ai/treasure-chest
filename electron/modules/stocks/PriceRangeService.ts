@@ -13,10 +13,14 @@ function todayYmd(): string {
 
 function toYahooSymbol(item: { market: StockMarket; symbol: string }): string {
   if (item.market === 'US') return item.symbol
-  if (item.symbol.endsWith('.SH')) return item.symbol.replace('.SH', '.SS')
-  if (item.symbol.endsWith('.SZ')) return item.symbol
-  // benchmark helpers like 000300.SS already Yahoo-ready
-  return item.symbol
+  const s = item.symbol.trim().toUpperCase()
+  if (s.endsWith('.SH')) return s.replace(/\.SH$/, '.SS')
+  if (s.endsWith('.SZ') || s.endsWith('.SS')) return s
+  if (/^\d{6}$/.test(s)) {
+    if (s.startsWith('6') || s.startsWith('9')) return `${s}.SS`
+    return `${s}.SZ`
+  }
+  return s
 }
 
 function rangePctByBars(bars: OhlcBar[], tradingDays: number): number {
@@ -179,6 +183,48 @@ async function fetchYahooDailyBars(item: { market: StockMarket; symbol: string }
   return { bars, currency }
 }
 
+function eastmoneySecid(symbol: string): string | null {
+  const raw = symbol.trim().toUpperCase()
+  const code = raw.replace(/\.(SH|SS|SZ)$/, '')
+  if (!/^\d{6}$/.test(code)) return null
+  const sz = raw.endsWith('.SZ') || (!raw.includes('.') && !(code.startsWith('6') || code.startsWith('9')))
+  return sz ? `0.${code}` : `1.${code}`
+}
+
+async function fetchEastmoneyDailyBars(item: { market: StockMarket; symbol: string }): Promise<{
+  bars: OhlcBar[]
+  currency: string
+}> {
+  const secid = eastmoneySecid(item.symbol)
+  if (!secid) throw new Error(`eastmoney secid unknown for ${item.symbol}`)
+  const url =
+    `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}` +
+    `&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&end=20500101&lmt=400`
+  const resp = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://quote.eastmoney.com/' },
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!resp.ok) throw new Error(`eastmoney ${item.symbol} http ${resp.status}`)
+  const json = (await resp.json()) as { data?: { klines?: string[]; name?: string } }
+  const lines = json.data?.klines ?? []
+  const bars: OhlcBar[] = []
+  for (const line of lines) {
+    const p = line.split(',')
+    const close = Number(p[2])
+    if (!Number.isFinite(close) || !p[0]) continue
+    bars.push({
+      date: p[0]!,
+      open: Number(p[1]) || close,
+      close,
+      high: Number(p[3]) || close,
+      low: Number(p[4]) || close,
+      volume: Number(p[5]) || undefined,
+    })
+  }
+  if (bars.length === 0) throw new Error(`eastmoney no bars for ${item.symbol}`)
+  return { bars, currency: 'CNY' }
+}
+
 export interface QuoteSnapshot {
   price: number
   currency: string
@@ -216,9 +262,26 @@ export async function getQuoteSnapshot(item: WatchlistItem | { market: StockMark
       fromCache: false,
       bars: remote.bars,
     }
-  } catch (err) {
+  } catch (yahooErr) {
+    if (market === 'CN') {
+      try {
+        const remote = await fetchEastmoneyDailyBars({ market, symbol })
+        upsertBars(market, symbol, remote.bars, remote.currency)
+        return {
+          price: remote.bars[remote.bars.length - 1]!.close,
+          currency: remote.currency,
+          ranges: computePriceRanges(remote.bars),
+          sparkline: computeSparkline(remote.bars),
+          fromCache: false,
+          bars: remote.bars,
+        }
+      } catch (emErr) {
+        logger.warn(`yahoo+eastmoney quote failed for ${market}:${symbol}`, yahooErr, emErr)
+      }
+    } else {
+      logger.warn(`quote fetch failed for ${market}:${symbol}`, yahooErr)
+    }
     if (cached.length >= 2) {
-      logger.warn(`quote fetch failed, using stale cache for ${market}:${symbol}`, err)
       return {
         price: cached[cached.length - 1]!.close,
         currency: meta.currency ?? (market === 'US' ? 'USD' : 'CNY'),
@@ -228,7 +291,7 @@ export async function getQuoteSnapshot(item: WatchlistItem | { market: StockMark
         bars: cached,
       }
     }
-    throw err
+    throw yahooErr
   }
 }
 

@@ -85,7 +85,7 @@ import {
 } from '../lib/sessionStore'
 import { MarkdownMessage } from '../components/MarkdownMessage'
 import { ToolStepsCard } from '../components/ToolStepsCard'
-import { StepTimelinePanel } from '../components/StepTimelinePanel'
+import { ThinkingIndicator } from '../components/ThinkingIndicator'
 import { ArtifactsPanel } from '../components/ArtifactsPanel'
 import { MemoryPanel } from '../components/MemoryPanel'
 import { agentChatToolFlags } from '../lib/agentChatToolFlags'
@@ -1621,23 +1621,16 @@ export function WorkbenchPage(): React.JSX.Element {
               })}
               {sending && streamSessionId === activeId ? (
                 <div className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
-                  <div
-                    className={`${styles.assistantMessage} ${
-                      streamText ? '' : styles.bubbleThinking
-                    }`}
-                  >
+                  <div className={styles.assistantMessage}>
                     {streamToolSteps.length > 0 ? (
                       <ToolStepsCard steps={streamToolSteps} defaultOpen />
-                    ) : null}
-                    {liveSessionEvents.length > 0 ? (
-                      <StepTimelinePanel events={liveSessionEvents} />
                     ) : null}
                     {streamText ? (
                       <MarkdownMessage content={streamText} streaming />
                     ) : streamToolSteps.length === 0 ? (
-                      streamStatus || t('workbench.thinking')
+                      <ThinkingIndicator label={streamStatus || t('workbench.thinking')} />
                     ) : streamStatus ? (
-                      <div className={styles.streamStatusHint}>{streamStatus}</div>
+                      <ThinkingIndicator label={streamStatus} />
                     ) : null}
                     {streamCitations.length > 0 && streamText ? (
                       <div className={styles.citations}>

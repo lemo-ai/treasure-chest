@@ -126,7 +126,6 @@
   "workbench.memoryDelete": "删除",
   "workbench.memoryEmpty": "暂无记忆。添加后，切换会话也会保留。",
   "workbench.trajectory": "轨迹",
-  "workbench.stepTimeline": "运行时间线",
   "workbench.trajectorySub": "会话事件日志：Turn / Step / 工具 / 子智能体 / 目标。",
   "workbench.trajectoryClose": "关闭轨迹",
   "workbench.trajectoryEmpty": "暂无事件。发送消息后将记录完整运行轨迹。",

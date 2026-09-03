@@ -10,7 +10,7 @@ import type {
   SessionEventType,
   ToolApprovalRequest,
 } from '@shared'
-import { DEFAULT_HARNESS_CONFIG, HARNESS_ABSOLUTE_MAX_STEPS } from '@shared'
+import { DEFAULT_HARNESS_CONFIG, HARNESS_ABSOLUTE_MAX_STEPS, isDirectChatAgentId } from '@shared'
 import { callLlmChat, callLlmChatStream } from '../llm/LlmClient'
 import { appendEvent, listEvents } from './SessionRepo'
 import { ToolRegistry, eventsToChatMessages, wantsKnowledge } from './ToolRegistry'
@@ -92,7 +92,8 @@ async function maybeContinueForActiveGoals(
     !sessionId ||
     !result.ok ||
     isTurnCancelled(abortSignal) ||
-    goalContinuationDepth >= config.maxGoalContinuations
+    goalContinuationDepth >= config.maxGoalContinuations ||
+    isDirectChatAgentId(req.agentId)
   ) {
     return result
   }
@@ -169,6 +170,7 @@ async function runAgentTurnInner(
 ): Promise<AgentLoopResult> {
   const sessionId = req.sessionId?.trim()
   const agentId = req.agentId || 'direct'
+  const directChat = isDirectChatAgentId(agentId)
   const endpoint = settingsToLlmEndpoint(settings)
   const model = (req.model?.trim() || endpoint.model).trim()
   const locale = req.locale ?? 'zh-CN'
@@ -277,24 +279,33 @@ async function runAgentTurnInner(
   const maxSteps = effectiveMaxSteps(config)
   const chunkPending = { text: '' }
   if (sessionId) activeChunkPending.set(sessionId, chunkPending)
+  const streamDelta = (delta: string): void => {
+    if (sessionId && delta) {
+      chunkPending.text += delta
+      if (chunkPending.text.length >= 24) flushAssistantChunk(sessionId, chunkPending, callbacks)
+    }
+    callbacks.onDelta?.(delta)
+  }
 
   try {
   for (stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
     throwIfCancelled(abortSignal)
     if (sessionId) {
       record('step/start', { turnIndex, stepIndex })
-      const pre = await runPreStepHooks({ sessionId, turnIndex, stepIndex, agentId })
-      if (pre.injectSystem?.trim()) {
-        record('system/inject', { section: 'pre-step', content: pre.injectSystem.trim() })
-        messages = eventsToChatMessages(listEvents(sessionId), system, config.maxContextMessages)
-      }
-      if (pre.skipStep) {
-        record('step/end', { turnIndex, stepIndex })
-        continue
+      if (!directChat) {
+        const pre = await runPreStepHooks({ sessionId, turnIndex, stepIndex, agentId })
+        if (pre.injectSystem?.trim()) {
+          record('system/inject', { section: 'pre-step', content: pre.injectSystem.trim() })
+          messages = eventsToChatMessages(listEvents(sessionId), system, config.maxContextMessages)
+        }
+        if (pre.skipStep) {
+          record('step/end', { turnIndex, stepIndex })
+          continue
+        }
       }
     }
 
-    const result = await callLlmChat({
+    const llmOptions = {
       ...endpoint,
       model,
       messages,
@@ -304,7 +315,10 @@ async function runAgentTurnInner(
       timeoutMs: 120_000,
       signal: abortSignal,
       tag: `harness-${req.agentId || 'direct'}-t${turnIndex}-s${stepIndex}`,
-    })
+    }
+    const result = callbacks.onDelta
+      ? await callLlmChatStream(llmOptions, streamDelta)
+      : await callLlmChat(llmOptions)
 
     throwIfCancelled(abortSignal)
 
@@ -323,19 +337,22 @@ async function runAgentTurnInner(
     const calls = result.toolCalls ?? []
     if (!calls.length) {
       finalText = result.text?.trim() ?? ''
+      if (sessionId) flushAssistantChunk(sessionId, chunkPending, callbacks)
       if (sessionId && finalText) {
-        const stop = await runTurnStoppingHooks({
-          sessionId,
-          turnIndex,
-          reason: 'complete',
-          finalText,
-          agentId,
-        })
-        if (stop.continueTurn && stop.message?.trim()) {
-          record('user/message', { content: stop.message.trim() })
-          messages = eventsToChatMessages(listEvents(sessionId), system, config.maxContextMessages)
-          record('step/end', { turnIndex, stepIndex })
-          continue
+        if (!directChat) {
+          const stop = await runTurnStoppingHooks({
+            sessionId,
+            turnIndex,
+            reason: 'complete',
+            finalText,
+            agentId,
+          })
+          if (stop.continueTurn && stop.message?.trim()) {
+            record('user/message', { content: stop.message.trim() })
+            messages = eventsToChatMessages(listEvents(sessionId), system, config.maxContextMessages)
+            record('step/end', { turnIndex, stepIndex })
+            continue
+          }
         }
         record('assistant/message', {
           content: finalText,
@@ -349,7 +366,6 @@ async function runAgentTurnInner(
         record('step/end', { turnIndex, stepIndex })
         record('turn/end', { turnIndex, reason: 'complete' })
       }
-      if (finalText && callbacks.onDelta) callbacks.onDelta(finalText)
       return maybeContinueForActiveGoals(
         {
           ok: true,
@@ -372,6 +388,7 @@ async function runAgentTurnInner(
     }
 
     if (sessionId) {
+      flushAssistantChunk(sessionId, chunkPending, callbacks)
       for (const call of calls) {
         record('tool/call', {
           id: call.id,
@@ -613,14 +630,6 @@ async function runAgentTurnInner(
   callbacks.onStatus?.(isEn ? 'Writing reply…' : '正在生成回复…')
   throwIfCancelled(abortSignal)
 
-  const streamDelta = (delta: string): void => {
-    if (sessionId && delta) {
-      chunkPending.text += delta
-      if (chunkPending.text.length >= 256) flushAssistantChunk(sessionId, chunkPending, callbacks)
-    }
-    callbacks.onDelta?.(delta)
-  }
-
   const streamed = callbacks.onDelta
     ? await callLlmChatStream(
         {
@@ -653,16 +662,18 @@ async function runAgentTurnInner(
   if (streamed.ok && streamed.text?.trim()) {
     finalText = streamed.text.trim()
     if (sessionId) {
-      const stop = await runTurnStoppingHooks({
-        sessionId,
-        turnIndex,
-        reason: stepIndex >= maxSteps ? 'max_steps' : 'complete',
-        finalText,
-        agentId,
-      })
-      if (stop.continueTurn && stop.message?.trim()) {
-        record('user/message', { content: stop.message.trim() })
-        return runAgentTurnInner(req, settings, callbacks, config, abortSignal, goalContinuationDepth)
+      if (!directChat) {
+        const stop = await runTurnStoppingHooks({
+          sessionId,
+          turnIndex,
+          reason: stepIndex >= maxSteps ? 'max_steps' : 'complete',
+          finalText,
+          agentId,
+        })
+        if (stop.continueTurn && stop.message?.trim()) {
+          record('user/message', { content: stop.message.trim() })
+          return runAgentTurnInner(req, settings, callbacks, config, abortSignal, goalContinuationDepth)
+        }
       }
       record('assistant/message', {
         content: finalText,
