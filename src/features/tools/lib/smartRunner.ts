@@ -1,6 +1,7 @@
 import type { ImageSmartRunRequest, ImageSmartRunResult } from '@shared'
 import { denoiseImage, replaceBackgroundColor, upscaleImage } from './canvasOps'
 import { removeBackgroundWithIsnet } from './isnetOnnx'
+import { removeWatermarkWithLama } from './lamaOnnx'
 import { removeBackgroundWithU2Net } from './u2netOnnx'
 
 async function logActivity(
@@ -31,6 +32,31 @@ async function runLocalOnnxCutout(imageDataUrl: string, modelId: string): Promis
     return removeBackgroundWithIsnet(imageDataUrl, weight.data, `${modelId}:${weight.fileName}`)
   }
   return removeBackgroundWithU2Net(imageDataUrl, weight.data, `${modelId}:${weight.fileName}`)
+}
+
+async function runLocalLamaInpaint(
+  imageDataUrl: string,
+  maskDataUrl: string | undefined,
+  modelId: string,
+): Promise<string> {
+  if (!maskDataUrl) {
+    throw new Error('mask_required')
+  }
+  await logActivity('info', 'Loading LaMa ONNX weights…', modelId)
+  const weight = await window.treasureChest.readImageVisionModelWeight(modelId)
+  if (!weight.ok) {
+    throw new Error(weight.error || 'onnx_not_found')
+  }
+  if (!weight.fileName.toLowerCase().endsWith('.onnx')) {
+    throw new Error('lama_need_onnx')
+  }
+  await logActivity('info', `LaMa loaded (${weight.fileName}), inpainting…`, modelId)
+  return removeWatermarkWithLama(
+    imageDataUrl,
+    maskDataUrl,
+    weight.data,
+    `${modelId}:${weight.fileName}`,
+  )
 }
 
 export async function runSmartInRenderer(
@@ -67,6 +93,16 @@ export async function runSmartInRenderer(
       const filled = await replaceBackgroundColor(cutUrl, payload.fillColor || '#ffffff')
       await logActivity('info', 'Background replace done', modelId)
       return { ok: true, modelId, imageDataUrl: filled }
+    }
+
+    if (payload.task === 'remove_watermark') {
+      const imageDataUrl = await runLocalLamaInpaint(
+        payload.imageDataUrl,
+        payload.maskDataUrl,
+        modelId,
+      )
+      await logActivity('info', 'Watermark removal done', modelId)
+      return { ok: true, modelId, imageDataUrl }
     }
 
     if (payload.task === 'upscale') {

@@ -624,37 +624,39 @@ export async function runSmartInMain(payload: ImageSmartRunRequest): Promise<Ima
         error: 'runtime_pending',
       }
     }
-    if (resolvedId === 'birefnet') {
-      const weight = findOnnxWeight(resolvedId)
-      if (!weight) {
-        appendActivity({
-          scope: 'image.smart',
-          level: 'warn',
-          message: `ONNX weight missing for ${resolvedId}`,
-          detail: state.path ?? modelDir(resolvedId),
-        })
-        return {
-          ok: false,
-          reason: 'model_not_installed',
-          modelId: resolvedId,
-          error: 'model_not_installed',
+    if (resolvedId === 'birefnet' || resolvedId === 'imgly-rembg') {
+      if (resolvedId === 'birefnet') {
+        const weight = findOnnxWeight(resolvedId)
+        if (!weight) {
+          appendActivity({
+            scope: 'image.smart',
+            level: 'warn',
+            message: `ONNX weight missing for ${resolvedId}`,
+            detail: state.path ?? modelDir(resolvedId),
+          })
+          return {
+            ok: false,
+            reason: 'model_not_installed',
+            modelId: resolvedId,
+            error: 'model_not_installed',
+          }
         }
       }
-    }
-    if (resolvedId === 'imgly-rembg') {
-      const dir = modelDir(resolvedId)
-      if (!existsSync(join(dir, 'resources.json')) && !findOnnxWeight(resolvedId)) {
-        appendActivity({
-          scope: 'image.smart',
-          level: 'warn',
-          message: `IMG.LY resources missing for ${resolvedId}`,
-          detail: dir,
-        })
-        return {
-          ok: false,
-          reason: 'model_not_installed',
-          modelId: resolvedId,
-          error: 'model_not_installed',
+      if (resolvedId === 'imgly-rembg') {
+        const dir = modelDir(resolvedId)
+        if (!existsSync(join(dir, 'resources.json')) && !findOnnxWeight(resolvedId)) {
+          appendActivity({
+            scope: 'image.smart',
+            level: 'warn',
+            message: `IMG.LY resources missing for ${resolvedId}`,
+            detail: dir,
+          })
+          return {
+            ok: false,
+            reason: 'model_not_installed',
+            modelId: resolvedId,
+            error: 'model_not_installed',
+          }
         }
       }
     }
@@ -668,30 +670,42 @@ export async function runSmartInMain(payload: ImageSmartRunRequest): Promise<Ima
   }
 
   if (payload.task === 'remove_watermark') {
-    const dir = state.path ?? modelDir(resolvedId)
-    const files = existsSync(dir)
-      ? readdirSync(dir).filter((f) => f !== '.installed' && f !== 'README.txt')
-      : []
-    if (files.length === 0) {
+    if (entry?.runtime === 'import_pending') {
       appendActivity({
         scope: 'image.smart',
         level: 'warn',
-        message: `LaMa weights missing under ${dir}`,
+        message: `Runtime pending: ${resolvedId}`,
+        detail: payload.task,
       })
-      return { ok: false, reason: 'model_not_installed', modelId: resolvedId, error: 'model_not_installed' }
+      return {
+        ok: false,
+        reason: 'unsupported',
+        modelId: resolvedId,
+        error: 'runtime_pending',
+      }
+    }
+    const weight = findOnnxWeight(resolvedId)
+    if (!weight) {
+      appendActivity({
+        scope: 'image.smart',
+        level: 'warn',
+        message: `LaMa ONNX missing for ${resolvedId} (reinstall lama_fp32.onnx)`,
+        detail: state.path ?? modelDir(resolvedId),
+      })
+      return {
+        ok: false,
+        reason: 'model_not_installed',
+        modelId: resolvedId,
+        error: 'model_not_installed',
+      }
     }
     appendActivity({
       scope: 'image.smart',
-      level: 'warn',
-      message: 'LaMa runtime pending',
-      detail: `files=${files.join(',')}`,
+      level: 'info',
+      message: `Gate ok → renderer: ${payload.task}`,
+      detail: `${resolvedId} file=${weight.fileName}`,
     })
-    return {
-      ok: false,
-      reason: 'unsupported',
-      modelId: resolvedId,
-      error: 'lama_runtime_pending',
-    }
+    return { ok: true, modelId: resolvedId, imageDataUrl: payload.imageDataUrl }
   }
 
   if (payload.task === 'upscale' || payload.task === 'denoise') {

@@ -3,6 +3,7 @@ dist/
 out/
 release/
 models/
+packages/shared/dist/
 *.db
 *.db-wal
 *.db-shm
@@ -19,16 +20,20 @@ coverage/
 !.vscode/extensions.json
 src/public/ort/
 
-# Accidental tsc emit beside sources (build goes to out/)
+# Accidental tsc emit beside sources (real build output is out/).
+# Vite prefers sibling .js over .ts — stale emits can ship old catalog URLs.
+# Keep src/env.d.ts, src/css-modules.d.ts, and src/types/** tracked.
 electron.vite.config.js
 electron.vite.config.d.ts
 electron/**/*.js
 electron/**/*.d.ts
 packages/**/*.js
 packages/**/*.d.ts
-src/**/*.js
+src/app/**/*.js
 src/app/**/*.d.ts
+src/features/**/*.js
 src/features/**/*.d.ts
+src/shared/**/*.js
 src/shared/**/*.d.ts
-src/main.d.ts
 src/main.js
+src/main.d.ts

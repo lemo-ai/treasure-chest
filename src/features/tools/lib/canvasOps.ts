@@ -381,6 +381,133 @@ export async function addTextOverlay(
   return exportCanvas(canvas)
 }
 
+export type WatermarkMode = 'corner' | 'tile'
+
+export async function addWatermark(
+  src: string,
+  opts: {
+    text: string
+    mode: WatermarkMode
+    position: TextPosition
+    fontSize: number
+    color: string
+    opacity: number
+    /** Degrees; used for tile and corner. */
+    rotate?: number
+    /** Tile spacing as fraction of min(edge); default 0.22 */
+    gap?: number
+    /** Optional image stamp (data URL); drawn instead of text when set. */
+    imageDataUrl?: string | null
+    /** Image stamp scale relative to min(edge); default 0.18 */
+    imageScale?: number
+  },
+): Promise<string> {
+  const text = opts.text.trim()
+  const stampSrc = opts.imageDataUrl?.trim() || ''
+  if (!text && !stampSrc) return src
+
+  const img = await loadImageElement(src)
+  const canvas = canvasFromImage(img)
+  const ctx = canvas.getContext('2d')!
+  const w = canvas.width
+  const h = canvas.height
+  const minEdge = Math.min(w, h)
+  const opacity = Math.min(1, Math.max(0.05, opts.opacity))
+  const rotate = ((opts.rotate ?? -24) * Math.PI) / 180
+
+  let stamp: HTMLImageElement | null = null
+  if (stampSrc) {
+    try {
+      stamp = await loadImageElement(stampSrc)
+    } catch {
+      stamp = null
+    }
+  }
+
+  const fontSize = Math.max(12, Math.round((minEdge * opts.fontSize) / 100))
+  ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`
+  const tw = text ? ctx.measureText(text).width : 0
+  const th = fontSize
+  const stampScale = Math.min(1, Math.max(0.04, opts.imageScale ?? 0.18))
+  const stampW = stamp ? Math.round(minEdge * stampScale) : 0
+  const stampH = stamp && stamp.naturalWidth
+    ? Math.round((stampW * stamp.naturalHeight) / stamp.naturalWidth)
+    : stampW
+  const markW = stamp ? stampW : tw
+  const markH = stamp ? stampH : th
+
+  const drawMark = (): void => {
+    ctx.globalAlpha = opacity
+    if (stamp) {
+      ctx.drawImage(stamp, -markW / 2, -markH / 2, markW, markH)
+    } else {
+      ctx.fillStyle = opts.color
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.shadowColor = 'rgba(0,0,0,0.28)'
+      ctx.shadowBlur = 3
+      ctx.fillText(text, 0, 0)
+      ctx.shadowBlur = 0
+    }
+    ctx.globalAlpha = 1
+  }
+
+  if (opts.mode === 'tile') {
+    const gap = Math.max(0.12, opts.gap ?? 0.28) * minEdge
+    const stepX = markW + gap
+    const stepY = markH + gap
+    ctx.save()
+    // Expand bounds so rotated tiles cover corners.
+    for (let y = -stepY; y < h + stepY; y += stepY) {
+      for (let x = -stepX; x < w + stepX; x += stepX) {
+        ctx.save()
+        ctx.translate(x + markW / 2, y + markH / 2)
+        ctx.rotate(rotate)
+        drawMark()
+        ctx.restore()
+      }
+    }
+    ctx.restore()
+    return exportCanvas(canvas)
+  }
+
+  const pad = Math.round(fontSize * 0.7)
+  let cx = w / 2
+  let cy = h / 2
+  switch (opts.position) {
+    case 'top':
+      cy = pad + markH / 2
+      break
+    case 'bottom':
+      cy = h - pad - markH / 2
+      break
+    case 'top-left':
+      cx = pad + markW / 2
+      cy = pad + markH / 2
+      break
+    case 'top-right':
+      cx = w - pad - markW / 2
+      cy = pad + markH / 2
+      break
+    case 'bottom-left':
+      cx = pad + markW / 2
+      cy = h - pad - markH / 2
+      break
+    case 'bottom-right':
+      cx = w - pad - markW / 2
+      cy = h - pad - markH / 2
+      break
+    default:
+      break
+  }
+  ctx.save()
+  ctx.translate(cx, cy)
+  ctx.rotate(rotate)
+  drawMark()
+  ctx.restore()
+  return exportCanvas(canvas)
+}
+
 export async function addBorder(
   src: string,
   opts: { width: number; color: string },

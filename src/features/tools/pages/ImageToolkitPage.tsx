@@ -16,6 +16,7 @@ import {
   DEFAULT_ADJUST,
   addBorder,
   addTextOverlay,
+  addWatermark,
   applyAdjust,
   applyFilter,
   autoEnhance,
@@ -31,12 +32,13 @@ import {
   type CropRatioId,
   type FilterId,
   type TextPosition,
+  type WatermarkMode,
 } from '../lib/canvasOps'
 import { runSmartInRenderer } from '../lib/smartRunner'
 import styles from './ImageToolkitPage.module.css'
 
 type TabId = 'classic' | 'smart' | 'generate'
-type ClassicTool = 'adjust' | 'transform' | 'filter' | 'text' | 'export'
+type ClassicTool = 'adjust' | 'transform' | 'filter' | 'text' | 'watermark' | 'export'
 
 const FILTERS: FilterId[] = [
   'none',
@@ -68,12 +70,18 @@ const SMART_TASKS: ImageSmartTask[] = [
   'denoise',
   'remove_watermark',
 ]
-const CLASSIC_TOOLS: ClassicTool[] = ['adjust', 'transform', 'filter', 'text', 'export']
+const CLASSIC_TOOLS: ClassicTool[] = [
+  'adjust',
+  'transform',
+  'filter',
+  'text',
+  'watermark',
+  'export',
+]
 const HISTORY_LIMIT = 40
 
 function classicToolLabelKey(tool: ClassicTool): string {
   if (tool === 'export') return 'compress'
-  if (tool === 'text') return 'text'
   return tool
 }
 
@@ -81,6 +89,10 @@ export function ImageToolkitPage(): React.JSX.Element {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
   const historyRef = useRef<{ stack: string[]; index: number }>({ stack: [], index: -1 })
+  const previewRef = useRef<HTMLImageElement>(null)
+  const maskCanvasRef = useRef<HTMLCanvasElement>(null)
+  const maskPaintingRef = useRef(false)
+  const maskDirtyRef = useRef(false)
   const [tab, setTab] = useState<TabId>('classic')
   const [classicTool, setClassicTool] = useState<ClassicTool>('adjust')
   const [history, setHistory] = useState<string[]>([])
@@ -110,6 +122,17 @@ export function ImageToolkitPage(): React.JSX.Element {
   const [textSize, setTextSize] = useState(6)
   const [textColor, setTextColor] = useState('#ffffff')
   const [textOpacity, setTextOpacity] = useState(0.9)
+  const [wmText, setWmText] = useState('')
+  const [wmMode, setWmMode] = useState<WatermarkMode>('tile')
+  const [wmPosition, setWmPosition] = useState<TextPosition>('bottom-right')
+  const [wmSize, setWmSize] = useState(5)
+  const [wmColor, setWmColor] = useState('#ffffff')
+  const [wmOpacity, setWmOpacity] = useState(0.28)
+  const [wmRotate, setWmRotate] = useState(-28)
+  const [wmImage, setWmImage] = useState<string | null>(null)
+  const wmImageInputRef = useRef<HTMLInputElement>(null)
+  const [maskBrush, setMaskBrush] = useState(28)
+  const [maskErase, setMaskErase] = useState(false)
   const [borderWidth, setBorderWidth] = useState(24)
   const [borderColor, setBorderColor] = useState('#ffffff')
   const [cornerRadius, setCornerRadius] = useState(8)
@@ -232,6 +255,86 @@ export function ImageToolkitPage(): React.JSX.Element {
     }
   }
 
+  const syncMaskCanvasSize = useCallback((): void => {
+    const canvas = maskCanvasRef.current
+    const img = previewRef.current
+    if (!canvas || !img || !img.naturalWidth) return
+    if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      maskDirtyRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'smart' && smartTask === 'remove_watermark' && current) {
+      // Wait for img to layout / decode.
+      const id = window.requestAnimationFrame(() => syncMaskCanvasSize())
+      return () => window.cancelAnimationFrame(id)
+    }
+    return undefined
+  }, [tab, smartTask, current, syncMaskCanvasSize])
+
+  const clearMask = useCallback((): void => {
+    const canvas = maskCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    maskDirtyRef.current = false
+  }, [])
+
+  const paintMaskAt = useCallback(
+    (clientX: number, clientY: number): void => {
+      const canvas = maskCanvasRef.current
+      const img = previewRef.current
+      if (!canvas || !img) return
+      const rect = img.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      const x = ((clientX - rect.left) / rect.width) * canvas.width
+      const y = ((clientY - rect.top) / rect.height) * canvas.height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      const radius = Math.max(2, (maskBrush / 100) * Math.min(canvas.width, canvas.height) * 0.5)
+      ctx.save()
+      ctx.globalCompositeOperation = maskErase ? 'destination-out' : 'source-over'
+      ctx.fillStyle = 'rgba(255, 64, 96, 0.85)'
+      ctx.beginPath()
+      ctx.arc(x, y, radius, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+      maskDirtyRef.current = true
+    },
+    [maskBrush, maskErase],
+  )
+
+  const exportMaskDataUrl = useCallback((): string | null => {
+    const canvas = maskCanvasRef.current
+    if (!canvas || !maskDirtyRef.current) return null
+    // Convert colored overlay to opaque white alpha mask for LaMa.
+    const exportCanvas = document.createElement('canvas')
+    exportCanvas.width = canvas.width
+    exportCanvas.height = canvas.height
+    const ect = exportCanvas.getContext('2d')
+    if (!ect) return null
+    const src = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
+    const dst = ect.createImageData(canvas.width, canvas.height)
+    let painted = 0
+    for (let i = 0; i < src.data.length; i += 4) {
+      const a = src.data[i + 3]!
+      if (a > 8) {
+        dst.data[i] = 255
+        dst.data[i + 1] = 255
+        dst.data[i + 2] = 255
+        dst.data[i + 3] = 255
+        painted += 1
+      }
+    }
+    if (painted === 0) return null
+    ect.putImageData(dst, 0, 0)
+    return exportCanvas.toDataURL('image/png')
+  }, [])
+
   const requireImage = (): string => {
     if (!current) throw new Error(t('tools.image.needImage'))
     return current
@@ -263,12 +366,21 @@ export function ImageToolkitPage(): React.JSX.Element {
         setErrorLinkTo('/settings?section=image')
         return
       }
+      let maskDataUrl: string | undefined
+      if (smartTask === 'remove_watermark') {
+        maskDataUrl = exportMaskDataUrl() ?? undefined
+        if (!maskDataUrl) {
+          setError(t('tools.image.maskRequired'))
+          return
+        }
+      }
       const result = await runSmartInRenderer({
         task: smartTask,
         imageDataUrl,
         modelId,
         scale,
         fillColor,
+        maskDataUrl,
       })
       if (!result.ok) {
         const settingsImage = '/settings?section=image'
@@ -277,8 +389,12 @@ export function ImageToolkitPage(): React.JSX.Element {
           setErrorLinkTo(settingsImage)
           return
         }
-        if (result.error === 'lama_runtime_pending') {
-          setError(t('tools.image.lamaPending'))
+        if (result.error === 'mask_required' || result.error === 'mask_empty') {
+          setError(t('tools.image.maskRequired'))
+          return
+        }
+        if (result.error === 'lama_need_onnx') {
+          setError(t('tools.image.lamaNeedOnnx'))
           setErrorLinkTo(settingsImage)
           return
         }
@@ -308,6 +424,7 @@ export function ImageToolkitPage(): React.JSX.Element {
       }
       if (result.imageDataUrl) {
         commitImage(result.imageDataUrl)
+        clearMask()
         setMessage(t('tools.image.smartDone'))
       }
     })
@@ -455,7 +572,43 @@ export function ImageToolkitPage(): React.JSX.Element {
             }}
           >
             {current ? (
-              <img src={current} alt="" className={styles.preview} draggable={false} />
+              <div className={styles.previewWrap}>
+                <img
+                  ref={previewRef}
+                  src={current}
+                  alt=""
+                  className={styles.preview}
+                  draggable={false}
+                  onLoad={() => syncMaskCanvasSize()}
+                />
+                {tab === 'smart' && smartTask === 'remove_watermark' ? (
+                  <canvas
+                    ref={maskCanvasRef}
+                    className={styles.maskOverlay}
+                    onPointerDown={(e) => {
+                      e.preventDefault()
+                      maskPaintingRef.current = true
+                      ;(e.target as HTMLCanvasElement).setPointerCapture(e.pointerId)
+                      paintMaskAt(e.clientX, e.clientY)
+                    }}
+                    onPointerMove={(e) => {
+                      if (!maskPaintingRef.current) return
+                      paintMaskAt(e.clientX, e.clientY)
+                    }}
+                    onPointerUp={(e) => {
+                      maskPaintingRef.current = false
+                      try {
+                        ;(e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId)
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    onPointerCancel={() => {
+                      maskPaintingRef.current = false
+                    }}
+                  />
+                ) : null}
+              </div>
             ) : (
               <div className={styles.empty}>
                 <p className={styles.emptyTitle}>{t('tools.image.dropHint')}</p>
@@ -852,6 +1005,160 @@ export function ImageToolkitPage(): React.JSX.Element {
               </>
             ) : null}
 
+            {tab === 'classic' && classicTool === 'watermark' ? (
+              <>
+                <p className={styles.hint}>{t('tools.image.watermarkHint')}</p>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>{t('tools.image.watermarkText')}</span>
+                  <input
+                    className={styles.input}
+                    value={wmText}
+                    placeholder={t('tools.image.watermarkPlaceholder')}
+                    onChange={(e) => setWmText(e.target.value)}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>{t('tools.image.watermarkMode')}</span>
+                  <select
+                    className={styles.select}
+                    value={wmMode}
+                    onChange={(e) => setWmMode(e.target.value as WatermarkMode)}
+                  >
+                    <option value="tile">{t('tools.image.watermarkMode.tile')}</option>
+                    <option value="corner">{t('tools.image.watermarkMode.corner')}</option>
+                  </select>
+                </label>
+                {wmMode === 'corner' ? (
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>{t('tools.image.textPosition')}</span>
+                    <select
+                      className={styles.select}
+                      value={wmPosition}
+                      onChange={(e) => setWmPosition(e.target.value as TextPosition)}
+                    >
+                      {TEXT_POSITIONS.map((p) => (
+                        <option key={p} value={p}>
+                          {t(`tools.image.pos.${p}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <label className={styles.field}>
+                  <div className={styles.fieldHead}>
+                    <span>{t('tools.image.textSize')}</span>
+                    <span className={styles.fieldValue}>{wmSize}%</span>
+                  </div>
+                  <input
+                    className={styles.range}
+                    type="range"
+                    min={2}
+                    max={16}
+                    value={wmSize}
+                    onChange={(e) => setWmSize(Number(e.target.value))}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <div className={styles.fieldHead}>
+                    <span>{t('tools.image.textOpacity')}</span>
+                    <span className={styles.fieldValue}>{Math.round(wmOpacity * 100)}%</span>
+                  </div>
+                  <input
+                    className={styles.range}
+                    type="range"
+                    min={0.08}
+                    max={0.9}
+                    step={0.02}
+                    value={wmOpacity}
+                    onChange={(e) => setWmOpacity(Number(e.target.value))}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <div className={styles.fieldHead}>
+                    <span>{t('tools.image.watermarkRotate')}</span>
+                    <span className={styles.fieldValue}>{wmRotate}°</span>
+                  </div>
+                  <input
+                    className={styles.range}
+                    type="range"
+                    min={-60}
+                    max={60}
+                    value={wmRotate}
+                    onChange={(e) => setWmRotate(Number(e.target.value))}
+                  />
+                </label>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>{t('tools.image.textColor')}</span>
+                  <ColorField
+                    value={wmColor}
+                    onChange={setWmColor}
+                    aria-label={t('tools.image.textColor')}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>{t('tools.image.watermarkImage')}</span>
+                  <div className={styles.btnRow}>
+                    <button
+                      type="button"
+                      className={styles.btnGhost}
+                      onClick={() => wmImageInputRef.current?.click()}
+                    >
+                      {wmImage
+                        ? t('tools.image.watermarkImageChange')
+                        : t('tools.image.watermarkImagePick')}
+                    </button>
+                    {wmImage ? (
+                      <button
+                        type="button"
+                        className={styles.btnGhost}
+                        onClick={() => setWmImage(null)}
+                      >
+                        {t('tools.image.watermarkImageClear')}
+                      </button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={wmImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (!file) return
+                      void dataUrlFromFile(file).then(setWmImage).catch(() => {
+                        setError(t('tools.errors.generic'))
+                      })
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={styles.btnPrimaryBlock}
+                  disabled={!current || busy || (!wmText.trim() && !wmImage)}
+                  onClick={() =>
+                    void withBusy(async () => {
+                      commitImage(
+                        await addWatermark(requireImage(), {
+                          text: wmText,
+                          mode: wmMode,
+                          position: wmPosition,
+                          fontSize: wmSize,
+                          color: wmColor,
+                          opacity: wmOpacity,
+                          rotate: wmRotate,
+                          imageDataUrl: wmImage,
+                        }),
+                      )
+                      setMessage(t('tools.image.watermarkDone'))
+                    })
+                  }
+                >
+                  {t('tools.image.applyWatermark')}
+                </button>
+              </>
+            ) : null}
+
             {tab === 'classic' && classicTool === 'export' ? (
               <>
                 <label className={styles.field}>
@@ -1005,6 +1312,44 @@ export function ImageToolkitPage(): React.JSX.Element {
                       aria-label={t('tools.image.fillColor')}
                     />
                   </div>
+                ) : null}
+                {smartTask === 'remove_watermark' ? (
+                  <>
+                    <p className={styles.hint}>{t('tools.image.maskHint')}</p>
+                    <label className={styles.field}>
+                      <div className={styles.fieldHead}>
+                        <span>{t('tools.image.maskBrush')}</span>
+                        <span className={styles.fieldValue}>{maskBrush}</span>
+                      </div>
+                      <input
+                        className={styles.range}
+                        type="range"
+                        min={8}
+                        max={64}
+                        value={maskBrush}
+                        onChange={(e) => setMaskBrush(Number(e.target.value))}
+                      />
+                    </label>
+                    <div className={styles.btnRow}>
+                      <button
+                        type="button"
+                        className={`${styles.btnGhost} ${!maskErase ? styles.chipActive : ''}`}
+                        onClick={() => setMaskErase(false)}
+                      >
+                        {t('tools.image.maskPaint')}
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.btnGhost} ${maskErase ? styles.chipActive : ''}`}
+                        onClick={() => setMaskErase(true)}
+                      >
+                        {t('tools.image.maskErase')}
+                      </button>
+                      <button type="button" className={styles.btnGhost} onClick={clearMask}>
+                        {t('tools.image.maskClear')}
+                      </button>
+                    </div>
+                  </>
                 ) : null}
                 <button
                   type="button"

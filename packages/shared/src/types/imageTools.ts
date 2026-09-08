@@ -93,15 +93,18 @@ export const VISION_MODEL_CATALOG: VisionModelCatalogEntry[] = [
     descKey: 'lamaDesc',
     task: 'remove_watermark',
     installKind: 'download',
-    runtime: 'import_pending',
+    runtime: 'adapted',
     importExtensions: ['onnx', 'pth', 'pt', 'bin'],
     allowImport: true,
-    sizeHintMb: 200,
-    docsUrl: 'https://github.com/advimman/lama',
+    sizeHintMb: 208,
+    docsUrl: 'https://huggingface.co/Carve/LaMa-ONNX',
     downloadAssets: [
       {
-        fileName: 'big-lama.pt',
-        urls: ['https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt'],
+        fileName: 'lama_fp32.onnx',
+        urls: [
+          'https://hf-mirror.com/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx?download=true',
+          'https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx?download=true',
+        ],
       },
     ],
   },
@@ -276,6 +279,8 @@ export interface ImageSmartRunRequest {
   scale?: 2 | 3 | 4
   /** For background_replace: fill color css */
   fillColor?: string
+  /** For remove_watermark: paint mask data URL (opaque = erase) */
+  maskDataUrl?: string
 }
 
 export interface ImageSmartRunResult {
