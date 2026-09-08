@@ -117,14 +117,17 @@
   gap: var(--space-2);
   min-width: 0;
   min-height: 0;
+  height: 100%;
 }
 
 .canvas {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
+  padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   background:
@@ -143,7 +146,9 @@
 
 .previewWrap {
   position: relative;
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   max-width: 100%;
   max-height: 100%;
   line-height: 0;
@@ -151,8 +156,11 @@
 
 .preview {
   display: block;
+  width: auto;
+  height: auto;
   max-width: 100%;
-  max-height: min(72vh, 100%);
+  max-height: 100%;
+  margin: 0 auto;
   object-fit: contain;
   box-shadow: 0 8px 28px color-mix(in srgb, var(--color-ink) 12%, transparent);
 }
@@ -519,5 +527,183 @@
 
   .inspector {
     min-height: 240px;
+  }
+}
+
+/* —— AI generate studio —— */
+.genStudio {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 210px);
+}
+
+.genPanel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--color-brand-soft) 55%, var(--color-bg-elevated)) 0%,
+      var(--color-bg-elevated) 42%
+    );
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.genPanelHead {
+  padding: 1rem 1.05rem 0.55rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.genHint {
+  margin: 0.35rem 0 0;
+  color: var(--color-ink-tertiary);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.genPanelBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0.9rem 1.05rem 1.1rem;
+  overflow: auto;
+}
+
+.genPrompt {
+  min-height: 9.5rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.genStage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.genHero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(
+      120% 80% at 50% 0%,
+      color-mix(in srgb, var(--color-brand-soft) 40%, transparent),
+      transparent 55%
+    ),
+    var(--color-bg-elevated);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.genHeroFilled {
+  background: var(--color-bg-muted);
+}
+
+.genHeroImg {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  object-fit: contain;
+  box-shadow: 0 12px 36px color-mix(in srgb, var(--color-ink) 14%, transparent);
+}
+
+.genEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: var(--space-6);
+  text-align: center;
+  max-width: 22rem;
+}
+
+.genEmptyTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.genEmptyDesc {
+  margin: 0;
+  color: var(--color-ink-tertiary);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.genCaption {
+  margin: 0;
+  padding: 0 0.2rem;
+  color: var(--color-ink-secondary);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.genThumbs {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding: 0.15rem 0.1rem 0.35rem;
+}
+
+.genThumb {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.genThumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.genThumb:hover {
+  border-color: color-mix(in srgb, var(--color-brand) 35%, transparent);
+}
+
+.genThumbActive {
+  border-color: var(--color-brand-strong);
+}
+
+@media (max-width: 900px) {
+  .genStudio {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .genHero {
+    min-height: 280px;
   }
 }

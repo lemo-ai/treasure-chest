@@ -24,6 +24,7 @@ export const dashscopeImageProvider: ImageProvider = {
   async generate(prompt, ctx, opts) {
     const root = dashscopeApiRoot(ctx.baseUrl)
     const model = resolveModel(opts.model, ctx.settingsModel, 'wanx2.1-t2i-turbo', /wanx|wan2|t2i/i)
+    logger.info(`dashscope image model=${model}`)
     const headers = {
       'Content-Type': 'application/json',
       'X-DashScope-Async': 'enable',

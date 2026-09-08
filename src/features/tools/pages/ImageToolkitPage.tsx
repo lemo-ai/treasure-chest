@@ -143,6 +143,14 @@ export function ImageToolkitPage(): React.JSX.Element {
   const [genSize, setGenSize] = useState('1024x1024')
   const [imageSettings, setImageSettings] = useState<ImageToolsSettings | null>(null)
   const [imageModels, setImageModels] = useState<string[]>([])
+  const [genResults, setGenResults] = useState<Array<{ id: string; dataUrl: string; prompt: string }>>(
+    [],
+  )
+  const [selectedGenId, setSelectedGenId] = useState<string | null>(null)
+  const selectedGen = useMemo(
+    () => genResults.find((g) => g.id === selectedGenId) ?? genResults[0] ?? null,
+    [genResults, selectedGenId],
+  )
 
   const syncHistory = (stack: string[], index: number): void => {
     historyRef.current = { stack, index }
@@ -437,6 +445,33 @@ export function ImageToolkitPage(): React.JSX.Element {
         ? t('tools.image.smart')
         : t('tools.image.generate')
 
+  const runGenerate = async (): Promise<void> => {
+    const text = prompt.trim()
+    if (!text) return
+    await withBusy(async () => {
+      const res = await window.treasureChest.generateImage({
+        prompt: text,
+        size: genSize,
+        model: imageSettings?.defaultGenerateModelId || undefined,
+      })
+      if (!res.ok || !res.url) {
+        setError(res.error || t('tools.image.genFailed'))
+        return
+      }
+      const id = `gen-${Date.now()}`
+      setGenResults((prev) => [{ id, dataUrl: res.url!, prompt: text }, ...prev].slice(0, 12))
+      setSelectedGenId(id)
+      setMessage(t('tools.image.genDone'))
+    })
+  }
+
+  const sendGenToEditor = (): void => {
+    if (!selectedGen) return
+    replaceImage(selectedGen.dataUrl)
+    setTab('classic')
+    setMessage(t('tools.image.genSentToEditor'))
+  }
+
   return (
     <ToolShell title={t('tools.image.title')} wide compact>
       <div className={styles.modeBar}>
@@ -453,78 +488,219 @@ export function ImageToolkitPage(): React.JSX.Element {
           ))}
         </div>
         <div className={styles.fileActions}>
-          <button
-            type="button"
-            className={styles.btnPrimary}
-            onClick={() => inputRef.current?.click()}
-            disabled={busy}
-          >
-            {t('tools.image.upload')}
-          </button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
-          />
-          <button
-            type="button"
-            className={styles.btnGhost}
-            disabled={!canUndo || busy}
-            onClick={undo}
-            title={`${t('tools.image.undo')} (⌘Z)`}
-          >
-            <span className={styles.btnIcon}>
-              <IconUndo />
-            </span>
-            {t('tools.image.undo')}
-          </button>
-          <button
-            type="button"
-            className={styles.btnGhost}
-            disabled={!canRedo || busy}
-            onClick={redo}
-            title={`${t('tools.image.redo')} (⌘⇧Z)`}
-          >
-            <span className={styles.btnIcon}>
-              <IconRedo />
-            </span>
-            {t('tools.image.redo')}
-          </button>
-          <button
-            type="button"
-            className={styles.btnGhost}
-            disabled={!current || historyIndex <= 0 || busy}
-            onClick={resetToOriginal}
-            title={t('tools.image.reset')}
-          >
-            {t('tools.image.reset')}
-          </button>
-          <button
-            type="button"
-            className={styles.btnGhost}
-            disabled={!current || busy}
-            onClick={() =>
-              void withBusy(async () => {
-                const dataUrl = requireImage()
-                const res = await window.treasureChest.saveImageFile({
-                  dataUrl,
-                  defaultName: `edited-${Date.now()}.png`,
-                })
-                if (!res.ok) {
-                  if (res.error !== 'cancelled') setError(res.error || t('tools.errors.generic'))
-                  return
+          {tab !== 'generate' ? (
+            <>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => inputRef.current?.click()}
+                disabled={busy}
+              >
+                {t('tools.image.upload')}
+              </button>
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                className={styles.btnGhost}
+                disabled={!canUndo || busy}
+                onClick={undo}
+                title={`${t('tools.image.undo')} (⌘Z)`}
+              >
+                <span className={styles.btnIcon}>
+                  <IconUndo />
+                </span>
+                {t('tools.image.undo')}
+              </button>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                disabled={!canRedo || busy}
+                onClick={redo}
+                title={`${t('tools.image.redo')} (⌘⇧Z)`}
+              >
+                <span className={styles.btnIcon}>
+                  <IconRedo />
+                </span>
+                {t('tools.image.redo')}
+              </button>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                disabled={!current || historyIndex <= 0 || busy}
+                onClick={resetToOriginal}
+                title={t('tools.image.reset')}
+              >
+                {t('tools.image.reset')}
+              </button>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                disabled={!current || busy}
+                onClick={() =>
+                  void withBusy(async () => {
+                    const dataUrl = requireImage()
+                    const res = await window.treasureChest.saveImageFile({
+                      dataUrl,
+                      defaultName: `edited-${Date.now()}.png`,
+                    })
+                    if (!res.ok) {
+                      if (res.error !== 'cancelled') setError(res.error || t('tools.errors.generic'))
+                      return
+                    }
+                    setMessage(t('tools.image.saved', { path: res.path }))
+                  })
                 }
-                setMessage(t('tools.image.saved', { path: res.path }))
-              })
-            }
-          >
-            {t('tools.image.save')}
-          </button>
+              >
+                {t('tools.image.save')}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                disabled={!selectedGen || busy}
+                onClick={sendGenToEditor}
+              >
+                {t('tools.image.genEditClassic')}
+              </button>
+              <button
+                type="button"
+                className={styles.btnGhost}
+                disabled={!selectedGen || busy}
+                onClick={() =>
+                  void withBusy(async () => {
+                    if (!selectedGen) return
+                    const res = await window.treasureChest.saveImageFile({
+                      dataUrl: selectedGen.dataUrl,
+                      defaultName: `generated-${Date.now()}.png`,
+                    })
+                    if (!res.ok) {
+                      if (res.error !== 'cancelled') setError(res.error || t('tools.errors.generic'))
+                      return
+                    }
+                    setMessage(t('tools.image.saved', { path: res.path }))
+                  })
+                }
+              >
+                {t('tools.image.save')}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
+      {tab === 'generate' ? (
+        <div className={styles.genStudio}>
+          <aside className={styles.genPanel}>
+            <div className={styles.genPanelHead}>
+              <h2 className={styles.inspectorTitle}>{t('tools.image.generate')}</h2>
+              <p className={styles.genHint}>{t('tools.image.generateHint')}</p>
+            </div>
+            <div className={styles.genPanelBody}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>{t('tools.image.prompt')}</span>
+                <textarea
+                  className={`${styles.textarea} ${styles.genPrompt}`}
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder={t('tools.image.promptPlaceholder')}
+                  rows={8}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>{t('tools.image.genModel')}</span>
+                <select
+                  className={styles.select}
+                  value={imageSettings?.defaultGenerateModelId || ''}
+                  onChange={(e) => {
+                    const defaultGenerateModelId = e.target.value
+                    void window.treasureChest
+                      .setImageToolsSettings({ defaultGenerateModelId })
+                      .then(setImageSettings)
+                  }}
+                >
+                  <option value="">{t('tools.image.genModelDefault')}</option>
+                  {imageModels.map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>{t('tools.image.genSize')}</span>
+                <select
+                  className={styles.select}
+                  value={genSize}
+                  onChange={(e) => setGenSize(e.target.value)}
+                >
+                  <option value="1024x1024">1024×1024</option>
+                  <option value="1792x1024">1792×1024</option>
+                  <option value="1024x1792">1024×1792</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className={styles.btnPrimaryBlock}
+                disabled={busy || !prompt.trim()}
+                onClick={() => void runGenerate()}
+              >
+                {busy ? t('tools.image.working') : t('tools.image.runGenerate')}
+              </button>
+              {(message || error) && tab === 'generate' ? (
+                <div className={styles.toastRow}>
+                  {message ? <p className={styles.toastOk}>{message}</p> : null}
+                  {error ? <p className={styles.toastErr}>{error}</p> : null}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+
+          <section className={styles.genStage}>
+            <div className={`${styles.genHero} ${selectedGen ? styles.genHeroFilled : ''}`}>
+              {selectedGen ? (
+                <img src={selectedGen.dataUrl} alt="" className={styles.genHeroImg} draggable={false} />
+              ) : (
+                <div className={styles.genEmpty}>
+                  <p className={styles.genEmptyTitle}>{t('tools.image.genEmptyTitle')}</p>
+                  <p className={styles.genEmptyDesc}>{t('tools.image.genEmptyDesc')}</p>
+                </div>
+              )}
+              {busy ? <div className={styles.busyOverlay}>{t('tools.image.working')}</div> : null}
+            </div>
+            {selectedGen ? (
+              <p className={styles.genCaption} title={selectedGen.prompt}>
+                {selectedGen.prompt}
+              </p>
+            ) : null}
+            {genResults.length > 1 ? (
+              <div className={styles.genThumbs} role="list">
+                {genResults.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="listitem"
+                    className={`${styles.genThumb} ${item.id === selectedGen?.id ? styles.genThumbActive : ''}`}
+                    onClick={() => setSelectedGenId(item.id)}
+                    title={item.prompt}
+                  >
+                    <img src={item.dataUrl} alt="" draggable={false} />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
+
+      {tab !== 'generate' ? (
       <div className={styles.editor}>
         {tab === 'classic' ? (
           <aside className={styles.rail} aria-label={t('tools.image.tab.classic')}>
@@ -1361,80 +1537,10 @@ export function ImageToolkitPage(): React.JSX.Element {
                 </button>
               </>
             ) : null}
-
-            {tab === 'generate' ? (
-              <>
-                <p className={styles.hint}>{t('tools.image.generateHint')}</p>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>{t('tools.image.prompt')}</span>
-                  <textarea
-                    className={styles.textarea}
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder={t('tools.image.promptPlaceholder')}
-                    rows={5}
-                  />
-                </label>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>{t('tools.image.genModel')}</span>
-                  <select
-                    className={styles.select}
-                    value={imageSettings?.defaultGenerateModelId || ''}
-                    onChange={(e) => {
-                      const defaultGenerateModelId = e.target.value
-                      void window.treasureChest
-                        .setImageToolsSettings({ defaultGenerateModelId })
-                        .then(setImageSettings)
-                    }}
-                  >
-                    <option value="">{t('tools.image.genModelDefault')}</option>
-                    {imageModels.map((id) => (
-                      <option key={id} value={id}>
-                        {id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>{t('tools.image.genSize')}</span>
-                  <select
-                    className={styles.select}
-                    value={genSize}
-                    onChange={(e) => setGenSize(e.target.value)}
-                  >
-                    <option value="1024x1024">1024×1024</option>
-                    <option value="1792x1024">1792×1024</option>
-                    <option value="1024x1792">1024×1792</option>
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className={styles.btnPrimaryBlock}
-                  disabled={busy || !prompt.trim()}
-                  onClick={() =>
-                    void withBusy(async () => {
-                      const res = await window.treasureChest.generateImage({
-                        prompt: prompt.trim(),
-                        size: genSize,
-                        model: imageSettings?.defaultGenerateModelId || undefined,
-                      })
-                      if (!res.ok || !res.url) {
-                        setError(res.error || t('tools.image.genFailed'))
-                        return
-                      }
-                      replaceImage(res.url)
-                      setMessage(t('tools.image.genDone'))
-                      setTab('classic')
-                    })
-                  }
-                >
-                  {t('tools.image.runGenerate')}
-                </button>
-              </>
-            ) : null}
           </div>
         </aside>
       </div>
+      ) : null}
     </ToolShell>
   )
 }

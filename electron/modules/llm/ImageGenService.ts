@@ -1,6 +1,8 @@
 import type { FortuneSettings } from '@shared'
+import { logger } from '../../utils/logger'
 import { settingsToLlmEndpoint } from './LlmClient'
 import { generateImageWithAdapters } from './image'
+import { materializeImageUrl } from './media/materializeUrl'
 
 export interface ImageGenResult {
   ok: boolean
@@ -22,7 +24,7 @@ export async function generateImage(
     return { ok: false, error: 'Image generation requires an OpenAI-compatible endpoint.' }
   }
 
-  return generateImageWithAdapters(
+  const result = await generateImageWithAdapters(
     text,
     {
       baseUrl: endpoint.baseUrl,
@@ -36,4 +38,15 @@ export async function generateImage(
     },
     opts ?? {},
   )
+
+  if (!result.ok || !result.url) return result
+
+  try {
+    const dataUrl = await materializeImageUrl(result.url)
+    return { ...result, url: dataUrl }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.warn(`image materialize failed: ${msg}`)
+    return { ok: false, error: msg }
+  }
 }

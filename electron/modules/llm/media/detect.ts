@@ -121,7 +121,9 @@ export function resolveModel(
   hint: RegExp,
 ): string {
   const fromOpts = optsModel?.trim()
-  if (fromOpts) return fromOpts
+  // Only accept an explicit id when it looks like an image model — chat ids
+  // (e.g. qwen-plus) must fall through to the vendor T2I fallback.
+  if (fromOpts && hint.test(fromOpts)) return fromOpts
   const fromSettings = settingsModel.trim()
   if (fromSettings && hint.test(fromSettings)) return fromSettings
   return fallback
