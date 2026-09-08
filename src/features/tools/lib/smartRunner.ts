@@ -119,7 +119,12 @@ export async function runSmartInRenderer(
     }
 
     await logActivity('warn', 'No renderer handler for task', payload.task)
-    return gate
+    return {
+      ok: false,
+      modelId,
+      reason: 'unsupported',
+      error: 'unsupported',
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     const stack = error instanceof Error ? error.stack : undefined
