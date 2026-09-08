@@ -27,5 +27,6 @@ npm run dist
 
 - `electron/`：主进程（窗口、IPC、modules）
 - `src/features/`：按功能划分的渲染层
+- `src/features/tools/`：工具箱（时间戳 / 时区 / 世界时间 / JSON / 图片；视频文档后续接入）
 - `src/shared/styles/tokens.css`：**唯一色板**，改肤只改此文件
 - `packages/shared/`：跨进程类型与 IPC channel

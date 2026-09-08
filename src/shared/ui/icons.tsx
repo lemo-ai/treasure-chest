@@ -30,6 +30,24 @@ export function IconChevronRight(props: IconProps): React.JSX.Element {
   )
 }
 
+export function IconUndo(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 14H4v-5" />
+      <path d="M4 9a7 7 0 1 1 1.7 4.7" />
+    </svg>
+  )
+}
+
+export function IconRedo(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M15 14h5v-5" />
+      <path d="M20 9a7 7 0 1 0-1.7 4.7" />
+    </svg>
+  )
+}
+
 export function IconToday(props: IconProps): React.JSX.Element {
   return (
     <svg {...base} {...props}>
@@ -344,6 +362,16 @@ export function IconPlus(props: IconProps): React.JSX.Element {
   return (
     <svg {...base} {...props}>
       <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+export function IconBug(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 9V7a3 3 0 0 1 6 0v2" />
+      <rect x="7" y="9" width="10" height="10" rx="3" />
+      <path d="M12 13v3M5 12H3M21 12h-2M6 7l-1.5-1.5M18 7l1.5-1.5M6 19l-1.5 1.5M18 19l1.5 1.5" />
     </svg>
   )
 }

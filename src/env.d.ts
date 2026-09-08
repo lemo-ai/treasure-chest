@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import type {
   AppLocale,
   AppSettingsSnapshot,
@@ -184,6 +186,44 @@ interface TreasureChestApi {
     style?: string
     quality?: string
   }) => Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }>
+  getImageToolsSettings: () => Promise<import('@shared').ImageToolsSettings>
+  setImageToolsSettings: (
+    partial: Partial<import('@shared').ImageToolsSettings>,
+  ) => Promise<import('@shared').ImageToolsSettings>
+  listImageVisionModels: () => Promise<import('@shared').VisionModelState[]>
+  installImageVisionModel: (id: string) => Promise<import('@shared').VisionModelState>
+  importImageVisionModel: (id: string) => Promise<import('@shared').VisionModelState | null>
+  uninstallImageVisionModel: (id: string) => Promise<import('@shared').VisionModelState>
+  openImageVisionModelsDir: () => Promise<string>
+  pickImageVisionModelsRoot: () => Promise<import('@shared').ImageToolsSettings | null>
+  onImageVisionInstallProgress: (
+    callback: (payload: import('@shared').VisionInstallProgress) => void,
+  ) => () => void
+  runImageSmart: (
+    payload: import('@shared').ImageSmartRunRequest,
+  ) => Promise<import('@shared').ImageSmartRunResult>
+  readImageVisionModelWeight: (
+    id: string,
+  ) => Promise<
+    | { ok: true; modelId: string; fileName: string; data: Uint8Array }
+    | { ok: false; error: string }
+  >
+  getImageVisionModelPublicPath: (id: string) => Promise<string | null>
+  saveImageFile: (
+    payload: import('@shared').ImageSaveRequest,
+  ) => Promise<import('@shared').ImageSaveResult>
+  getDebugActivity: (
+    query?: import('@shared').ActivityLogQuery,
+  ) => Promise<import('@shared').ActivityLogSnapshot>
+  appendDebugActivity: (
+    input: import('@shared').ActivityLogAppendInput,
+  ) => Promise<import('@shared').ActivityLogEntry>
+  clearDebugActivity: () => Promise<import('@shared').ActivityLogSnapshot>
+  openDebugMainLog: () => Promise<string>
+  readDebugMainLogTail: (maxBytes?: number) => Promise<string>
+  onDebugActivityAppended: (
+    callback: (entry: import('@shared').ActivityLogEntry) => void,
+  ) => () => void
   pickAudioFile: () => Promise<string | null>
   transcribeAudio: (payload: {
     filePath: string

@@ -1,0 +1,498 @@
+.modeBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+}
+
+.mode {
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0.42rem 0.9rem;
+  background: transparent;
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.modeActive {
+  background: var(--color-bg-elevated);
+  color: var(--color-brand-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.fileActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr) 300px;
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 210px);
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-soft);
+  overflow: auto;
+}
+
+.railItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.62rem 0.7rem;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.railItem:hover {
+  color: var(--color-ink);
+  background: var(--color-bg-muted);
+}
+
+.railItemActive {
+  color: var(--color-brand-strong);
+  background: var(--color-brand-soft);
+}
+
+.railLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dotReady,
+.dotMissing {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.dotReady {
+  background: var(--color-success);
+}
+
+.dotMissing {
+  background: var(--color-ink-tertiary);
+  opacity: 0.45;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+.canvas {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 360px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(45deg, var(--color-bg-muted) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(-45deg, var(--color-bg-muted) 25%, transparent 25%) 0 8px / 16px 16px,
+    linear-gradient(45deg, transparent 75%, var(--color-bg-muted) 75%) 8px -8px / 16px 16px,
+    linear-gradient(-45deg, transparent 75%, var(--color-bg-muted) 75%) -8px 0 / 16px 16px,
+    var(--color-bg-elevated);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.canvasFilled {
+  background: var(--color-bg-muted);
+}
+
+.preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--color-ink) 12%, transparent);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  max-width: 18rem;
+  color: var(--color-ink-tertiary);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.busyOverlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  color: var(--color-ink);
+  font-size: 0.88rem;
+  font-weight: 650;
+  backdrop-filter: blur(2px);
+}
+
+.toastRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.toastOk,
+.toastErr {
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.toastOk {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+}
+
+.toastErr {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+}
+
+.toastErrLink {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.toastErrLink:hover {
+  opacity: 0.88;
+}
+
+.inspector {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.inspectorHead {
+  padding: 0.85rem 1rem 0.55rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inspectorTitle {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 750;
+  color: var(--color-ink);
+}
+
+.inspectorBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 1rem;
+  overflow: auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fieldHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-ink-secondary);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.fieldLabel {
+  color: var(--color-ink-secondary);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.fieldValue {
+  color: var(--color-ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--color-brand);
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.58rem 0.72rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 110px;
+  line-height: 1.45;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-brand) 35%, transparent);
+  border-color: var(--color-brand);
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.tileBtn {
+  padding: 0.85rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.tileBtn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-brand) 40%, var(--color-border));
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+}
+
+.tileBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chipGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 0.38rem 0.72rem;
+  background: var(--color-bg);
+  color: var(--color-ink-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.chipActive {
+  border-color: transparent;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-ink-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.hint a {
+  color: var(--color-brand-strong);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.hint a:hover {
+  text-decoration: underline;
+}
+
+.btnPrimary,
+.btnGhost,
+.btnPrimaryBlock {
+  border: none;
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.btnPrimary,
+.btnPrimaryBlock {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  padding: 0.55rem 0.95rem;
+}
+
+.btnPrimary:hover:not(:disabled),
+.btnPrimaryBlock:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+}
+
+.btnPrimaryBlock {
+  width: 100%;
+  margin-top: auto;
+}
+
+.btnGhostBlock {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 0.55rem 0.95rem;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.btnGhostBlock:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+  color: var(--color-brand-strong);
+  background: var(--color-brand-soft);
+}
+
+.btnGhostBlock:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dimRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-ink-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.btnGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.52rem 0.85rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-ink);
+}
+
+.btnIcon {
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+}
+
+.btnGhost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+  color: var(--color-brand-strong);
+}
+
+.btnPrimary:disabled,
+.btnGhost:disabled,
+.btnPrimaryBlock:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1100px) {
+  .editor {
+    grid-template-columns: 128px minmax(0, 1fr) 260px;
+  }
+}
+
+@media (max-width: 900px) {
+  .editor {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .railItem {
+    width: auto;
+  }
+
+  .canvas {
+    min-height: 300px;
+  }
+
+  .inspector {
+    min-height: 240px;
+  }
+}

@@ -1,0 +1,138 @@
+.root {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.45rem 0.7rem 0.45rem 0.45rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-bg-elevated) 88%, transparent),
+      var(--color-bg)
+    );
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.trigger:hover {
+  border-color: color-mix(in srgb, var(--color-brand) 40%, var(--color-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 12%, transparent);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-brand) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 0.55rem;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000 16%, transparent),
+    0 1px 2px color-mix(in srgb, var(--color-ink) 10%, transparent);
+}
+
+.swatchLight {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-border) 80%, transparent),
+    0 1px 2px color-mix(in srgb, var(--color-ink) 8%, transparent);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.hex {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.hint {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-ink-tertiary);
+}
+
+.chevron {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid var(--color-ink-tertiary);
+  border-bottom: 1.5px solid var(--color-ink-tertiary);
+  transform: rotate(45deg);
+  margin-top: -0.15rem;
+  opacity: 0.7;
+}
+
+.native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0 0.05rem;
+}
+
+.preset {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 18%, transparent);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.preset:hover {
+  transform: scale(1.12);
+}
+
+.presetLight {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--color-border) 90%, transparent);
+}
+
+.presetActive {
+  box-shadow:
+    0 0 0 2px var(--color-bg-elevated),
+    0 0 0 3.5px color-mix(in srgb, var(--color-brand) 70%, var(--color-ink));
+  transform: scale(1.08);
+}
+
+.preset:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-brand) 50%, transparent);
+  outline-offset: 2px;
+}

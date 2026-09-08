@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Patch the Electron.app dock/Finder icon used by `electron-vite dev`.
+# Patch the Electron.app dock/Finder icon used by `electron-vite dev` on macOS only.
 # Runtime app.dock.setIcon() is unreliable on newer macOS; the Dock reads
 # Electron.app/Contents/Resources/electron.icns instead.
+#
+# Windows / WSL / Linux: there is no Electron.app bundle — skip quietly (not an error).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,8 +15,14 @@ BACKUP_ICNS="$ELECTRON_APP/Contents/Resources/electron.icns.original"
 INFO_PLIST="$ELECTRON_APP/Contents/Info.plist"
 DISPLAY_NAME="袖里乾坤"
 
+# macOS-only: Windows Electron is electron.exe; WSL often has no GUI Electron.app either.
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "[patch-electron-icon] skip (macOS-only; $(uname -s) uses electron.exe / no .app icon patch)"
+  exit 0
+fi
+
 if [[ ! -d "$ELECTRON_APP" ]]; then
-  echo "[patch-electron-icon] Electron.app not found, skip"
+  echo "[patch-electron-icon] Electron.app not found yet (run npm install), skip"
   exit 0
 fi
 
@@ -33,8 +41,8 @@ if [[ ! -f "$SRC_ICNS" ]]; then
   sips -z 128 128 "$SRC_PNG" --out "$ICONSET/icon_128x128.png" >/dev/null
   sips -z 256 256 "$SRC_PNG" --out "$ICONSET/icon_128x128@2x.png" >/dev/null
   sips -z 256 256 "$SRC_PNG" --out "$ICONSET/icon_256x256.png" >/dev/null
-  sips -z 512 512 "$SRC_PNG" --out "$ICONSET/icon_256x256@2x.png" >/dev/null
   sips -z 512 512 "$SRC_PNG" --out "$ICONSET/icon_512x512.png" >/dev/null
+  sips -z 512 512 "$SRC_PNG" --out "$ICONSET/icon_256x256@2x.png" >/dev/null
   sips -z 1024 1024 "$SRC_PNG" --out "$ICONSET/icon_512x512@2x.png" >/dev/null
   iconutil -c icns "$ICONSET" -o "$SRC_ICNS"
   rm -rf "$(dirname "$ICONSET")"

@@ -1,0 +1,144 @@
+.featured {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.featureCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-soft);
+}
+
+.flag {
+  font-size: 1.4rem;
+}
+
+.country {
+  color: var(--color-ink-tertiary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.city {
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.clock {
+  margin-top: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-brand-strong);
+}
+
+.meta,
+.diff {
+  color: var(--color-ink-secondary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.searchLabel {
+  color: var(--color-ink-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.searchInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.searchInput:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-brand) 35%, transparent);
+  border-color: var(--color-brand);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.rowFlag {
+  font-size: 1rem;
+}
+
+.rowCity {
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.rowCountry {
+  color: var(--color-ink-tertiary);
+  font-size: 0.8rem;
+}
+
+.rowRight {
+  color: var(--color-ink-secondary);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-ink-tertiary);
+}
+
+@media (max-width: 720px) {
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rowRight {
+    white-space: normal;
+  }
+}

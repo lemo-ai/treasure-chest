@@ -40,6 +40,7 @@ import { SettingOption } from '@renderer/shared/ui/SettingOption'
 import { ToggleSwitch } from '@renderer/shared/ui/ToggleSwitch'
 import {
   IconBell,
+  IconBug,
   IconDial,
   IconDownload,
   IconEraser,
@@ -59,6 +60,8 @@ import {
 import { BirthProfileForm } from '@renderer/features/fortune/components/BirthProfileForm'
 import { HarnessPluginMarketplace } from '../components/HarnessPluginMarketplace'
 import { AddModelModal } from '../components/AddModelModal'
+import { ImageEnginesPanel } from '../components/ImageEnginesPanel'
+import { DebugPanel } from '../components/DebugPanel'
 import styles from './SettingsPage.module.css'
 
 const themes: ThemeMode[] = ['light', 'dark', 'system']
@@ -104,6 +107,7 @@ export function SettingsPage(): React.JSX.Element {
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
   const [harnessSandboxRoot, setHarnessSandboxRoot] = useState('')
   const [harnessPluginsDir, setHarnessPluginsDir] = useState('')
+  const [visionModelsRoot, setVisionModelsRoot] = useState('')
   const [harnessHint, setHarnessHint] = useState<string | null>(null)
   const [cordisProfile, setCordisProfile] = useState('')
   const [cordisBundles, setCordisBundles] = useState('')
@@ -125,24 +129,28 @@ export function SettingsPage(): React.JSX.Element {
     | 'general'
     | 'display'
     | 'models'
+    | 'image'
     | 'fortune'
     | 'stocks'
     | 'skills'
     | 'mcp'
     | 'notifications'
     | 'data'
+    | 'debug'
   const [section, setSection] = useState<SettingsSection>('models')
 
   const navItems: { id: SettingsSection; labelKey: string; icon: ReactNode }[] = [
     { id: 'general', labelKey: 'settings.nav.general', icon: <IconSettings /> },
     { id: 'display', labelKey: 'settings.nav.display', icon: <IconMonitor /> },
     { id: 'models', labelKey: 'settings.nav.models', icon: <IconKey /> },
+    { id: 'image', labelKey: 'settings.nav.image', icon: <IconImage /> },
     { id: 'fortune', labelKey: 'settings.nav.fortune', icon: <IconSparkles /> },
     { id: 'stocks', labelKey: 'settings.nav.stocks', icon: <IconStocks /> },
     { id: 'skills', labelKey: 'settings.nav.skills', icon: <IconSkill /> },
     { id: 'mcp', labelKey: 'settings.nav.mcp', icon: <IconLayers /> },
     { id: 'notifications', labelKey: 'settings.nav.notifications', icon: <IconBell /> },
     { id: 'data', labelKey: 'settings.nav.data', icon: <IconDownload /> },
+    { id: 'debug', labelKey: 'settings.nav.debug', icon: <IconBug /> },
   ]
 
   type McpDraft = {
@@ -236,9 +244,11 @@ export function SettingsPage(): React.JSX.Element {
       window.treasureChest.harnessGetDshWebUrl(),
       window.treasureChest.harnessGetEmbeddedDshWebPreferred(),
       window.treasureChest.harnessListCordisProfiles(),
-    ]).then(([sandbox, plugins, stack, backend, dshUrl, embeddedDsh, profiles]) => {
+      window.treasureChest.getImageToolsSettings(),
+    ]).then(([sandbox, plugins, stack, backend, dshUrl, embeddedDsh, profiles, imageTools]) => {
       setHarnessSandboxRoot(sandbox)
       setHarnessPluginsDir(plugins)
+      setVisionModelsRoot(imageTools.resolvedModelsRoot ?? '')
       setCordisProfile(stack.profileId)
       setCordisBundles(stack.bundleIds.join(', '))
       setSandboxBackend(`${backend.mode}: ${backend.label}`)
@@ -287,6 +297,26 @@ export function SettingsPage(): React.JSX.Element {
       setLaunchAtLogin(state.configured)
     })
   }, [])
+
+  useEffect(() => {
+    const raw = new URLSearchParams(location.search).get('section')
+    const allowed: SettingsSection[] = [
+      'general',
+      'display',
+      'models',
+      'image',
+      'fortune',
+      'stocks',
+      'skills',
+      'mcp',
+      'notifications',
+      'data',
+      'debug',
+    ]
+    if (raw && (allowed as string[]).includes(raw)) {
+      setSection(raw as SettingsSection)
+    }
+  }, [location.search])
 
   const saveMcpServers = (next: McpDraft[], refresh = true): void => {
     setMcpServers(next)
@@ -1137,6 +1167,10 @@ export function SettingsPage(): React.JSX.Element {
         {aiTestHint ? <p className={styles.hint}>{aiTestHint}</p> : null}
       </div>
 
+      <div className={styles.group} hidden={section !== 'image'}>
+        <ImageEnginesPanel />
+      </div>
+
       <div className={styles.group} hidden={section !== 'stocks'}>
         <h2 className={styles.label}>{t('settings.stocks')}</h2>
         <p className={styles.groupHint}>{t('settings.stocksHint')}</p>
@@ -1746,8 +1780,22 @@ export function SettingsPage(): React.JSX.Element {
       </div>
 
       <div className={styles.group} hidden={section !== 'data'}>
-        <h2 className={styles.label}>{t('settings.harness')}</h2>
-        <p className={styles.desc}>{t('settings.harnessDesc')}</p>
+        <h2 className={styles.label}>{t('settings.dataDirs')}</h2>
+        <p className={styles.desc}>{t('settings.dataDirsDesc')}</p>
+
+        <label className={styles.aiField}>
+          <span className={styles.aiLabel}>{t('settings.dataDirs.visionModels')}</span>
+          <input className={styles.aiInput} value={visionModelsRoot} readOnly />
+        </label>
+        <p className={styles.settingHint}>{t('settings.dataDirs.visionModelsHint')}</p>
+        <div className={styles.actionRow}>
+          <SettingActionButton
+            icon={<IconUpload />}
+            label={t('settings.imageOpenDir')}
+            variant="secondary"
+            onClick={() => void window.treasureChest.openImageVisionModelsDir()}
+          />
+        </div>
 
         <label className={styles.aiField}>
           <span className={styles.aiLabel}>{t('settings.harnessSandbox')}</span>
@@ -1766,6 +1814,11 @@ export function SettingsPage(): React.JSX.Element {
           <span className={styles.aiLabel}>{t('settings.harnessPluginsDir')}</span>
           <input className={styles.aiInput} value={harnessPluginsDir} readOnly />
         </label>
+      </div>
+
+      <div className={styles.group} hidden={section !== 'data'}>
+        <h2 className={styles.label}>{t('settings.harness')}</h2>
+        <p className={styles.desc}>{t('settings.harnessDesc')}</p>
 
         <label className={styles.aiField}>
           <span className={styles.aiLabel}>{t('settings.harnessCordisProfile')}</span>
@@ -2007,6 +2060,10 @@ export function SettingsPage(): React.JSX.Element {
           />
         </div>
         {backupMsg ? <p className={styles.hint}>{backupMsg}</p> : null}
+      </div>
+
+      <div className={styles.group} hidden={section !== 'debug'}>
+        <DebugPanel />
       </div>
       </section>
     </div>

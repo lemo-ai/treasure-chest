@@ -328,6 +328,78 @@ const api = {
     quality?: string
   }): Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }> =>
     ipcRenderer.invoke(IpcChannels.image.generate, payload),
+  getImageToolsSettings: (): Promise<import('@shared').ImageToolsSettings> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.getSettings),
+  setImageToolsSettings: (
+    partial: Partial<import('@shared').ImageToolsSettings>,
+  ): Promise<import('@shared').ImageToolsSettings> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.setSettings, partial),
+  listImageVisionModels: (): Promise<import('@shared').VisionModelState[]> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.listModels),
+  installImageVisionModel: (id: string): Promise<import('@shared').VisionModelState> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.installModel, id),
+  importImageVisionModel: (id: string): Promise<import('@shared').VisionModelState | null> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.importModel, id),
+  uninstallImageVisionModel: (id: string): Promise<import('@shared').VisionModelState> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.uninstallModel, id),
+  openImageVisionModelsDir: (): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.openModelsDir),
+  pickImageVisionModelsRoot: (): Promise<import('@shared').ImageToolsSettings | null> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.pickModelsRoot),
+  onImageVisionInstallProgress: (
+    callback: (payload: import('@shared').VisionInstallProgress) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: import('@shared').VisionInstallProgress) => {
+      callback(payload)
+    }
+    ipcRenderer.on(IpcChannels.imageTools.installProgress, handler)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.imageTools.installProgress, handler)
+    }
+  },
+  runImageSmart: (
+    payload: import('@shared').ImageSmartRunRequest,
+  ): Promise<import('@shared').ImageSmartRunResult> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.runSmart, payload),
+  readImageVisionModelWeight: (
+    id: string,
+  ): Promise<
+    | { ok: true; modelId: string; fileName: string; data: Uint8Array }
+    | { ok: false; error: string }
+  > => ipcRenderer.invoke(IpcChannels.imageTools.readModelWeight, id),
+  getImageVisionModelPublicPath: (id: string): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.getModelPublicPath, id),
+  saveImageFile: (
+    payload: import('@shared').ImageSaveRequest,
+  ): Promise<import('@shared').ImageSaveResult> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.saveImage, payload),
+  getDebugActivity: (
+    query?: import('@shared').ActivityLogQuery,
+  ): Promise<import('@shared').ActivityLogSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.debug.getActivity, query),
+  appendDebugActivity: (
+    input: import('@shared').ActivityLogAppendInput,
+  ): Promise<import('@shared').ActivityLogEntry> =>
+    ipcRenderer.invoke(IpcChannels.debug.appendActivity, input),
+  clearDebugActivity: (): Promise<import('@shared').ActivityLogSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.debug.clearActivity),
+  openDebugMainLog: (): Promise<string> => ipcRenderer.invoke(IpcChannels.debug.openMainLog),
+  readDebugMainLogTail: (maxBytes?: number): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.debug.readMainLogTail, maxBytes),
+  onDebugActivityAppended: (
+    callback: (entry: import('@shared').ActivityLogEntry) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      entry: import('@shared').ActivityLogEntry,
+    ) => {
+      callback(entry)
+    }
+    ipcRenderer.on(IpcChannels.debug.activityAppended, handler)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.debug.activityAppended, handler)
+    }
+  },
   pickAudioFile: (): Promise<string | null> => ipcRenderer.invoke(IpcChannels.media.pickAudioFile),
   transcribeAudio: (payload: {
     filePath: string

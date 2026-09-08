@@ -2,6 +2,7 @@ node_modules/
 dist/
 out/
 release/
+models/
 *.db
 *.db-wal
 *.db-shm
@@ -16,3 +17,18 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+src/public/ort/
+
+# Accidental tsc emit beside sources (build goes to out/)
+electron.vite.config.js
+electron.vite.config.d.ts
+electron/**/*.js
+electron/**/*.d.ts
+packages/**/*.js
+packages/**/*.d.ts
+src/**/*.js
+src/app/**/*.d.ts
+src/features/**/*.d.ts
+src/shared/**/*.d.ts
+src/main.d.ts
+src/main.js

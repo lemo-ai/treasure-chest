@@ -13,8 +13,15 @@ import { startStocksScheduler, stopStocksScheduler } from '../modules/stocks/Sto
 import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
 import { applyAppDockIcon } from '../utils/appIcon'
 import { logger } from '../utils/logger'
+import {
+  attachVisionAssetProtocol,
+  registerVisionAssetScheme,
+  startVisionAssetHttpServer,
+} from '../modules/imageTools/ImageToolsStore'
 
 app.setName('袖里乾坤')
+registerVisionAssetScheme()
+
 
 const isHarnessHeadless = process.argv.includes('--harness-headless')
 
@@ -22,11 +29,16 @@ if (isHarnessHeadless) {
   void import('../harness-cli/runHeadless').then((m) => m.runHeadless())
 } else {
   app.whenReady().then(() => {
+  void startVisionAssetHttpServer().catch((error) => {
+    logger.error('vision http start failed', error)
+  })
+  attachVisionAssetProtocol()
   logger.info('app ready')
   applyAppDockIcon()
   // Re-apply after a tick; Dock sometimes ignores the first setIcon on cold start.
   setTimeout(() => applyAppDockIcon(), 300)
   initDatabase()
+  void import('../modules/debug/ActivityLog').then((m) => m.initActivityLog())
   void import('../modules/harness/cordis/CordisConfig').then((c) => {
     c.applyCordisStack()
   })

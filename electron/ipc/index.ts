@@ -102,6 +102,19 @@ import {
 } from '../modules/knowledge/KnowledgeStore'
 import { generateImage } from '../modules/llm/ImageGenService'
 import {
+  getImageToolsSettings,
+  setImageToolsSettings,
+  installVisionModel,
+  importVisionModel,
+  uninstallVisionModel,
+  openVisionModelsDir,
+  pickVisionModelsRoot,
+  runSmartInMain,
+  readVisionModelWeight,
+  getVisionModelPublicPath,
+  saveImageDialog,
+} from '../modules/imageTools/ImageToolsStore'
+import {
   generateMusic,
   generateVideo,
   transcribeAudioFile,
@@ -114,6 +127,13 @@ import {
   refreshMcpStatus,
 } from '../modules/mcp/McpHub'
 import { exportBackup, importBackup } from '../modules/backup/BackupService'
+import {
+  appendActivity,
+  clearActivity,
+  getActivitySnapshot,
+  openMainLogFile,
+  readMainLogTail,
+} from '../modules/debug/ActivityLog'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
   applyCalendarMode,
@@ -773,5 +793,48 @@ export function registerAllIpc(): void {
         instrumental: payload.instrumental,
       })
     },
+  )
+
+  ipcMain.handle(IpcChannels.imageTools.getSettings, () => getImageToolsSettings())
+  ipcMain.handle(
+    IpcChannels.imageTools.setSettings,
+    (_e, partial: Partial<import('@shared').ImageToolsSettings>) => setImageToolsSettings(partial),
+  )
+  ipcMain.handle(IpcChannels.imageTools.listModels, () => getImageToolsSettings().models)
+  ipcMain.handle(IpcChannels.imageTools.installModel, (_e, id: string) => installVisionModel(id))
+  ipcMain.handle(IpcChannels.imageTools.importModel, (_e, id: string) => importVisionModel(id))
+  ipcMain.handle(IpcChannels.imageTools.uninstallModel, (_e, id: string) => uninstallVisionModel(id))
+  ipcMain.handle(IpcChannels.imageTools.openModelsDir, () => openVisionModelsDir())
+  ipcMain.handle(IpcChannels.imageTools.pickModelsRoot, () => pickVisionModelsRoot())
+  ipcMain.handle(
+    IpcChannels.imageTools.runSmart,
+    (_e, payload: import('@shared').ImageSmartRunRequest) => runSmartInMain(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.imageTools.saveImage,
+    (_e, payload: import('@shared').ImageSaveRequest) => saveImageDialog(payload),
+  )
+  ipcMain.handle(IpcChannels.imageTools.readModelWeight, (_e, id: string) =>
+    readVisionModelWeight(id),
+  )
+  ipcMain.handle(IpcChannels.imageTools.getModelPublicPath, (_e, id: string) =>
+    getVisionModelPublicPath(id),
+  )
+
+  ipcMain.handle(
+    IpcChannels.debug.getActivity,
+    (_e, query?: import('@shared').ActivityLogQuery) => getActivitySnapshot(query),
+  )
+  ipcMain.handle(
+    IpcChannels.debug.appendActivity,
+    (_e, input: import('@shared').ActivityLogAppendInput) => appendActivity(input),
+  )
+  ipcMain.handle(IpcChannels.debug.clearActivity, () => {
+    clearActivity()
+    return getActivitySnapshot()
+  })
+  ipcMain.handle(IpcChannels.debug.openMainLog, () => openMainLogFile())
+  ipcMain.handle(IpcChannels.debug.readMainLogTail, (_e, maxBytes?: number) =>
+    readMainLogTail(maxBytes),
   )
 }

@@ -9,6 +9,7 @@ import {
   IconSettings,
   IconSkill,
   IconStocks,
+  IconTools,
   IconWorkbench,
 } from '@renderer/shared/ui/icons'
 import appLogo from '@renderer/assets/app-logo.png'
@@ -42,7 +43,8 @@ export function AppLayout(): React.JSX.Element {
     location.pathname.startsWith('/workbench') ||
     location.pathname.startsWith('/knowledge') ||
     location.pathname.startsWith('/settings') ||
-    location.pathname.startsWith('/changelog')
+    location.pathname.startsWith('/changelog') ||
+    location.pathname.startsWith('/tools/image')
 
   const activeAgentParam = new URLSearchParams(location.search).get('agent')
   const onWorkbench =
@@ -141,6 +143,12 @@ export function AppLayout(): React.JSX.Element {
               <IconCalendar />
             </span>
             <span className={styles.linkLabel}>{t('nav.calendar')}</span>
+          </NavLink>
+          <NavLink to="/tools" className={navClass}>
+            <span className={styles.linkIcon}>
+              <IconTools />
+            </span>
+            <span className={styles.linkLabel}>{t('nav.toolbox')}</span>
           </NavLink>
         </nav>
 
