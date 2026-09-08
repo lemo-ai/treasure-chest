@@ -1219,6 +1219,31 @@
   color: var(--color-ink);
 }
 
+.imageAdvanced {
+  margin: 0.35rem 0 var(--space-3);
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-bg-muted) 55%, transparent);
+}
+
+.imageAdvancedSummary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--color-ink-secondary);
+  list-style: none;
+}
+
+.imageAdvancedSummary::-webkit-details-marker {
+  display: none;
+}
+
+.imageAdvanced[open] .imageAdvancedSummary {
+  margin-bottom: 0.55rem;
+  color: var(--color-ink);
+}
+
 .imageTaskGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
@@ -1439,8 +1464,201 @@
   line-height: 1.35;
 }
 
+/* —— Data section —— */
+.dataStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dataCard {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-bg) 55%, var(--color-bg-elevated));
+  overflow: hidden;
+}
+
+.dataCardBody {
+  padding: 1rem 1.1rem 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dataCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dataCardTitle {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.dataCardDesc {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--color-ink-tertiary);
+  max-width: 42rem;
+}
+
+.dataBadgeOk,
+.dataBadgeBad,
+.dataBadgeMuted {
+  flex-shrink: 0;
+  padding: 0.22rem 0.55rem;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.dataBadgeOk {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.dataBadgeBad {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-danger);
+}
+
+.dataBadgeMuted {
+  background: var(--color-bg-muted);
+  color: var(--color-ink-tertiary);
+}
+
+.pathList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pathRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+}
+
+.pathRow:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.pathMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pathLabel {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+
+.pathHint {
+  font-size: 0.7rem;
+  color: var(--color-ink-tertiary);
+  line-height: 1.35;
+}
+
+.pathValue {
+  font-size: 0.72rem;
+  color: var(--color-ink-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pathActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.dataActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dataHint {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--color-ink-tertiary);
+  line-height: 1.4;
+}
+
+.dataAdvanced {
+  border: none;
+  background: transparent;
+}
+
+.dataAdvanced > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 1rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dataAdvanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dataAdvanced > summary::after {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--color-ink-tertiary);
+  border-bottom: 2px solid var(--color-ink-tertiary);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.dataAdvanced[open] > summary::after {
+  transform: rotate(225deg);
+  margin-top: 0.2rem;
+}
+
+.dataAdvancedBody {
+  padding: 0 1.1rem 1.1rem;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dataAdvancedBody .aiField {
+  margin-top: 0.35rem;
+}
+
 @media (max-width: 720px) {
   .imageRootModes {
     grid-template-columns: 1fr;
+  }
+
+  .pathRow {
+    grid-template-columns: 1fr;
+  }
+
+  .pathActions {
+    justify-content: flex-start;
   }
 }

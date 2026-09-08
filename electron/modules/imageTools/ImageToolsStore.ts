@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { createServer, type Server } from 'node:http'
+import { randomUUID } from 'node:crypto'
 import { basename, dirname, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
@@ -26,6 +27,7 @@ import type {
 import {
   DEFAULT_IMAGE_TOOLS_SETTINGS,
   IpcChannels,
+  isCustomEngineId,
   parseImageToolsSettings,
   visionCatalogEntry,
   mergeVisionModelStates,
@@ -48,25 +50,23 @@ function ensureDir(dir: string): string {
 /** Persistable slice — strip ephemeral resolvedModelsRoot. */
 function persistable(settings: ImageToolsSettings): ImageToolsSettings {
   const { resolvedModelsRoot: _drop, ...rest } = settings
-  return {
-    ...rest,
-    // Directory is fixed under userData; do not let old project/custom modes stick.
-    modelsRootMode: 'userData',
-    customModelsRoot: '',
-  }
+  return rest
 }
 
-export function resolveModelsRoot(): string {
+function readPersisted(): ImageToolsSettings {
+  return parseImageToolsSettings(getSetting(SETTINGS_KEY, DEFAULT_IMAGE_TOOLS_SETTINGS))
+}
+
+export function resolveModelsRoot(settings?: ImageToolsSettings): string {
+  const s = settings ?? readPersisted()
+  if (s.modelsRootMode === 'custom' && s.customModelsRoot.trim()) {
+    return ensureDir(s.customModelsRoot.trim())
+  }
   return ensureDir(userDataModelsRoot())
 }
 
 function getPersisted(): ImageToolsSettings {
-  const parsed = parseImageToolsSettings(getSetting(SETTINGS_KEY, DEFAULT_IMAGE_TOOLS_SETTINGS))
-  return {
-    ...parsed,
-    modelsRootMode: 'userData',
-    customModelsRoot: '',
-  }
+  return readPersisted()
 }
 
 function modelsRoot(): string {
@@ -141,12 +141,93 @@ export function setImageToolsSettings(partial: Partial<ImageToolsSettings>): Ima
     ...partial,
     taskModelIds: partial.taskModelIds ? { ...cur.taskModelIds, ...partial.taskModelIds } : cur.taskModelIds,
     models: partial.models ? mergeVisionModelStates(partial.models) : cur.models,
-    modelsRootMode: 'userData',
-    customModelsRoot: '',
+    customEngines: partial.customEngines ?? cur.customEngines,
+  }
+  if (partial.modelsRootMode === 'userData') {
+    next.customModelsRoot = ''
   }
   setSetting(SETTINGS_KEY, persistable(next))
-  resolveModelsRoot()
+  resolveModelsRoot(next)
   return getImageToolsSettings()
+}
+
+export async function upsertCustomVisionEngine(payload: {
+  id?: string
+  name: string
+  task: import('@shared').ImageSmartTask
+  kind: 'onnx' | 'http'
+  enabled?: boolean
+  onnxSourcePath?: string
+  endpointUrl?: string
+  apiKey?: string
+  notes?: string
+}): Promise<ImageToolsSettings> {
+  const name = payload.name.trim()
+  if (!name) throw new Error('name_required')
+  const id = payload.id?.startsWith('custom-') ? payload.id : `custom-${randomUUID()}`
+  const cur = getImageToolsSettings()
+  const existing = cur.customEngines.find((e) => e.id === id)
+  let onnxPath: string | undefined = existing?.onnxPath
+  if (payload.kind === 'onnx') {
+    const src = payload.onnxSourcePath
+    if (src && existsSync(src)) {
+      const dir = ensureDir(join(modelsRoot(), id))
+      const dest = join(
+        dir,
+        basename(src).toLowerCase().endsWith('.onnx') ? basename(src) : 'model.onnx',
+      )
+      copyFileSync(src, dest)
+      writeFileSync(join(dir, '.installed'), String(Date.now()), 'utf8')
+      onnxPath = dest
+    } else if (!onnxPath || !existsSync(onnxPath)) {
+      throw new Error('onnx_required')
+    }
+  } else {
+    const url = payload.endpointUrl?.trim()
+    if (!url || !/^https?:\/\//i.test(url)) throw new Error('endpoint_required')
+  }
+
+  const engine: import('@shared').CustomVisionEngine = {
+    id,
+    name,
+    task: payload.task,
+    kind: payload.kind,
+    enabled: payload.enabled !== false,
+    createdAt: existing?.createdAt ?? Date.now(),
+    onnxPath: payload.kind === 'onnx' ? onnxPath : undefined,
+    endpointUrl: payload.kind === 'http' ? payload.endpointUrl?.trim() : undefined,
+    apiKey: payload.kind === 'http' ? payload.apiKey?.trim() || undefined : undefined,
+    notes: payload.notes?.trim() || undefined,
+  }
+  const customEngines = [...cur.customEngines.filter((e) => e.id !== id), engine]
+  return setImageToolsSettings({ customEngines })
+}
+
+export function removeCustomVisionEngine(id: string): ImageToolsSettings {
+  const cur = getImageToolsSettings()
+  const customEngines = cur.customEngines.filter((e) => e.id !== id)
+  const taskModelIds = { ...cur.taskModelIds }
+  for (const key of Object.keys(taskModelIds) as Array<keyof typeof taskModelIds>) {
+    if (taskModelIds[key] === id) delete taskModelIds[key]
+  }
+  try {
+    const dir = join(modelsRoot(), id)
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+  } catch {
+    /* ignore */
+  }
+  return setImageToolsSettings({ customEngines, taskModelIds })
+}
+
+export async function pickCustomOnnxFile(): Promise<string | null> {
+  const win = BrowserWindow.getFocusedWindow()
+  const opts: Electron.OpenDialogOptions = {
+    properties: ['openFile'],
+    filters: [{ name: 'ONNX', extensions: ['onnx'] }],
+  }
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+  if (result.canceled || !result.filePaths[0]) return null
+  return result.filePaths[0]
 }
 
 function markInstalled(id: string): VisionModelState {
@@ -529,9 +610,16 @@ export function openVisionModelsDir(): string {
 }
 
 export async function pickVisionModelsRoot(): Promise<ImageToolsSettings | null> {
-  // Custom roots are disabled; expose the fixed userData models folder instead.
-  openVisionModelsDir()
-  return getImageToolsSettings()
+  const win = BrowserWindow.getFocusedWindow()
+  const opts: Electron.OpenDialogOptions = {
+    properties: ['openDirectory', 'createDirectory'],
+  }
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+  if (result.canceled || !result.filePaths[0]) return null
+  return setImageToolsSettings({
+    modelsRootMode: 'custom',
+    customModelsRoot: result.filePaths[0],
+  })
 }
 
 export async function saveImageDialog(payload: ImageSaveRequest): Promise<ImageSaveResult> {
@@ -595,6 +683,56 @@ export async function runSmartInMain(payload: ImageSmartRunRequest): Promise<Ima
     message: `Smart gate: ${payload.task}`,
     detail: `model=${resolvedId}`,
   })
+
+  if (isCustomEngineId(resolvedId)) {
+    const engine = settings.customEngines.find((e) => e.id === resolvedId)
+    if (!engine || !engine.enabled) {
+      return {
+        ok: false,
+        reason: 'model_not_installed',
+        modelId: resolvedId,
+        error: 'model_not_installed',
+      }
+    }
+    const taskOk =
+      engine.task === payload.task ||
+      (payload.task === 'background_replace' && engine.task === 'remove_background')
+    if (!taskOk) {
+      return { ok: false, reason: 'unsupported', modelId: resolvedId, error: 'task_mismatch' }
+    }
+    if (engine.kind === 'onnx') {
+      if (!engine.onnxPath || !existsSync(engine.onnxPath)) {
+        return {
+          ok: false,
+          reason: 'model_not_installed',
+          modelId: resolvedId,
+          error: 'model_not_installed',
+        }
+      }
+      appendActivity({
+        scope: 'image.smart',
+        level: 'info',
+        message: `Gate ok → custom ONNX: ${payload.task}`,
+        detail: `${resolvedId} ${engine.onnxPath}`,
+      })
+      return { ok: true, modelId: resolvedId, imageDataUrl: payload.imageDataUrl }
+    }
+    if (!engine.endpointUrl) {
+      return {
+        ok: false,
+        reason: 'model_not_installed',
+        modelId: resolvedId,
+        error: 'model_not_installed',
+      }
+    }
+    appendActivity({
+      scope: 'image.smart',
+      level: 'info',
+      message: `Gate ok → custom HTTP: ${payload.task}`,
+      detail: `${resolvedId} ${engine.endpointUrl}`,
+    })
+    return { ok: true, modelId: resolvedId, imageDataUrl: payload.imageDataUrl }
+  }
 
   const state = settings.models.find((m) => m.id === resolvedId)
   if (!state || state.status !== 'ready') {
@@ -708,7 +846,7 @@ export async function runSmartInMain(payload: ImageSmartRunRequest): Promise<Ima
     return { ok: true, modelId: resolvedId, imageDataUrl: payload.imageDataUrl }
   }
 
-  if (payload.task === 'upscale' || payload.task === 'denoise') {
+  if (payload.task === 'upscale') {
     if (entry?.runtime === 'import_pending') {
       appendActivity({
         scope: 'image.smart',
@@ -722,6 +860,66 @@ export async function runSmartInMain(payload: ImageSmartRunRequest): Promise<Ima
         modelId: resolvedId,
         error: 'runtime_pending',
       }
+    }
+    if (entry?.runtime === 'adapted') {
+      const weight = findOnnxWeight(resolvedId)
+      if (!weight) {
+        return {
+          ok: false,
+          reason: 'model_not_installed',
+          modelId: resolvedId,
+          error: 'model_not_installed',
+        }
+      }
+      appendActivity({
+        scope: 'image.smart',
+        level: 'info',
+        message: `Gate ok → renderer ESRGAN: ${payload.task}`,
+        detail: `${resolvedId} file=${weight.fileName}`,
+      })
+      return { ok: true, modelId: resolvedId, imageDataUrl: payload.imageDataUrl }
+    }
+    appendActivity({
+      scope: 'image.smart',
+      level: 'info',
+      message: `Gate ok → canvas fallback: ${payload.task}`,
+      detail: resolvedId,
+    })
+    return { ok: true, modelId: resolvedId, imageDataUrl: payload.imageDataUrl }
+  }
+
+  if (payload.task === 'denoise') {
+    if (entry?.runtime === 'import_pending') {
+      appendActivity({
+        scope: 'image.smart',
+        level: 'warn',
+        message: `Runtime pending: ${resolvedId}`,
+        detail: payload.task,
+      })
+      return {
+        ok: false,
+        reason: 'unsupported',
+        modelId: resolvedId,
+        error: 'runtime_pending',
+      }
+    }
+    if (entry?.runtime === 'adapted') {
+      const weight = findOnnxWeight(resolvedId)
+      if (!weight) {
+        return {
+          ok: false,
+          reason: 'model_not_installed',
+          modelId: resolvedId,
+          error: 'model_not_installed',
+        }
+      }
+      appendActivity({
+        scope: 'image.smart',
+        level: 'info',
+        message: `Gate ok → renderer NAFNet: ${payload.task}`,
+        detail: `${resolvedId} file=${weight.fileName}`,
+      })
+      return { ok: true, modelId: resolvedId, imageDataUrl: payload.imageDataUrl }
     }
     appendActivity({
       scope: 'image.smart',
@@ -939,6 +1137,18 @@ export type VisionModelWeightResult =
 
 /** Read installed ONNX (or reassembled IMG.LY isnet) bytes for renderer-side inference. */
 export function readVisionModelWeight(id: string): VisionModelWeightResult {
+  if (isCustomEngineId(id)) {
+    const engine = getImageToolsSettings().customEngines.find((e) => e.id === id)
+    if (!engine || engine.kind !== 'onnx' || !engine.onnxPath || !existsSync(engine.onnxPath)) {
+      return { ok: false, error: 'onnx_not_found' }
+    }
+    try {
+      const buf = readFileSync(engine.onnxPath)
+      return { ok: true, modelId: id, fileName: basename(engine.onnxPath), data: new Uint8Array(buf) }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
   const onnx = findOnnxWeight(id)
   if (onnx) {
     try {

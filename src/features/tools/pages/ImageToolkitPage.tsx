@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   VISION_MODEL_CATALOG,
   firstOutputModelId,
+  isCustomEngineId,
   visionCatalogEntry,
   type ImageSmartTask,
   type ImageToolsSettings,
@@ -244,6 +245,20 @@ export function ImageToolkitPage(): React.JSX.Element {
     return out
   }, [imageSettings])
 
+  const isEngineReady = useCallback(
+    (modelId: string): boolean => {
+      if (!modelId) return false
+      if (isCustomEngineId(modelId)) {
+        const eng = imageSettings?.customEngines.find((e) => e.id === modelId)
+        if (!eng || !eng.enabled) return false
+        if (eng.kind === 'http') return Boolean(eng.endpointUrl)
+        return Boolean(eng.onnxPath)
+      }
+      return modelReady[modelId]?.status === 'ready'
+    },
+    [imageSettings, modelReady],
+  )
+
   const onPickFile = async (file: File | null): Promise<void> => {
     if (!file) return
     replaceImage(await dataUrlFromFile(file))
@@ -353,6 +368,7 @@ export function ImageToolkitPage(): React.JSX.Element {
       imageSettings?.taskModelIds[task] ||
       VISION_MODEL_CATALOG.find((c) => c.task === task)?.id ||
       ''
+    if (preferred && isCustomEngineId(preferred)) return preferred
     const entry = preferred ? visionCatalogEntry(preferred) : undefined
     // Cutout only runs via adapted IMG.LY; don't gate on pending-weight models.
     if (
@@ -368,8 +384,7 @@ export function ImageToolkitPage(): React.JSX.Element {
     await withBusy(async () => {
       const imageDataUrl = requireImage()
       const modelId = modelIdForTask(smartTask)
-      const state = modelReady[modelId]
-      if (!state || state.status !== 'ready') {
+      if (!isEngineReady(modelId)) {
         setError(t('tools.image.modelRequired'))
         setErrorLinkTo('/settings?section=image')
         return
@@ -721,7 +736,7 @@ export function ImageToolkitPage(): React.JSX.Element {
           <aside className={styles.rail} aria-label={t('tools.image.smartTask')}>
             {SMART_TASKS.map((task) => {
               const mid = modelIdForTask(task)
-              const ready = modelReady[mid]?.status === 'ready'
+              const ready = isEngineReady(mid)
               return (
                 <button
                   key={task}

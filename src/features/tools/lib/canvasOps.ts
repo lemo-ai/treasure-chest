@@ -262,11 +262,52 @@ export async function upscaleImage(src: string, scale: 2 | 3 | 4): Promise<strin
 
 export async function denoiseImage(src: string): Promise<string> {
   const img = await loadImageElement(src)
-  const canvas = canvasFromImage(img)
+  const w = img.naturalWidth || img.width
+  const h = img.naturalHeight || img.height
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
   const ctx = canvas.getContext('2d')!
-  ctx.filter = 'blur(0.6px) contrast(105%) saturate(102%)'
   ctx.drawImage(img, 0, 0)
-  ctx.filter = 'none'
+  const image = ctx.getImageData(0, 0, w, h)
+  const srcData = new Uint8ClampedArray(image.data)
+  const out = image.data
+  const radius = 2
+  const spatialSigma = 1.6
+  const colorSigma = 28
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4
+      let wr = 0
+      let wg = 0
+      let wb = 0
+      let wsum = 0
+      const cr = srcData[i]!
+      const cg = srcData[i + 1]!
+      const cb = srcData[i + 2]!
+      for (let dy = -radius; dy <= radius; dy++) {
+        const yy = Math.min(h - 1, Math.max(0, y + dy))
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = Math.min(w - 1, Math.max(0, x + dx))
+          const j = (yy * w + xx) * 4
+          const spatial = Math.exp(-(dx * dx + dy * dy) / (2 * spatialSigma * spatialSigma))
+          const dr = srcData[j]! - cr
+          const dg = srcData[j + 1]! - cg
+          const db = srcData[j + 2]! - cb
+          const color = Math.exp(-(dr * dr + dg * dg + db * db) / (2 * colorSigma * colorSigma))
+          const weight = spatial * color
+          wr += srcData[j]! * weight
+          wg += srcData[j + 1]! * weight
+          wb += srcData[j + 2]! * weight
+          wsum += weight
+        }
+      }
+      out[i] = Math.round(wr / wsum)
+      out[i + 1] = Math.round(wg / wsum)
+      out[i + 2] = Math.round(wb / wsum)
+    }
+  }
+  ctx.putImageData(image, 0, 0)
   return exportCanvas(canvas)
 }
 

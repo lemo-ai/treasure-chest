@@ -44,7 +44,10 @@ export function AppLayout(): React.JSX.Element {
     location.pathname.startsWith('/knowledge') ||
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/changelog') ||
-    location.pathname.startsWith('/tools/image')
+    location.pathname.startsWith('/tools/image') ||
+    location.pathname.startsWith('/tools/video') ||
+    location.pathname.startsWith('/tools/audio') ||
+    location.pathname.startsWith('/tools/doc')
 
   const activeAgentParam = new URLSearchParams(location.search).get('agent')
   const onWorkbench =

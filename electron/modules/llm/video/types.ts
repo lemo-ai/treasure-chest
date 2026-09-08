@@ -71,7 +71,7 @@ export function resolveModel(
   videoHint: RegExp,
 ): string {
   const fromOpts = opts.model?.trim()
-  if (fromOpts) return fromOpts
+  if (fromOpts && videoHint.test(fromOpts)) return fromOpts
   const fromSettings = settingsModel.trim()
   if (fromSettings && videoHint.test(fromSettings)) return fromSettings
   return fallback

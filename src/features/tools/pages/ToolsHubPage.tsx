@@ -7,6 +7,7 @@ import {
   IconLayers,
   IconTools,
   IconVideo,
+  IconMusic,
   IconWrite,
 } from '@renderer/shared/ui/icons'
 import styles from './ToolsHubPage.module.css'
@@ -24,12 +25,12 @@ const READY: ToolCard[] = [
   { id: 'worldtime', to: '/tools/worldtime', icon: <IconGrid /> },
   { id: 'json', to: '/tools/json', icon: <IconLayers /> },
   { id: 'image', to: '/tools/image', icon: <IconImage /> },
+  { id: 'video', to: '/tools/video', icon: <IconVideo /> },
+  { id: 'audio', to: '/tools/audio', icon: <IconMusic /> },
+  { id: 'doc', to: '/tools/doc', icon: <IconWrite /> },
 ]
 
-const COMING: ToolCard[] = [
-  { id: 'video', icon: <IconVideo />, soon: true },
-  { id: 'doc', icon: <IconWrite />, soon: true },
-]
+const COMING: ToolCard[] = []
 
 export function ToolsHubPage(): React.JSX.Element {
   const { t } = useTranslation()
@@ -52,17 +53,21 @@ export function ToolsHubPage(): React.JSX.Element {
         ))}
       </div>
 
-      <p className={styles.sectionLabel}>{t('tools.hub.coming')}</p>
-      <div className={styles.grid}>
-        {COMING.map((tool) => (
-          <div key={tool.id} className={`${styles.card} ${styles.cardSoon}`} aria-disabled>
-            <span className={styles.iconWrap}>{tool.icon}</span>
-            <h2 className={styles.cardTitle}>{t(`tools.${tool.id}.title`)}</h2>
-            <p className={styles.cardDesc}>{t(`tools.${tool.id}.desc`)}</p>
-            <span className={styles.badge}>{t('tools.hub.soon')}</span>
+      {COMING.length > 0 ? (
+        <>
+          <p className={styles.sectionLabel}>{t('tools.hub.coming')}</p>
+          <div className={styles.grid}>
+            {COMING.map((tool) => (
+              <div key={tool.id} className={`${styles.card} ${styles.cardSoon}`} aria-disabled>
+                <span className={styles.iconWrap}>{tool.icon}</span>
+                <h2 className={styles.cardTitle}>{t(`tools.${tool.id}.title`)}</h2>
+                <p className={styles.cardDesc}>{t(`tools.${tool.id}.desc`)}</p>
+                <span className={styles.badge}>{t('tools.hub.soon')}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      ) : null}
     </section>
   )
 }

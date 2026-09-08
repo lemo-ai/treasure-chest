@@ -1,4 +1,6 @@
 import { BrowserWindow, dialog, ipcMain, app, screen } from 'electron'
+import { existsSync, statSync } from 'node:fs'
+import { basename } from 'node:path'
 import {
   IpcChannels,
   type AppLocale,
@@ -113,6 +115,9 @@ import {
   readVisionModelWeight,
   getVisionModelPublicPath,
   saveImageDialog,
+  upsertCustomVisionEngine,
+  removeCustomVisionEngine,
+  pickCustomOnnxFile,
 } from '../modules/imageTools/ImageToolsStore'
 import {
   generateMusic,
@@ -134,6 +139,42 @@ import {
   openMainLogFile,
   readMainLogTail,
 } from '../modules/debug/ActivityLog'
+import {
+  extractDocumentFromBase64,
+  saveMediaDialog,
+  saveTextDialog,
+} from '../modules/tools/ToolsIO'
+import {
+  checkFfmpegAvailable,
+  concatAudios,
+  concatVideos,
+  importAudioBuffer,
+  importVideoBuffer,
+  pickAudioMediaFile,
+  pickImageFile,
+  pickSubtitleFile,
+  pickVideoFile,
+  probeVideo,
+  processAudio,
+  processVideo,
+  registerLocalMediaPreview,
+  renderMultiTrack,
+} from '../modules/tools/VideoFfmpeg'
+import {
+  compressPdf,
+  encryptPdf,
+  exportTextAsDocx,
+  exportTextAsPdf,
+  mergePdfs,
+  splitPdf,
+} from '../modules/tools/DocPdf'
+import {
+  checkLibreOffice,
+  clearLibreOfficeCustomPath,
+  convertWithLibreOffice,
+  openLibreOfficeDownload,
+  pickLibreOfficeBinary,
+} from '../modules/tools/DocLibreOffice'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
   applyCalendarMode,
@@ -774,6 +815,209 @@ export function registerAllIpc(): void {
     },
   )
   ipcMain.handle(
+    IpcChannels.tools.extractDocument,
+    (
+      _e,
+      payload: { fileName: string; dataBase64: string; mime?: string },
+    ) => extractDocumentFromBase64(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.tools.saveTextFile,
+    (
+      _e,
+      payload: { content: string; defaultName?: string; extensions?: string[] },
+    ) => saveTextDialog(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.tools.saveMediaFile,
+    (_e, payload: { url: string; defaultName?: string }) => saveMediaDialog(payload),
+  )
+  ipcMain.handle(IpcChannels.videoTools.checkFfmpeg, () => checkFfmpegAvailable())
+  ipcMain.handle(IpcChannels.videoTools.pickVideo, async () => {
+    const path = await pickVideoFile()
+    if (!path) return { ok: false as const, cancelled: true }
+    const probe = await probeVideo(path)
+    const previewUrl = await registerLocalMediaPreview(path)
+    const size = existsSync(path) ? statSync(path).size : 0
+    return {
+      ok: true as const,
+      path,
+      previewUrl,
+      probe,
+      size,
+      name: basename(path),
+    }
+  })
+  ipcMain.handle(
+    IpcChannels.videoTools.importVideo,
+    async (_e, payload: { fileName: string; dataBase64: string }) => {
+      const imported = await importVideoBuffer(payload)
+      if (!imported.ok || !imported.path) return imported
+      const probe = await probeVideo(imported.path)
+      const previewUrl = await registerLocalMediaPreview(imported.path)
+      const size = existsSync(imported.path) ? statSync(imported.path).size : 0
+      return {
+        ok: true as const,
+        path: imported.path,
+        previewUrl,
+        probe,
+        size,
+        name: basename(imported.path),
+      }
+    },
+  )
+  ipcMain.handle(IpcChannels.videoTools.probe, (_e, filePath: string) => probeVideo(filePath))
+  ipcMain.handle(
+    IpcChannels.videoTools.process,
+    (
+      _e,
+      payload: {
+        inputPath: string
+        startSec?: number
+        endSec?: number
+        mute?: boolean
+        format: 'mp4' | 'webm' | 'mov' | 'gif' | 'mp3' | 'wav'
+        maxEdge?: number
+        speed?: number
+        rotateDeg?: 0 | 90 | 180 | 270
+        watermarkText?: string
+        watermarkPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
+        watermarkImagePath?: string
+        watermarkImageScale?: number
+        subtitlePath?: string
+        subtitleFontSize?: number
+        subtitleColor?: string
+        brightness?: number
+        contrast?: number
+        saturation?: number
+        volume?: number
+        fadeInSec?: number
+        fadeOutSec?: number
+      },
+    ) => processVideo(payload),
+  )
+  ipcMain.handle(IpcChannels.videoTools.concat, (_e, payload?: { inputPaths?: string[] }) =>
+    concatVideos(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.videoTools.multiTrack,
+    (
+      _e,
+      payload: {
+        clips: import('../modules/tools/VideoFfmpeg').MultiTrackClipInput[]
+        width?: number
+        height?: number
+        fps?: number
+        muteVideoAudio?: boolean
+      },
+    ) => renderMultiTrack(payload),
+  )
+  ipcMain.handle(IpcChannels.videoTools.pickImage, () => pickImageFile())
+  ipcMain.handle(IpcChannels.videoTools.pickSubtitle, () => pickSubtitleFile())
+  ipcMain.handle(IpcChannels.audioTools.pickAudio, async () => {
+    const path = await pickAudioMediaFile()
+    if (!path) return { ok: false as const, cancelled: true }
+    const probe = await probeVideo(path)
+    const previewUrl = await registerLocalMediaPreview(path)
+    const size = existsSync(path) ? statSync(path).size : 0
+    return {
+      ok: true as const,
+      path,
+      previewUrl,
+      probe,
+      size,
+      name: basename(path),
+    }
+  })
+  ipcMain.handle(
+    IpcChannels.audioTools.importAudio,
+    async (_e, payload: { fileName: string; dataBase64: string }) => {
+      const imported = await importAudioBuffer(payload)
+      if (!imported.ok || !imported.path) return imported
+      const probe = await probeVideo(imported.path)
+      const previewUrl = await registerLocalMediaPreview(imported.path)
+      const size = existsSync(imported.path) ? statSync(imported.path).size : 0
+      return {
+        ok: true as const,
+        path: imported.path,
+        previewUrl,
+        probe,
+        size,
+        name: basename(imported.path),
+      }
+    },
+  )
+  ipcMain.handle(
+    IpcChannels.audioTools.process,
+    (
+      _e,
+      payload: {
+        inputPath: string
+        startSec?: number
+        endSec?: number
+        format: 'mp3' | 'wav' | 'aac' | 'm4a' | 'ogg' | 'flac'
+        volume?: number
+        fadeInSec?: number
+        fadeOutSec?: number
+        normalize?: boolean
+        speed?: number
+      },
+    ) => processAudio(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.audioTools.concat,
+    (_e, payload?: { inputPaths?: string[]; format?: 'mp3' | 'wav' | 'aac' | 'm4a' | 'ogg' | 'flac' }) =>
+      concatAudios(payload),
+  )
+  ipcMain.handle(IpcChannels.tools.mergePdfs, (_e, payload?: { paths?: string[] }) =>
+    mergePdfs(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.tools.splitPdf,
+    (_e, payload?: { path?: string; ranges?: string }) => splitPdf(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.tools.exportPdf,
+    (_e, payload: { content: string; defaultName?: string }) => exportTextAsPdf(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.tools.exportDocx,
+    (_e, payload: { content: string; defaultName?: string }) => exportTextAsDocx(payload),
+  )
+  ipcMain.handle(IpcChannels.tools.compressPdf, (_e, payload?: { path?: string; jpegQuality?: number }) =>
+    compressPdf(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.tools.encryptPdf,
+    (
+      _e,
+      payload: {
+        path?: string
+        userPassword: string
+        ownerPassword?: string
+        allowPrinting?: boolean
+        allowCopying?: boolean
+      },
+    ) => encryptPdf(payload),
+  )
+  ipcMain.handle(IpcChannels.tools.checkLibreOffice, () => checkLibreOffice())
+  ipcMain.handle(
+    IpcChannels.tools.convertLibreOffice,
+    (
+      _e,
+      payload: {
+        inputPath?: string
+        target: import('../modules/tools/DocLibreOffice').OfficeConvertTarget
+      },
+    ) => convertWithLibreOffice(payload),
+  )
+  ipcMain.handle(IpcChannels.tools.pickLibreOffice, () => pickLibreOfficeBinary())
+  ipcMain.handle(IpcChannels.tools.clearLibreOffice, async () => {
+    clearLibreOfficeCustomPath()
+    return checkLibreOffice()
+  })
+  ipcMain.handle(IpcChannels.tools.openLibreOfficeDownload, () => openLibreOfficeDownload())
+  ipcMain.handle(
     IpcChannels.media.generateMusic,
     async (
       _e,
@@ -820,6 +1064,27 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.imageTools.getModelPublicPath, (_e, id: string) =>
     getVisionModelPublicPath(id),
   )
+  ipcMain.handle(
+    IpcChannels.imageTools.upsertCustomEngine,
+    (
+      _e,
+      payload: {
+        id?: string
+        name: string
+        task: import('@shared').ImageSmartTask
+        kind: 'onnx' | 'http'
+        enabled?: boolean
+        onnxSourcePath?: string
+        endpointUrl?: string
+        apiKey?: string
+        notes?: string
+      },
+    ) => upsertCustomVisionEngine(payload),
+  )
+  ipcMain.handle(IpcChannels.imageTools.removeCustomEngine, (_e, id: string) =>
+    removeCustomVisionEngine(id),
+  )
+  ipcMain.handle(IpcChannels.imageTools.pickCustomOnnx, () => pickCustomOnnxFile())
 
   ipcMain.handle(
     IpcChannels.debug.getActivity,

@@ -14,6 +14,9 @@ import { TimezonePage } from '@renderer/features/tools/pages/TimezonePage'
 import { WorldTimePage } from '@renderer/features/tools/pages/WorldTimePage'
 import { JsonPage } from '@renderer/features/tools/pages/JsonPage'
 import { ImageToolkitPage } from '@renderer/features/tools/pages/ImageToolkitPage'
+import { VideoToolkitPage } from '@renderer/features/tools/pages/VideoToolkitPage'
+import { AudioToolkitPage } from '@renderer/features/tools/pages/AudioToolkitPage'
+import { DocToolkitPage } from '@renderer/features/tools/pages/DocToolkitPage'
 
 export const router = createHashRouter([
   {
@@ -34,6 +37,9 @@ export const router = createHashRouter([
       { path: 'tools/worldtime', element: <WorldTimePage /> },
       { path: 'tools/json', element: <JsonPage /> },
       { path: 'tools/image', element: <ImageToolkitPage /> },
+      { path: 'tools/video', element: <VideoToolkitPage /> },
+      { path: 'tools/audio', element: <AudioToolkitPage /> },
+      { path: 'tools/doc', element: <DocToolkitPage /> },
       { path: 'fortune', element: <FortunePage /> },
       { path: 'stocks', element: <StocksPage /> },
       { path: 'settings', element: <SettingsPage /> },

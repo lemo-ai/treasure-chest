@@ -20,7 +20,7 @@ export type VisionRuntimeKind =
   /** Weights can be imported; inference runtime not ready yet */
   | 'import_pending'
 
-export type VisionModelsRootMode = 'userData' | 'project' | 'custom'
+export type VisionModelsRootMode = 'userData' | 'custom'
 
 export interface VisionDownloadAsset {
   fileName: string
@@ -114,16 +114,17 @@ export const VISION_MODEL_CATALOG: VisionModelCatalogEntry[] = [
     descKey: 'esrganDesc',
     task: 'upscale',
     installKind: 'download',
-    runtime: 'canvas_fallback',
+    runtime: 'adapted',
     importExtensions: ['onnx', 'pth', 'pt', 'bin', 'param'],
     allowImport: true,
-    sizeHintMb: 64,
+    sizeHintMb: 67,
     docsUrl: 'https://github.com/xinntao/Real-ESRGAN',
     downloadAssets: [
       {
-        fileName: 'RealESRGAN_x4plus.pth',
+        fileName: 'realesr-general-x4v3.onnx',
         urls: [
-          'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth',
+          'https://hf-mirror.com/CoderViking/realesr-general-x4v3-onnx/resolve/main/realesr-general-x4v3.onnx?download=true',
+          'https://huggingface.co/CoderViking/realesr-general-x4v3-onnx/resolve/main/realesr-general-x4v3.onnx?download=true',
         ],
       },
     ],
@@ -134,16 +135,17 @@ export const VISION_MODEL_CATALOG: VisionModelCatalogEntry[] = [
     descKey: 'waifu2xDesc',
     task: 'upscale',
     installKind: 'download',
-    runtime: 'import_pending',
+    runtime: 'adapted',
     importExtensions: ['onnx', 'json', 'bin', 'param', 'pth'],
     allowImport: true,
     sizeHintMb: 17,
     docsUrl: 'https://github.com/xinntao/Real-ESRGAN',
     downloadAssets: [
       {
-        fileName: 'RealESRGAN_x4plus_anime_6B.pth',
+        fileName: 'realesr-general-x4v3.onnx',
         urls: [
-          'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth',
+          'https://hf-mirror.com/CoderViking/realesr-general-x4v3-onnx/resolve/main/realesr-general-x4v3.onnx?download=true',
+          'https://huggingface.co/CoderViking/realesr-general-x4v3-onnx/resolve/main/realesr-general-x4v3.onnx?download=true',
         ],
       },
     ],
@@ -154,18 +156,17 @@ export const VISION_MODEL_CATALOG: VisionModelCatalogEntry[] = [
     descKey: 'nafnetDesc',
     task: 'denoise',
     installKind: 'download',
-    runtime: 'canvas_fallback',
+    runtime: 'adapted',
     importExtensions: ['onnx', 'pth', 'pt', 'bin'],
     allowImport: true,
-    sizeHintMb: 117,
-    docsUrl: 'https://github.com/megvii-research/NAFNet',
-    // Official weights are Drive/Baidu only. Prefer smaller width32 + HF mirrors (no GitHub asset).
+    sizeHintMb: 88,
+    docsUrl: 'https://huggingface.co/opencv/deblurring_nafnet',
     downloadAssets: [
       {
-        fileName: 'NAFNet-SIDD-width32.pth',
+        fileName: 'deblurring_nafnet_2025may.onnx',
         urls: [
-          'https://hf-mirror.com/nyanko7/nafnet-models/resolve/main/NAFNet-SIDD-width32.pth?download=true',
-          'https://huggingface.co/nyanko7/nafnet-models/resolve/main/NAFNet-SIDD-width32.pth?download=true',
+          'https://hf-mirror.com/opencv/deblurring_nafnet/resolve/main/deblurring_nafnet_2025may.onnx?download=true',
+          'https://huggingface.co/opencv/deblurring_nafnet/resolve/main/deblurring_nafnet_2025may.onnx?download=true',
         ],
       },
     ],
@@ -198,9 +199,33 @@ export interface ImageToolsSettings {
   /** Absolute path when modelsRootMode === 'custom' */
   customModelsRoot: string
   /**
+   * User-defined engines (ONNX file or HTTP endpoint). Never bundled.
+   */
+  customEngines: CustomVisionEngine[]
+  /**
    * Resolved absolute models root (filled by main process; not persisted).
    */
   resolvedModelsRoot?: string
+}
+
+/** Plugin-style custom vision engine registered by the user. */
+export type CustomVisionEngineKind = 'onnx' | 'http'
+
+export interface CustomVisionEngine {
+  id: string
+  name: string
+  task: ImageSmartTask
+  kind: CustomVisionEngineKind
+  enabled: boolean
+  createdAt: number
+  /** Absolute path to .onnx when kind === 'onnx' */
+  onnxPath?: string
+  /** HTTP endpoint when kind === 'http' (POST JSON { imageDataUrl, task, maskDataUrl? }) */
+  endpointUrl?: string
+  /** Optional Authorization Bearer / API key for HTTP engines */
+  apiKey?: string
+  /** Display note */
+  notes?: string
 }
 
 export const DEFAULT_IMAGE_TOOLS_SETTINGS: ImageToolsSettings = {
@@ -216,6 +241,7 @@ export const DEFAULT_IMAGE_TOOLS_SETTINGS: ImageToolsSettings = {
   preferLocalVision: true,
   modelsRootMode: 'userData',
   customModelsRoot: '',
+  customEngines: [],
 }
 
 export function visionCatalogEntry(id: string): VisionModelCatalogEntry | undefined {
@@ -227,6 +253,46 @@ export function visionCatalogForTask(task: ImageSmartTask): VisionModelCatalogEn
     return VISION_MODEL_CATALOG.filter((m) => m.task === 'remove_background')
   }
   return VISION_MODEL_CATALOG.filter((m) => m.task === task)
+}
+
+export function isCustomEngineId(id: string): boolean {
+  return id.startsWith('custom-')
+}
+
+export function parseCustomEngines(raw: unknown): CustomVisionEngine[] {
+  if (!Array.isArray(raw)) return []
+  const out: CustomVisionEngine[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const id = typeof rec.id === 'string' ? rec.id : ''
+    const name = typeof rec.name === 'string' ? rec.name.trim() : ''
+    const task = rec.task as ImageSmartTask
+    const kind = rec.kind === 'http' ? 'http' : rec.kind === 'onnx' ? 'onnx' : null
+    if (!id || !name || !kind) continue
+    if (
+      task !== 'remove_background' &&
+      task !== 'remove_watermark' &&
+      task !== 'upscale' &&
+      task !== 'denoise' &&
+      task !== 'background_replace'
+    ) {
+      continue
+    }
+    out.push({
+      id,
+      name,
+      task,
+      kind,
+      enabled: rec.enabled !== false,
+      createdAt: typeof rec.createdAt === 'number' ? rec.createdAt : Date.now(),
+      onnxPath: typeof rec.onnxPath === 'string' ? rec.onnxPath : undefined,
+      endpointUrl: typeof rec.endpointUrl === 'string' ? rec.endpointUrl : undefined,
+      apiKey: typeof rec.apiKey === 'string' ? rec.apiKey : undefined,
+      notes: typeof rec.notes === 'string' ? rec.notes : undefined,
+    })
+  }
+  return out
 }
 
 export function mergeVisionModelStates(
@@ -241,7 +307,8 @@ export function mergeVisionModelStates(
 }
 
 function parseRootMode(raw: unknown): VisionModelsRootMode {
-  if (raw === 'project' || raw === 'custom' || raw === 'userData') return raw
+  if (raw === 'custom') return 'custom'
+  // Legacy 'project' folds back to userData
   return 'userData'
 }
 
@@ -268,6 +335,7 @@ export function parseImageToolsSettings(raw: unknown): ImageToolsSettings {
     preferLocalVision: rec.preferLocalVision === undefined ? true : Boolean(rec.preferLocalVision),
     modelsRootMode: parseRootMode(rec.modelsRootMode),
     customModelsRoot: typeof rec.customModelsRoot === 'string' ? rec.customModelsRoot : '',
+    customEngines: parseCustomEngines(rec.customEngines),
   }
 }
 

@@ -373,6 +373,22 @@ const api = {
     payload: import('@shared').ImageSaveRequest,
   ): Promise<import('@shared').ImageSaveResult> =>
     ipcRenderer.invoke(IpcChannels.imageTools.saveImage, payload),
+  upsertCustomVisionEngine: (payload: {
+    id?: string
+    name: string
+    task: import('@shared').ImageSmartTask
+    kind: 'onnx' | 'http'
+    enabled?: boolean
+    onnxSourcePath?: string
+    endpointUrl?: string
+    apiKey?: string
+    notes?: string
+  }): Promise<import('@shared').ImageToolsSettings> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.upsertCustomEngine, payload),
+  removeCustomVisionEngine: (id: string): Promise<import('@shared').ImageToolsSettings> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.removeCustomEngine, id),
+  pickCustomVisionOnnx: (): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.imageTools.pickCustomOnnx),
   getDebugActivity: (
     query?: import('@shared').ActivityLogQuery,
   ): Promise<import('@shared').ActivityLogSnapshot> =>
@@ -415,6 +431,275 @@ const api = {
     resolution?: string
   }): Promise<{ ok: boolean; text?: string; url?: string; error?: string }> =>
     ipcRenderer.invoke(IpcChannels.media.generateVideo, payload),
+  extractDocument: (payload: {
+    fileName: string
+    dataBase64: string
+    mime?: string
+  }): Promise<{ ok: boolean; text?: string; mime?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.tools.extractDocument, payload),
+  saveTextFile: (payload: {
+    content: string
+    defaultName?: string
+    extensions?: string[]
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.tools.saveTextFile, payload),
+  saveMediaFile: (payload: {
+    url: string
+    defaultName?: string
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.tools.saveMediaFile, payload),
+  checkVideoFfmpeg: (): Promise<{
+    ok: boolean
+    ffmpeg?: string
+    ffprobe?: string
+    error?: string
+  }> => ipcRenderer.invoke(IpcChannels.videoTools.checkFfmpeg),
+  pickLocalVideo: (): Promise<{
+    ok: boolean
+    cancelled?: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      width?: number
+      height?: number
+      videoCodec?: string
+      audioCodec?: string
+      bitrate?: number
+      error?: string
+    }
+    error?: string
+  }> => ipcRenderer.invoke(IpcChannels.videoTools.pickVideo),
+  importLocalVideo: (payload: {
+    fileName: string
+    dataBase64: string
+  }): Promise<{
+    ok: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      width?: number
+      height?: number
+      videoCodec?: string
+      audioCodec?: string
+      bitrate?: number
+      error?: string
+    }
+    error?: string
+  }> => ipcRenderer.invoke(IpcChannels.videoTools.importVideo, payload),
+  processLocalVideo: (payload: {
+    inputPath: string
+    startSec?: number
+    endSec?: number
+    mute?: boolean
+    format: 'mp4' | 'webm' | 'mov' | 'gif' | 'mp3' | 'wav'
+    maxEdge?: number
+    speed?: number
+    rotateDeg?: 0 | 90 | 180 | 270
+    watermarkText?: string
+    watermarkPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
+    watermarkImagePath?: string
+    watermarkImageScale?: number
+    subtitlePath?: string
+    subtitleFontSize?: number
+    subtitleColor?: string
+    brightness?: number
+    contrast?: number
+    saturation?: number
+    volume?: number
+    fadeInSec?: number
+    fadeOutSec?: number
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.videoTools.process, payload),
+  concatLocalVideos: (payload?: {
+    inputPaths?: string[]
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.videoTools.concat, payload),
+  renderMultiTrackVideo: (payload: {
+    clips: Array<{
+      path: string
+      kind: 'video' | 'audio' | 'image'
+      track: 'V1' | 'A1' | 'OV1'
+      inSec?: number
+      outSec?: number
+      startSec?: number
+      volume?: number
+    }>
+    width?: number
+    height?: number
+    fps?: number
+    muteVideoAudio?: boolean
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.videoTools.multiTrack, payload),
+  pickVideoImage: (): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.videoTools.pickImage),
+  pickVideoSubtitle: (): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.videoTools.pickSubtitle),
+  pickLocalAudio: (): Promise<{
+    ok: boolean
+    cancelled?: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      audioCodec?: string
+      bitrate?: number
+      sampleRate?: number
+      channels?: number
+      error?: string
+    }
+    error?: string
+  }> => ipcRenderer.invoke(IpcChannels.audioTools.pickAudio),
+  importLocalAudio: (payload: {
+    fileName: string
+    dataBase64: string
+  }): Promise<{
+    ok: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      audioCodec?: string
+      bitrate?: number
+      sampleRate?: number
+      channels?: number
+      error?: string
+    }
+    error?: string
+  }> => ipcRenderer.invoke(IpcChannels.audioTools.importAudio, payload),
+  processLocalAudio: (payload: {
+    inputPath: string
+    startSec?: number
+    endSec?: number
+    format: 'mp3' | 'wav' | 'aac' | 'm4a' | 'ogg' | 'flac'
+    volume?: number
+    fadeInSec?: number
+    fadeOutSec?: number
+    normalize?: boolean
+    speed?: number
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.audioTools.process, payload),
+  concatLocalAudios: (payload?: {
+    inputPaths?: string[]
+    format?: 'mp3' | 'wav' | 'aac' | 'm4a' | 'ogg' | 'flac'
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.audioTools.concat, payload),
+  mergePdfs: (payload?: {
+    paths?: string[]
+  }): Promise<{
+    ok: boolean
+    path?: string
+    error?: string
+    pageCount?: number
+  }> => ipcRenderer.invoke(IpcChannels.tools.mergePdfs, payload),
+  splitPdf: (payload?: {
+    path?: string
+    ranges?: string
+  }): Promise<{
+    ok: boolean
+    path?: string
+    error?: string
+    pageCount?: number
+  }> => ipcRenderer.invoke(IpcChannels.tools.splitPdf, payload),
+  exportTextPdf: (payload: {
+    content: string
+    defaultName?: string
+  }): Promise<{
+    ok: boolean
+    path?: string
+    error?: string
+    pageCount?: number
+  }> => ipcRenderer.invoke(IpcChannels.tools.exportPdf, payload),
+  exportTextDocx: (payload: {
+    content: string
+    defaultName?: string
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.tools.exportDocx, payload),
+  compressPdf: (payload?: {
+    path?: string
+    jpegQuality?: number
+  }): Promise<{
+    ok: boolean
+    path?: string
+    error?: string
+    pageCount?: number
+    bytesBefore?: number
+    bytesAfter?: number
+  }> => ipcRenderer.invoke(IpcChannels.tools.compressPdf, payload),
+  encryptPdf: (payload: {
+    path?: string
+    userPassword: string
+    ownerPassword?: string
+    allowPrinting?: boolean
+    allowCopying?: boolean
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.tools.encryptPdf, payload),
+  checkLibreOffice: (): Promise<{
+    ok: boolean
+    path?: string
+    version?: string
+    error?: string
+    customPath?: string
+    source?: 'custom' | 'auto' | 'none'
+  }> => ipcRenderer.invoke(IpcChannels.tools.checkLibreOffice),
+  convertLibreOffice: (payload: {
+    inputPath?: string
+    target: 'pdf' | 'docx' | 'odt' | 'pptx' | 'odp' | 'xlsx' | 'ods' | 'html' | 'txt'
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.tools.convertLibreOffice, payload),
+  pickLibreOffice: (): Promise<{
+    ok: boolean
+    path?: string
+    version?: string
+    error?: string
+    customPath?: string
+    source?: 'custom' | 'auto' | 'none'
+  }> => ipcRenderer.invoke(IpcChannels.tools.pickLibreOffice),
+  clearLibreOffice: (): Promise<{
+    ok: boolean
+    path?: string
+    version?: string
+    error?: string
+    customPath?: string
+    source?: 'custom' | 'auto' | 'none'
+  }> => ipcRenderer.invoke(IpcChannels.tools.clearLibreOffice),
+  openLibreOfficeDownload: (): Promise<void> =>
+    ipcRenderer.invoke(IpcChannels.tools.openLibreOfficeDownload),
+  onVideoProcessProgress: (
+    callback: (payload: { ratio: number; label: string }) => void,
+  ): (() => void) => {
+    const handler = (_: unknown, payload: { ratio: number; label: string }): void => {
+      callback(payload)
+    }
+    ipcRenderer.on(IpcChannels.videoTools.progress, handler)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.videoTools.progress, handler)
+    }
+  },
+  onAudioProcessProgress: (
+    callback: (payload: { ratio: number; label: string }) => void,
+  ): (() => void) => {
+    const handler = (_: unknown, payload: { ratio: number; label: string }): void => {
+      callback(payload)
+    }
+    ipcRenderer.on(IpcChannels.audioTools.progress, handler)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.audioTools.progress, handler)
+    }
+  },
   generateMusic: (payload: {
     prompt: string
     model?: string

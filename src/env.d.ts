@@ -212,6 +212,19 @@ interface TreasureChestApi {
   saveImageFile: (
     payload: import('@shared').ImageSaveRequest,
   ) => Promise<import('@shared').ImageSaveResult>
+  upsertCustomVisionEngine: (payload: {
+    id?: string
+    name: string
+    task: import('@shared').ImageSmartTask
+    kind: 'onnx' | 'http'
+    enabled?: boolean
+    onnxSourcePath?: string
+    endpointUrl?: string
+    apiKey?: string
+    notes?: string
+  }) => Promise<import('@shared').ImageToolsSettings>
+  removeCustomVisionEngine: (id: string) => Promise<import('@shared').ImageToolsSettings>
+  pickCustomVisionOnnx: () => Promise<string | null>
   getDebugActivity: (
     query?: import('@shared').ActivityLogQuery,
   ) => Promise<import('@shared').ActivityLogSnapshot>
@@ -237,6 +250,230 @@ interface TreasureChestApi {
     aspectRatio?: string
     resolution?: string
   }) => Promise<{ ok: boolean; text?: string; url?: string; error?: string }>
+  extractDocument: (payload: {
+    fileName: string
+    dataBase64: string
+    mime?: string
+  }) => Promise<{ ok: boolean; text?: string; mime?: string; error?: string }>
+  saveTextFile: (payload: {
+    content: string
+    defaultName?: string
+    extensions?: string[]
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  saveMediaFile: (payload: {
+    url: string
+    defaultName?: string
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  checkVideoFfmpeg: () => Promise<{
+    ok: boolean
+    ffmpeg?: string
+    ffprobe?: string
+    error?: string
+  }>
+  pickLocalVideo: () => Promise<{
+    ok: boolean
+    cancelled?: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      width?: number
+      height?: number
+      videoCodec?: string
+      audioCodec?: string
+      bitrate?: number
+      error?: string
+    }
+    error?: string
+  }>
+  importLocalVideo: (payload: {
+    fileName: string
+    dataBase64: string
+  }) => Promise<{
+    ok: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      width?: number
+      height?: number
+      videoCodec?: string
+      audioCodec?: string
+      bitrate?: number
+      error?: string
+    }
+    error?: string
+  }>
+  processLocalVideo: (payload: {
+    inputPath: string
+    startSec?: number
+    endSec?: number
+    mute?: boolean
+    format: 'mp4' | 'webm' | 'mov' | 'gif' | 'mp3' | 'wav'
+    maxEdge?: number
+    speed?: number
+    rotateDeg?: 0 | 90 | 180 | 270
+    watermarkText?: string
+    watermarkPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
+    watermarkImagePath?: string
+    watermarkImageScale?: number
+    subtitlePath?: string
+    subtitleFontSize?: number
+    subtitleColor?: string
+    brightness?: number
+    contrast?: number
+    saturation?: number
+    volume?: number
+    fadeInSec?: number
+    fadeOutSec?: number
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  concatLocalVideos: (payload?: {
+    inputPaths?: string[]
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  renderMultiTrackVideo: (payload: {
+    clips: Array<{
+      path: string
+      kind: 'video' | 'audio' | 'image'
+      track: 'V1' | 'A1' | 'OV1'
+      inSec?: number
+      outSec?: number
+      startSec?: number
+      volume?: number
+    }>
+    width?: number
+    height?: number
+    fps?: number
+    muteVideoAudio?: boolean
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  pickVideoImage: () => Promise<string | null>
+  pickVideoSubtitle: () => Promise<string | null>
+  pickLocalAudio: () => Promise<{
+    ok: boolean
+    cancelled?: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      audioCodec?: string
+      bitrate?: number
+      sampleRate?: number
+      channels?: number
+      error?: string
+    }
+    error?: string
+  }>
+  importLocalAudio: (payload: {
+    fileName: string
+    dataBase64: string
+  }) => Promise<{
+    ok: boolean
+    path?: string
+    previewUrl?: string
+    name?: string
+    size?: number
+    probe?: {
+      ok: boolean
+      duration?: number
+      audioCodec?: string
+      bitrate?: number
+      sampleRate?: number
+      channels?: number
+      error?: string
+    }
+    error?: string
+  }>
+  processLocalAudio: (payload: {
+    inputPath: string
+    startSec?: number
+    endSec?: number
+    format: 'mp3' | 'wav' | 'aac' | 'm4a' | 'ogg' | 'flac'
+    volume?: number
+    fadeInSec?: number
+    fadeOutSec?: number
+    normalize?: boolean
+    speed?: number
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  concatLocalAudios: (payload?: {
+    inputPaths?: string[]
+    format?: 'mp3' | 'wav' | 'aac' | 'm4a' | 'ogg' | 'flac'
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  mergePdfs: (payload?: {
+    paths?: string[]
+  }) => Promise<{ ok: boolean; path?: string; error?: string; pageCount?: number }>
+  splitPdf: (payload?: {
+    path?: string
+    ranges?: string
+  }) => Promise<{ ok: boolean; path?: string; error?: string; pageCount?: number }>
+  exportTextPdf: (payload: {
+    content: string
+    defaultName?: string
+  }) => Promise<{ ok: boolean; path?: string; error?: string; pageCount?: number }>
+  exportTextDocx: (payload: {
+    content: string
+    defaultName?: string
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  compressPdf: (payload?: {
+    path?: string
+    jpegQuality?: number
+  }) => Promise<{
+    ok: boolean
+    path?: string
+    error?: string
+    pageCount?: number
+    bytesBefore?: number
+    bytesAfter?: number
+  }>
+  encryptPdf: (payload: {
+    path?: string
+    userPassword: string
+    ownerPassword?: string
+    allowPrinting?: boolean
+    allowCopying?: boolean
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  checkLibreOffice: () => Promise<{
+    ok: boolean
+    path?: string
+    version?: string
+    error?: string
+    customPath?: string
+    source?: 'custom' | 'auto' | 'none'
+  }>
+  convertLibreOffice: (payload: {
+    inputPath?: string
+    target: 'pdf' | 'docx' | 'odt' | 'pptx' | 'odp' | 'xlsx' | 'ods' | 'html' | 'txt'
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  pickLibreOffice: () => Promise<{
+    ok: boolean
+    path?: string
+    version?: string
+    error?: string
+    customPath?: string
+    source?: 'custom' | 'auto' | 'none'
+  }>
+  clearLibreOffice: () => Promise<{
+    ok: boolean
+    path?: string
+    version?: string
+    error?: string
+    customPath?: string
+    source?: 'custom' | 'auto' | 'none'
+  }>
+  openLibreOfficeDownload: () => Promise<void>
+  onVideoProcessProgress: (
+    callback: (payload: { ratio: number; label: string }) => void,
+  ) => () => void
+  onAudioProcessProgress: (
+    callback: (payload: { ratio: number; label: string }) => void,
+  ) => () => void
   generateMusic: (payload: {
     prompt: string
     model?: string
