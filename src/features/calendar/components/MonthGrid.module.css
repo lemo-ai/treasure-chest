@@ -62,21 +62,21 @@
 }
 
 .badgeRest {
-  color: #c62828;
-  background: color-mix(in srgb, #c62828 14%, transparent);
-}
-
-.badgeWork {
   color: #1565c0;
   background: color-mix(in srgb, #1565c0 14%, transparent);
 }
 
-.restDay .dayNum {
+.badgeWork {
   color: #c62828;
+  background: color-mix(in srgb, #c62828 14%, transparent);
+}
+
+.restDay .dayNum {
+  color: #1565c0;
 }
 
 .makeupDay .dayNum {
-  color: #1565c0;
+  color: #c62828;
 }
 
 .cell:hover {

@@ -65,13 +65,13 @@
 }
 
 .workStatusOn .workChip {
-  color: #1565c0;
-  background: color-mix(in srgb, #1565c0 14%, transparent);
+  color: #c62828;
+  background: color-mix(in srgb, #c62828 14%, transparent);
 }
 
 .workStatusOff .workChip {
-  color: #c62828;
-  background: color-mix(in srgb, #c62828 14%, transparent);
+  color: #1565c0;
+  background: color-mix(in srgb, #1565c0 14%, transparent);
 }
 
 .lunar {
