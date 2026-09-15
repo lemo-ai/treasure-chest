@@ -5,12 +5,13 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 6px;
-  padding: 0 4px 0 0;
+  gap: 4px;
+  padding: 0;
   box-sizing: border-box;
   background: transparent;
   cursor: grab;
   -webkit-app-region: no-drag;
+  overflow: hidden;
 }
 
 .root:active {

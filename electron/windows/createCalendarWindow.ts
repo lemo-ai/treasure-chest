@@ -18,9 +18,9 @@ const MODE_BOUNDS: Record<
   }
 > = {
   widget: {
-    width: 236,
+    width: 248,
     height: 200,
-    minWidth: 220,
+    minWidth: 236,
     minHeight: 180,
     alwaysOnTop: true,
     skipTaskbar: true,

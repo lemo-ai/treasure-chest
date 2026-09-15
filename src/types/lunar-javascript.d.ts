@@ -14,6 +14,21 @@ declare module 'lunar-javascript' {
     getLunar(): Lunar
     next(days: number): Solar
     toYmd(): string
+    /** 1 workday, 2 rest, 3 triple-pay holiday (statutory). */
+    getSalaryRate(): number
+  }
+
+  export class Holiday {
+    getDay(): string
+    getName(): string
+    isWork(): boolean
+    getTarget(): string
+    toString(): string
+  }
+
+  export class HolidayUtil {
+    static getHoliday(year: number, month: number, day: number): Holiday | null
+    static getHoliday(ymd: string): Holiday | null
   }
 
   export class SolarWeek {

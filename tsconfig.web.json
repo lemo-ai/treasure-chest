@@ -8,11 +8,13 @@
     "paths": {
       "@renderer/*": ["src/*"],
       "@shared/*": ["packages/shared/src/*"],
-      "@shared": ["packages/shared/src/index.ts"]
+      "@shared": ["packages/shared/src/index.ts"],
+      "@config/*": ["config/*"]
     }
   },
   "include": [
     "src/**/*",
-    "packages/shared/src/**/*"
+    "packages/shared/src/**/*",
+    "config/changelog.json"
   ]
 }

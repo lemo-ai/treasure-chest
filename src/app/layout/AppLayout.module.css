@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
   background: var(--color-bg);
@@ -252,6 +252,7 @@
   min-width: 0;
   min-height: 0;
   height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
   background-image: var(--gradient-calendar-morning);
   background-attachment: local;

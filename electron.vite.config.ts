@@ -115,6 +115,12 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src'),
         '@shared': resolve('packages/shared/src'),
+        '@config': resolve('config'),
+      },
+    },
+    server: {
+      fs: {
+        allow: [resolve('.'), resolve('config')],
       },
     },
     optimizeDeps: {

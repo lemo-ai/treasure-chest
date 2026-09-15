@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .header {
@@ -33,9 +35,11 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(280px, 380px) 1fr;
+  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
+  width: 100%;
+  min-width: 0;
 }
 
 .panel {
@@ -45,10 +49,16 @@
   padding: var(--space-5);
   box-shadow: var(--shadow-soft);
   background-image: var(--gradient-calendar-morning);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .panelTurn {
+  min-width: 0;
   min-height: 0;
+  max-width: 100%;
 }
 
 .expandedTurn {
@@ -103,7 +113,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -130,7 +141,8 @@
   border: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-bg-elevated) 94%, transparent);
   box-shadow: var(--shadow-soft);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .expandedDay {
@@ -157,8 +169,8 @@
 }
 
 .dialRoot {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: transparent;
   overflow: hidden;
 }
@@ -173,10 +185,12 @@
 :global(.calendar-float-body),
 :global(.calendar-float-body #root) {
   background: transparent !important;
+  overflow: hidden !important;
 }
 
 :global(.calendar-float-body) {
-  overflow: hidden;
+  overflow: hidden !important;
+  margin: 0;
 }
 
 :global(.calendar-float-body.calendar-float-large),

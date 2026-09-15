@@ -4,6 +4,10 @@
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   box-shadow: var(--shadow-soft);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .header {
@@ -30,10 +34,12 @@
 }
 
 .cell {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  min-width: 0;
   min-height: 52px;
   padding: 6px 2px;
   border: 1px solid transparent;
@@ -41,6 +47,36 @@
   background: transparent;
   color: var(--color-ink);
   cursor: pointer;
+}
+
+.badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.badgeRest {
+  color: #c62828;
+  background: color-mix(in srgb, #c62828 14%, transparent);
+}
+
+.badgeWork {
+  color: #1565c0;
+  background: color-mix(in srgb, #1565c0 14%, transparent);
+}
+
+.restDay .dayNum {
+  color: #c62828;
+}
+
+.makeupDay .dayNum {
+  color: #1565c0;
 }
 
 .cell:hover {

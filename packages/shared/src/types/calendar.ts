@@ -1,5 +1,16 @@
 export type CalendarMode = 'widget' | 'large'
 
+/** CN work calendar: workday / rest / makeup (调休上班). */
+export type WorkDayKind = 'work' | 'rest' | 'makeup'
+
+export interface WorkDayInfo {
+  /** True when this day requires going to work. */
+  isWorkday: boolean
+  kind: WorkDayKind
+  /** Official holiday name when this day is part of a statutory schedule. */
+  holidayName: string | null
+}
+
 export interface DaySnapshot {
   /** YYYY-MM-DD */
   date: string
@@ -25,6 +36,7 @@ export interface DaySnapshot {
   nextJieQi: { name: string; date: string; daysUntil: number } | null
   yi: string[]
   ji: string[]
+  workDay: WorkDayInfo
 }
 
 export interface MonthCell {
@@ -35,6 +47,7 @@ export interface MonthCell {
   lunarDayLabel: string
   festivals: string[]
   jieQi: string | null
+  workDay: WorkDayInfo
 }
 
 export interface MonthSnapshot {

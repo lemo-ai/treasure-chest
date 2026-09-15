@@ -3,6 +3,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .hero {
@@ -38,6 +40,38 @@
   margin-top: var(--space-1);
   color: var(--color-ink-secondary);
   font-size: 0.9rem;
+}
+
+.workStatus {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  margin-top: var(--space-2);
+  font-size: 0.82rem;
+  color: var(--color-ink-secondary);
+}
+
+.workChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.workStatusOn .workChip {
+  color: #1565c0;
+  background: color-mix(in srgb, #1565c0 14%, transparent);
+}
+
+.workStatusOff .workChip {
+  color: #c62828;
+  background: color-mix(in srgb, #c62828 14%, transparent);
 }
 
 .lunar {
@@ -102,12 +136,17 @@
 }
 
 .dense .week,
+.dense .workStatus,
 .dense .lunar,
 .dense .ganzhi,
 .dense .nextJie,
 .dense .yiText,
 .dense .jiText {
   font-size: 0.78rem;
+}
+
+.dense .workChip {
+  font-size: 0.65rem;
 }
 
 .dense .hero {

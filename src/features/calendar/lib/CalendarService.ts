@@ -1,5 +1,5 @@
-import { Solar, SolarMonth } from 'lunar-javascript'
-import type { DaySnapshot, MonthCell, MonthSnapshot } from '@shared'
+import { HolidayUtil, Solar, SolarMonth } from 'lunar-javascript'
+import type { DaySnapshot, MonthCell, MonthSnapshot, WorkDayInfo } from '@shared'
 
 const WEEK_LABELS_ZH = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -25,6 +25,22 @@ function buildFestivals(solar: ReturnType<typeof Solar.fromYmd>, lunar: ReturnTy
     ...lunar.getOtherFestivals(),
   ]
   return [...new Set(list.filter(Boolean))]
+}
+
+/** Resolve CN statutory work/rest (incl. 调休) via lunar-javascript HolidayUtil. */
+export function resolveWorkDay(solar: ReturnType<typeof Solar.fromYmd>): WorkDayInfo {
+  const holiday = HolidayUtil.getHoliday(solar.getYear(), solar.getMonth(), solar.getDay())
+  if (holiday) {
+    if (holiday.isWork()) {
+      return { isWorkday: true, kind: 'makeup', holidayName: holiday.getName() }
+    }
+    return { isWorkday: false, kind: 'rest', holidayName: holiday.getName() }
+  }
+  const week = solar.getWeek()
+  if (week === 0 || week === 6) {
+    return { isWorkday: false, kind: 'rest', holidayName: null }
+  }
+  return { isWorkday: true, kind: 'work', holidayName: null }
 }
 
 export function getDaySnapshot(date: Date = new Date()): DaySnapshot {
@@ -70,6 +86,7 @@ export function getDaySnapshot(date: Date = new Date()): DaySnapshot {
     nextJieQi,
     yi: lunar.getDayYi().slice(0, 8),
     ji: lunar.getDayJi().slice(0, 8),
+    workDay: resolveWorkDay(solar),
   }
 }
 
@@ -94,6 +111,7 @@ export function getMonthSnapshot(year: number, month: number, today = new Date()
       lunarDayLabel: lunar.getDayInChinese(),
       festivals: buildFestivals(d, lunar).slice(0, 1),
       jieQi: lunar.getJieQi() || null,
+      workDay: resolveWorkDay(d),
     })
   }
 
@@ -107,6 +125,7 @@ export function getMonthSnapshot(year: number, month: number, today = new Date()
       lunarDayLabel: lunar.getDayInChinese(),
       festivals: buildFestivals(d, lunar).slice(0, 1),
       jieQi: lunar.getJieQi() || null,
+      workDay: resolveWorkDay(d),
     })
   }
 
@@ -124,6 +143,7 @@ export function getMonthSnapshot(year: number, month: number, today = new Date()
       lunarDayLabel: lunar.getDayInChinese(),
       festivals: buildFestivals(solar, lunar).slice(0, 1),
       jieQi: lunar.getJieQi() || null,
+      workDay: resolveWorkDay(solar),
     })
   }
 

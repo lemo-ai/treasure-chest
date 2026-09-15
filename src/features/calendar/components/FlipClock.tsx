@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styles from './FlipClock.module.css'
 
@@ -64,22 +64,67 @@ export function FlipClock({ now }: { now: Date }): React.JSX.Element {
   const h = pad2(now.getHours())
   const m = pad2(now.getMinutes())
   const s = pad2(now.getSeconds())
+  const slotRef = useRef<HTMLDivElement>(null)
+  const clockRef = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState({ scale: 1, width: 0, height: 0 })
+
+  useLayoutEffect(() => {
+    const slot = slotRef.current
+    const clock = clockRef.current
+    if (!slot || !clock) return
+
+    const measure = (): void => {
+      const avail = slot.clientWidth
+      if (avail <= 0) return
+      const naturalW = clock.scrollWidth
+      const naturalH = clock.scrollHeight
+      if (naturalW <= 0 || naturalH <= 0) return
+      const scale = Math.min(1, avail / naturalW)
+      setFit({
+        scale,
+        width: Math.floor(naturalW * scale),
+        height: Math.floor(naturalH * scale),
+      })
+    }
+
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(slot)
+    return () => ro.disconnect()
+  }, [])
 
   return (
     <div className={styles.wrap}>
       <div className={styles.label}>{t('calendar.nowTime')}</div>
-      <div className={styles.clock} aria-live="polite" aria-label={`${h}:${m}:${s}`}>
-        <Pair value={h} />
-        <span className={styles.colon} aria-hidden>
-          <i />
-          <i />
-        </span>
-        <Pair value={m} />
-        <span className={styles.colon} aria-hidden>
-          <i />
-          <i />
-        </span>
-        <Pair value={s} />
+      <div className={styles.slot} ref={slotRef}>
+        <div
+          className={styles.scaleBox}
+          style={
+            fit.width > 0
+              ? { width: fit.width, height: fit.height }
+              : undefined
+          }
+        >
+          <div
+            ref={clockRef}
+            className={styles.clock}
+            style={{ transform: `scale(${fit.scale})` }}
+            aria-live="polite"
+            aria-label={`${h}:${m}:${s}`}
+          >
+            <Pair value={h} />
+            <span className={styles.colon} aria-hidden>
+              <i />
+              <i />
+            </span>
+            <Pair value={m} />
+            <span className={styles.colon} aria-hidden>
+              <i />
+              <i />
+            </span>
+            <Pair value={s} />
+          </div>
+        </div>
       </div>
     </div>
   )

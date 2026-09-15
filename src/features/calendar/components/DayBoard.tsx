@@ -36,6 +36,26 @@ export function DayBoard({
             {t('calendar.weekday', { day: day.solar.weekLabel })} ·{' '}
             {t('calendar.weekOfYear', { n: day.solar.weekOfYear })}
           </div>
+          <div
+            className={`${styles.workStatus} ${
+              day.workDay.isWorkday ? styles.workStatusOn : styles.workStatusOff
+            }`}
+          >
+            <span className={styles.workChip}>
+              {day.workDay.isWorkday ? t('calendar.workBadgeWork') : t('calendar.workBadgeRest')}
+            </span>
+            <span>
+              {day.workDay.kind === 'makeup'
+                ? t('calendar.workStatusMakeup', {
+                    name: day.workDay.holidayName ?? '',
+                  })
+                : day.workDay.isWorkday
+                  ? t('calendar.workStatusWork')
+                  : day.workDay.holidayName
+                    ? t('calendar.workStatusHoliday', { name: day.workDay.holidayName })
+                    : t('calendar.workStatusRest')}
+            </span>
+          </div>
         </div>
       </div>
 
