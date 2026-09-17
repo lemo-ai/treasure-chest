@@ -26,8 +26,59 @@ export interface McpSettings {
   servers: McpServerConfig[]
 }
 
+/**
+ * Placeholder replaced at runtime with a sandboxed folder under app userData.
+ * Keeps shared defaults free of Electron `app.getPath`.
+ */
+export const MCP_WORKSPACE_PATH_TOKEN = '{{mcpWorkspace}}'
+
+/**
+ * Built-in open-source MCP servers (official reference implementations).
+ * First launch / empty list seeds these into local settings so users can try MCP quickly.
+ * @see https://github.com/modelcontextprotocol/servers
+ */
+export const BUILTIN_MCP_SERVERS: McpServerConfig[] = [
+  {
+    id: 'mcp_memory',
+    name: 'Memory',
+    enabled: true,
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-memory'],
+  },
+  {
+    id: 'mcp_sequential_thinking',
+    name: 'Sequential Thinking',
+    enabled: true,
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
+  },
+  {
+    id: 'mcp_filesystem',
+    name: 'Filesystem',
+    enabled: true,
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-filesystem', MCP_WORKSPACE_PATH_TOKEN],
+  },
+  {
+    id: 'mcp_everything',
+    name: 'Everything (demo)',
+    enabled: false,
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-everything'],
+  },
+]
+
 export const DEFAULT_MCP_SETTINGS: McpSettings = {
-  servers: [],
+  servers: BUILTIN_MCP_SERVERS.map((s) => ({
+    ...s,
+    args: [...s.args],
+    env: s.env ? { ...s.env } : undefined,
+    headers: s.headers ? { ...s.headers } : undefined,
+  })),
 }
 
 export type McpServerStatusKind = 'disconnected' | 'connecting' | 'connected' | 'error'

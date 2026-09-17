@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
   AppLocale,
@@ -24,6 +24,7 @@ import type {
   StocksRangeKey,
 } from '@shared'
 import {
+  BUILTIN_MCP_SERVERS,
   DEFAULT_DATA_SOURCES_SETTINGS,
   DEFAULT_DESKTOP_WIDGET,
   DEFAULT_FORTUNE_SETTINGS,
@@ -36,6 +37,7 @@ import {
   DIAL_FACE_STYLES,
   DEFAULT_THEME_ACCENT,
   HEXAGRAM_SCHOOLS,
+  MCP_WORKSPACE_PATH_TOKEN,
   THEME_ACCENTS,
   aiModelIds,
   hydrateLegacyMediaModels,
@@ -211,8 +213,8 @@ function parseMcpSettings(raw: unknown): McpSettings {
   const serversRaw = Array.isArray(src.servers) ? src.servers : []
   const servers: McpServerConfig[] = serversRaw
     .filter((s): s is McpServerConfig => Boolean(s && typeof s === 'object' && typeof (s as McpServerConfig).id === 'string'))
-    .map((s) => {
-      const transport = s.transport === 'sse' ? 'sse' : 'stdio'
+    .map((s): McpServerConfig => {
+      const transport: McpServerConfig['transport'] = s.transport === 'sse' ? 'sse' : 'stdio'
       const env =
         s.env && typeof s.env === 'object'
           ? Object.fromEntries(Object.entries(s.env).map(([k, v]) => [k, String(v)]))
@@ -231,7 +233,7 @@ function parseMcpSettings(raw: unknown): McpSettings {
         env: env && Object.keys(env).length > 0 ? env : undefined,
         url: typeof s.url === 'string' ? s.url.trim() : undefined,
         headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
-      } satisfies McpServerConfig
+      }
     })
     .filter((s) => {
       if (!s.id) return false
@@ -239,6 +241,59 @@ function parseMcpSettings(raw: unknown): McpSettings {
       return Boolean(s.command)
     })
   return { servers }
+}
+
+const MCP_BUILTINS_SEEDED_KEY = 'mcp.builtinsSeeded.v1'
+
+function resolveMcpWorkspaceDir(): string {
+  const dir = join(app.getPath('userData'), 'mcp-workspace')
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch (err) {
+    logger.warn('mcp workspace mkdir failed', err)
+  }
+  return dir
+}
+
+function materializeBuiltinMcpServers(): McpServerConfig[] {
+  const workspace = resolveMcpWorkspaceDir()
+  return BUILTIN_MCP_SERVERS.map((s) => ({
+    ...s,
+    args: s.args.map((a) => (a === MCP_WORKSPACE_PATH_TOKEN ? workspace : a)),
+    env: s.env ? { ...s.env } : undefined,
+    headers: s.headers ? { ...s.headers } : undefined,
+  }))
+}
+
+/** Replace path tokens and seed official open-source MCPs when the list is still empty. */
+function finalizeMcpSettingsAfterLoad(): void {
+  const workspace = resolveMcpWorkspaceDir()
+  let changed = false
+  const servers = memory.mcp.servers.map((s) => {
+    let argsChanged = false
+    const nextArgs = (s.args ?? []).map((a) => {
+      if (a === MCP_WORKSPACE_PATH_TOKEN) {
+        argsChanged = true
+        changed = true
+        return workspace
+      }
+      return a
+    })
+    return argsChanged ? { ...s, args: nextArgs } : s
+  })
+  if (changed) memory.mcp = { servers }
+
+  const seeded = Boolean(getSetting(MCP_BUILTINS_SEEDED_KEY, false))
+  if (!seeded) {
+    if (memory.mcp.servers.length === 0) {
+      memory.mcp = { servers: materializeBuiltinMcpServers() }
+      changed = true
+      logger.info(`seeded ${memory.mcp.servers.length} builtin MCP servers`)
+    }
+    setSetting(MCP_BUILTINS_SEEDED_KEY, true)
+  }
+
+  if (changed) setSetting('mcp', memory.mcp)
 }
 
 function parseStocksSettings(raw: unknown): StocksSettings {
@@ -454,6 +509,7 @@ export function initSettingsStore(): void {
   } catch {
     loadLegacyJsonFallback()
   }
+  finalizeMcpSettingsAfterLoad()
   logger.info(
     `settings loaded widget.enabled=${memory.desktopWidget.enabled} keepAlive=${memory.desktopWidget.keepAlive} dial=${memory.desktopWidget.dialFace}`,
   )

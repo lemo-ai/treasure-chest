@@ -8,8 +8,6 @@ import type {
   DialFaceStyle,
   HexagramSchool,
   LaunchBehavior,
-  McpServerStatus,
-  McpTransport,
   NotificationChannels,
   StocksRangeKey,
   StocksSettings,
@@ -48,10 +46,13 @@ import {
   IconUpload,
   IconSparkles,
   IconPlus,
+  IconWorkbench,
 } from '@renderer/shared/ui/icons'
 import { BirthProfileForm } from '@renderer/features/fortune/components/BirthProfileForm'
 import { HarnessPluginMarketplace } from '../components/HarnessPluginMarketplace'
 import { DataSourcesPanel } from '../components/DataSourcesPanel'
+import { AgentsPanel } from '../components/AgentsPanel'
+import { McpServersPanel } from '../components/McpServersPanel'
 import { ModelsApiPanel } from '../components/ModelsApiPanel'
 import { ImageEnginesPanel } from '../components/ImageEnginesPanel'
 import { LibreOfficePanel } from '../components/LibreOfficePanel'
@@ -115,13 +116,14 @@ export function SettingsPage(): React.JSX.Element {
     | 'image'
     | 'fortune'
     | 'stocks'
+    | 'agents'
     | 'skills'
     | 'mcp'
     | 'notifications'
     | 'dataSources'
     | 'data'
     | 'debug'
-  const [section, setSection] = useState<SettingsSection>('models')
+  const [section, setSection] = useState<SettingsSection>('general')
 
   const navItems: { id: SettingsSection; labelKey: string; icon: ReactNode }[] = [
     { id: 'general', labelKey: 'settings.nav.general', icon: <IconSettings /> },
@@ -130,6 +132,7 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'image', labelKey: 'settings.nav.image', icon: <IconImage /> },
     { id: 'fortune', labelKey: 'settings.nav.fortune', icon: <IconSparkles /> },
     { id: 'stocks', labelKey: 'settings.nav.stocks', icon: <IconStocks /> },
+    { id: 'agents', labelKey: 'settings.nav.agents', icon: <IconWorkbench /> },
     { id: 'skills', labelKey: 'settings.nav.skills', icon: <IconSkill /> },
     { id: 'mcp', labelKey: 'settings.nav.mcp', icon: <IconLayers /> },
     { id: 'notifications', labelKey: 'settings.nav.notifications', icon: <IconBell /> },
@@ -137,23 +140,6 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'data', labelKey: 'settings.nav.data', icon: <IconDownload /> },
     { id: 'debug', labelKey: 'settings.nav.debug', icon: <IconBug /> },
   ]
-
-  type McpDraft = {
-    id: string
-    name: string
-    enabled: boolean
-    transport: McpTransport
-    command: string
-    argsText: string
-    url: string
-    envPairs: Array<{ key: string; value: string }>
-    headerPairs: Array<{ key: string; value: string }>
-  }
-
-  const [mcpServers, setMcpServers] = useState<McpDraft[]>([])
-  const [mcpStatuses, setMcpStatuses] = useState<McpServerStatus[]>([])
-  const [mcpToolCount, setMcpToolCount] = useState(0)
-  const [mcpRefreshing, setMcpRefreshing] = useState(false)
 
   type SkillRow = {
     id: string
@@ -170,33 +156,6 @@ export function SettingsPage(): React.JSX.Element {
   const [skillInstallRef, setSkillInstallRef] = useState('')
   const [skillBusy, setSkillBusy] = useState(false)
   const [skillHint, setSkillHint] = useState<string | null>(null)
-
-  const toMcpDraft = (s: {
-    id: string
-    name: string
-    enabled: boolean
-    transport?: McpTransport
-    command: string
-    args?: string[]
-    url?: string
-    env?: Record<string, string>
-    headers?: Record<string, string>
-  }): McpDraft => ({
-    id: s.id,
-    name: s.name,
-    enabled: s.enabled,
-    transport: s.transport === 'sse' ? 'sse' : 'stdio',
-    command: s.command,
-    argsText: (s.args ?? []).join(' '),
-    url: s.url ?? '',
-    envPairs: Object.entries(s.env ?? {}).map(([key, value]) => ({ key, value })),
-    headerPairs: Object.entries(s.headers ?? {}).map(([key, value]) => ({ key, value })),
-  })
-
-  const applyMcpStatus = (snap: { servers: McpServerStatus[]; toolCount: number }): void => {
-    setMcpStatuses(snap.servers)
-    setMcpToolCount(snap.toolCount)
-  }
 
   const refreshSkills = async (): Promise<void> => {
     const [list, catalogs] = await Promise.all([
@@ -260,10 +219,6 @@ export function SettingsPage(): React.JSX.Element {
       setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
       setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
     })
-    void window.treasureChest.getMcpSettings().then((mcp) => {
-      setMcpServers(mcp.servers.map(toMcpDraft))
-    })
-    void window.treasureChest.getMcpStatus().then(applyMcpStatus)
     void window.treasureChest.getLaunchAtLogin().then((state) => {
       setLaunchAtLogin(state.configured)
     })
@@ -278,6 +233,7 @@ export function SettingsPage(): React.JSX.Element {
       'image',
       'fortune',
       'stocks',
+      'agents',
       'skills',
       'mcp',
       'notifications',
@@ -289,45 +245,6 @@ export function SettingsPage(): React.JSX.Element {
       setSection(raw as SettingsSection)
     }
   }, [location.search])
-
-  const saveMcpServers = (next: McpDraft[], refresh = true): void => {
-    setMcpServers(next)
-    void window.treasureChest
-      .setMcpSettings({
-        servers: next
-          .filter((s) =>
-            s.transport === 'sse' ? Boolean(s.url.trim()) : Boolean(s.command.trim()),
-          )
-          .map((s) => ({
-            id: s.id,
-            name: s.name.trim() || s.id,
-            enabled: s.enabled,
-            transport: s.transport,
-            command: s.command.trim(),
-            args: s.argsText.trim() ? s.argsText.trim().split(/\s+/) : [],
-            url: s.url.trim() || undefined,
-            env: Object.fromEntries(
-              s.envPairs.filter((p) => p.key.trim()).map((p) => [p.key.trim(), p.value]),
-            ),
-            headers: Object.fromEntries(
-              s.headerPairs.filter((p) => p.key.trim()).map((p) => [p.key.trim(), p.value]),
-            ),
-          })),
-      })
-      .then((saved) => {
-        setMcpServers(saved.servers.map(toMcpDraft))
-        if (refresh) {
-          setMcpRefreshing(true)
-          void window.treasureChest
-            .refreshMcpStatus()
-            .then(applyMcpStatus)
-            .finally(() => setMcpRefreshing(false))
-        }
-      })
-  }
-
-  const mcpStatusOf = (id: string): McpServerStatus | undefined =>
-    mcpStatuses.find((s) => s.id === id)
 
   const onLocale = async (locale: AppLocale): Promise<void> => {
     await window.treasureChest.setLocale(locale)
@@ -861,6 +778,10 @@ export function SettingsPage(): React.JSX.Element {
         </div>
       </div>
 
+      <div className={styles.group} hidden={section !== 'agents'}>
+        <AgentsPanel />
+      </div>
+
       <div className={styles.group} hidden={section !== 'skills'}>
         <h2 className={styles.label}>{t('settings.skills')}</h2>
         <p className={styles.desc}>{t('settings.skillsDesc')}</p>
@@ -1003,315 +924,7 @@ export function SettingsPage(): React.JSX.Element {
       </div>
 
       <div className={styles.group} hidden={section !== 'mcp'}>
-        <p className={styles.settingHint}>{t('settings.mcp.hint')}</p>
-        {mcpServers.map((server, idx) => {
-          const st = mcpStatusOf(server.id)
-          const statusKey = st?.status ?? 'disconnected'
-          return (
-            <div key={server.id} className={styles.aiProviderRow}>
-              <div className={styles.settingRow}>
-                <div>
-                  <div className={styles.settingTitle}>{server.name || t('settings.mcp.name')}</div>
-                  <div className={styles.mcpStatusRow}>
-                    <span className={`${styles.mcpBadge} ${styles[`mcpBadge_${statusKey}`] ?? ''}`}>
-                      {t(`settings.mcp.status.${statusKey}`)}
-                    </span>
-                    {st?.error ? <span className={styles.mcpError}>{st.error}</span> : null}
-                  </div>
-                </div>
-                <ToggleSwitch
-                  label={t('settings.mcp.enabled')}
-                  checked={server.enabled}
-                  onChange={(enabled) => {
-                    const next = mcpServers.map((s, i) => (i === idx ? { ...s, enabled } : s))
-                    saveMcpServers(next)
-                  }}
-                />
-              </div>
-              <label className={styles.aiField}>
-                <span className={styles.aiLabel}>{t('settings.mcp.name')}</span>
-                <input
-                  className={styles.aiInput}
-                  value={server.name}
-                  onChange={(e) => {
-                    const next = mcpServers.map((s, i) =>
-                      i === idx ? { ...s, name: e.target.value } : s,
-                    )
-                    setMcpServers(next)
-                  }}
-                  onBlur={() => saveMcpServers(mcpServers)}
-                />
-              </label>
-              <label className={styles.aiField}>
-                <span className={styles.aiLabel}>{t('settings.mcp.transport')}</span>
-                <select
-                  className={styles.aiInput}
-                  value={server.transport}
-                  onChange={(e) => {
-                    const transport = (e.target.value === 'sse' ? 'sse' : 'stdio') as McpTransport
-                    const next = mcpServers.map((s, i) => (i === idx ? { ...s, transport } : s))
-                    saveMcpServers(next)
-                  }}
-                >
-                  <option value="stdio">{t('settings.mcp.transport.stdio')}</option>
-                  <option value="sse">{t('settings.mcp.transport.sse')}</option>
-                </select>
-              </label>
-              {server.transport === 'sse' ? (
-                <>
-                  <label className={styles.aiField}>
-                    <span className={styles.aiLabel}>{t('settings.mcp.url')}</span>
-                    <input
-                      className={styles.aiInput}
-                      value={server.url}
-                      placeholder="http://127.0.0.1:3000/sse"
-                      onChange={(e) => {
-                        const next = mcpServers.map((s, i) =>
-                          i === idx ? { ...s, url: e.target.value } : s,
-                        )
-                        setMcpServers(next)
-                      }}
-                      onBlur={() => saveMcpServers(mcpServers)}
-                    />
-                  </label>
-                  <div className={styles.mcpKvBlock}>
-                    <div className={styles.aiLabel}>{t('settings.mcp.headers')}</div>
-                    {server.headerPairs.map((pair, pIdx) => (
-                      <div key={`h-${pIdx}`} className={styles.mcpKvRow}>
-                        <input
-                          className={styles.aiInput}
-                          placeholder={t('settings.mcp.headerKey')}
-                          value={pair.key}
-                          onChange={(e) => {
-                            const next = mcpServers.map((s, i) => {
-                              if (i !== idx) return s
-                              const headerPairs = s.headerPairs.map((p, j) =>
-                                j === pIdx ? { ...p, key: e.target.value } : p,
-                              )
-                              return { ...s, headerPairs }
-                            })
-                            setMcpServers(next)
-                          }}
-                          onBlur={() => saveMcpServers(mcpServers)}
-                        />
-                        <input
-                          className={styles.aiInput}
-                          placeholder={t('settings.mcp.headerValue')}
-                          value={pair.value}
-                          onChange={(e) => {
-                            const next = mcpServers.map((s, i) => {
-                              if (i !== idx) return s
-                              const headerPairs = s.headerPairs.map((p, j) =>
-                                j === pIdx ? { ...p, value: e.target.value } : p,
-                              )
-                              return { ...s, headerPairs }
-                            })
-                            setMcpServers(next)
-                          }}
-                          onBlur={() => saveMcpServers(mcpServers)}
-                        />
-                        <button
-                          type="button"
-                          className={styles.aiProviderRemoveBtn}
-                          onClick={() => {
-                            const next = mcpServers.map((s, i) =>
-                              i === idx
-                                ? { ...s, headerPairs: s.headerPairs.filter((_, j) => j !== pIdx) }
-                                : s,
-                            )
-                            saveMcpServers(next)
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.mcpAddKv}
-                      onClick={() => {
-                        const next = mcpServers.map((s, i) =>
-                          i === idx
-                            ? { ...s, headerPairs: [...s.headerPairs, { key: '', value: '' }] }
-                            : s,
-                        )
-                        setMcpServers(next)
-                      }}
-                    >
-                      {t('settings.mcp.headerAdd')}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <label className={styles.aiField}>
-                    <span className={styles.aiLabel}>{t('settings.mcp.command')}</span>
-                    <input
-                      className={styles.aiInput}
-                      value={server.command}
-                      placeholder="npx"
-                      onChange={(e) => {
-                        const next = mcpServers.map((s, i) =>
-                          i === idx ? { ...s, command: e.target.value } : s,
-                        )
-                        setMcpServers(next)
-                      }}
-                      onBlur={() => saveMcpServers(mcpServers)}
-                    />
-                  </label>
-                  <label className={styles.aiField}>
-                    <span className={styles.aiLabel}>{t('settings.mcp.args')}</span>
-                    <input
-                      className={styles.aiInput}
-                      value={server.argsText}
-                      placeholder="-y @modelcontextprotocol/server-filesystem /tmp"
-                      onChange={(e) => {
-                        const next = mcpServers.map((s, i) =>
-                          i === idx ? { ...s, argsText: e.target.value } : s,
-                        )
-                        setMcpServers(next)
-                      }}
-                      onBlur={() => saveMcpServers(mcpServers)}
-                    />
-                  </label>
-                  <div className={styles.mcpKvBlock}>
-                    <div className={styles.aiLabel}>{t('settings.mcp.env')}</div>
-                    <p className={styles.settingHint}>{t('settings.mcp.envHint')}</p>
-                    {server.envPairs.map((pair, pIdx) => (
-                      <div key={`e-${pIdx}`} className={styles.mcpKvRow}>
-                        <input
-                          className={styles.aiInput}
-                          placeholder={t('settings.mcp.envKey')}
-                          value={pair.key}
-                          onChange={(e) => {
-                            const next = mcpServers.map((s, i) => {
-                              if (i !== idx) return s
-                              const envPairs = s.envPairs.map((p, j) =>
-                                j === pIdx ? { ...p, key: e.target.value } : p,
-                              )
-                              return { ...s, envPairs }
-                            })
-                            setMcpServers(next)
-                          }}
-                          onBlur={() => saveMcpServers(mcpServers)}
-                        />
-                        <input
-                          className={styles.aiInput}
-                          placeholder={t('settings.mcp.envValue')}
-                          value={pair.value}
-                          type="password"
-                          onChange={(e) => {
-                            const next = mcpServers.map((s, i) => {
-                              if (i !== idx) return s
-                              const envPairs = s.envPairs.map((p, j) =>
-                                j === pIdx ? { ...p, value: e.target.value } : p,
-                              )
-                              return { ...s, envPairs }
-                            })
-                            setMcpServers(next)
-                          }}
-                          onBlur={() => saveMcpServers(mcpServers)}
-                        />
-                        <button
-                          type="button"
-                          className={styles.aiProviderRemoveBtn}
-                          onClick={() => {
-                            const next = mcpServers.map((s, i) =>
-                              i === idx
-                                ? { ...s, envPairs: s.envPairs.filter((_, j) => j !== pIdx) }
-                                : s,
-                            )
-                            saveMcpServers(next)
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.mcpAddKv}
-                      onClick={() => {
-                        const next = mcpServers.map((s, i) =>
-                          i === idx
-                            ? { ...s, envPairs: [...s.envPairs, { key: '', value: '' }] }
-                            : s,
-                        )
-                        setMcpServers(next)
-                      }}
-                    >
-                      {t('settings.mcp.envAdd')}
-                    </button>
-                  </div>
-                </>
-              )}
-              <div className={styles.mcpToolsBlock}>
-                <div className={styles.aiLabel}>
-                  {t('settings.mcp.toolsTitle')}
-                  {st?.tools?.length ? ` (${st.tools.length})` : ''}
-                </div>
-                {st?.tools?.length ? (
-                  <ul className={styles.mcpToolList}>
-                    {st.tools.map((tool) => (
-                      <li key={tool.name} title={tool.description || tool.name}>
-                        <code>{tool.name}</code>
-                        {tool.description ? (
-                          <span className={styles.mcpToolDesc}>{tool.description}</span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className={styles.settingHint}>{t('settings.mcp.toolsEmpty')}</p>
-                )}
-              </div>
-              <SettingActionButton
-                icon={<IconEraser />}
-                label={t('settings.mcp.remove')}
-                variant="ghost"
-                onClick={() => saveMcpServers(mcpServers.filter((_, i) => i !== idx))}
-              />
-            </div>
-          )
-        })}
-        <div className={styles.aiActionRow}>
-          <SettingActionButton
-            icon={<IconUpload />}
-            label={t('settings.mcp.add')}
-            onClick={() => {
-              const id = `mcp_${Date.now().toString(36)}`
-              setMcpServers([
-                ...mcpServers,
-                {
-                  id,
-                  name: 'MCP Server',
-                  enabled: true,
-                  transport: 'stdio',
-                  command: '',
-                  argsText: '',
-                  url: '',
-                  envPairs: [],
-                  headerPairs: [],
-                },
-              ])
-            }}
-          />
-          <SettingActionButton
-            icon={<IconLayers />}
-            label={
-              mcpRefreshing
-                ? t('settings.mcp.refreshing')
-                : t('settings.mcp.refreshTools', { count: mcpToolCount })
-            }
-            onClick={() => {
-              setMcpRefreshing(true)
-              void window.treasureChest
-                .refreshMcpStatus()
-                .then(applyMcpStatus)
-                .finally(() => setMcpRefreshing(false))
-            }}
-          />
-        </div>
+        <McpServersPanel />
       </div>
 
       <div className={styles.group} hidden={section !== 'notifications'}>

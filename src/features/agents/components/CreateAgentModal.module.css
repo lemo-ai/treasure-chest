@@ -356,6 +356,7 @@
   margin-top: var(--space-2);
 }
 
+.danger,
 .secondary,
 .primary {
   border-radius: var(--radius-full);
@@ -363,6 +364,17 @@
   font-size: 0.85rem;
   font-weight: 650;
   cursor: pointer;
+}
+
+.danger {
+  margin-right: auto;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
 }
 
 .secondary {

@@ -14,6 +14,7 @@ import {
 import appLogo from '@renderer/assets/app-logo.png'
 import {
   agentDisplayName,
+  deleteAgent,
   isDirectChatId,
   listAgents,
   type AgentDef,
@@ -60,6 +61,9 @@ export function AppLayout(): React.JSX.Element {
 
   useEffect(() => {
     setAgents(listAgents())
+    const onChanged = (): void => setAgents(listAgents())
+    window.addEventListener('qiankun-agents-changed', onChanged)
+    return () => window.removeEventListener('qiankun-agents-changed', onChanged)
   }, [location.pathname, location.search, createOpen, editingAgent])
 
   useEffect(() => {
@@ -128,19 +132,41 @@ export function AppLayout(): React.JSX.Element {
                   </span>
                   <span className={styles.linkLabel}>{agentDisplayName(agent, t)}</span>
                 </NavLink>
-                <button
-                  type="button"
-                  className={styles.agentEditBtn}
-                  title={t('agents.edit.action')}
-                  aria-label={t('agents.edit.action')}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setEditingAgent(agent)
-                  }}
-                >
-                  ✎
-                </button>
+                <span className={styles.agentActions}>
+                  <button
+                    type="button"
+                    className={styles.agentEditBtn}
+                    title={t('agents.edit.action')}
+                    aria-label={t('agents.edit.action')}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setEditingAgent(agent)
+                    }}
+                  >
+                    ✎
+                  </button>
+                  {!agent.builtin ? (
+                    <button
+                      type="button"
+                      className={`${styles.agentEditBtn} ${styles.agentDeleteBtn}`}
+                      title={t('agents.delete.action')}
+                      aria-label={t('agents.delete.action')}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (!window.confirm(t('agents.delete.confirm'))) return
+                        if (!deleteAgent(String(agent.id))) return
+                        setAgents(listAgents())
+                        if (activeAgentParam === agent.id) {
+                          void navigate('/')
+                        }
+                      }}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </span>
               </div>
             )
           })}
@@ -160,15 +186,6 @@ export function AppLayout(): React.JSX.Element {
               <IconClock />
             </span>
             <span className={styles.linkLabel}>{t('nav.schedules')}</span>
-          </NavLink>
-          <NavLink to="/notifications" className={navClass}>
-            <span className={styles.linkIcon}>
-              <IconBell />
-              {unread > 0 ? (
-                <span className={styles.badge}>{unread > 99 ? '99+' : unread}</span>
-              ) : null}
-            </span>
-            <span className={styles.linkLabel}>{t('nav.notifications')}</span>
           </NavLink>
 
           <div className={styles.sectionLabel}>{t('nav.sectionTools')}</div>
@@ -192,6 +209,15 @@ export function AppLayout(): React.JSX.Element {
               <IconSettings />
             </span>
             <span className={styles.linkLabel}>{t('nav.settings')}</span>
+          </NavLink>
+          <NavLink to="/notifications" className={navClass}>
+            <span className={styles.linkIcon}>
+              <IconBell />
+              {unread > 0 ? (
+                <span className={styles.badge}>{unread > 99 ? '99+' : unread}</span>
+              ) : null}
+            </span>
+            <span className={styles.linkLabel}>{t('nav.notifications')}</span>
           </NavLink>
 
           {version ? (
@@ -231,6 +257,11 @@ export function AppLayout(): React.JSX.Element {
             setAgents(listAgents())
             setEditingAgent(null)
             void navigate(`/?agent=${encodeURIComponent(agent.id)}`)
+          }}
+          onDeleted={(agentId) => {
+            setAgents(listAgents())
+            setEditingAgent(null)
+            if (activeAgentParam === agentId) void navigate('/')
           }}
         />
       ) : null}

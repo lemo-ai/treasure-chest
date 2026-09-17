@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { IconClose, IconImage } from '@renderer/shared/ui/icons'
 import {
   createAgent,
+  deleteAgent,
   updateAgent,
   type AgentTone,
   type CreateAgentInput,
@@ -24,6 +25,7 @@ interface CreateAgentModalProps {
   onClose: () => void
   onCreated?: (agent: AgentDef) => void
   onUpdated?: (agent: AgentDef) => void
+  onDeleted?: (agentId: string) => void
   /** When set, modal edits this agent instead of creating. */
   editing?: AgentDef | null
 }
@@ -32,6 +34,7 @@ export function CreateAgentModal({
   onClose,
   onCreated,
   onUpdated,
+  onDeleted,
   editing = null,
 }: CreateAgentModalProps): React.JSX.Element {
   const { t } = useTranslation()
@@ -477,6 +480,24 @@ export function CreateAgentModal({
           {error ? <p className={styles.error}>{error}</p> : null}
 
           <div className={styles.actions}>
+            {isEdit && !isBuiltinEdit && editing ? (
+              <button
+                type="button"
+                className={styles.danger}
+                onClick={() => {
+                  if (!window.confirm(t('agents.delete.confirm'))) return
+                  const id = String(editing.id)
+                  if (!deleteAgent(id)) {
+                    setError(t('agents.delete.failed'))
+                    return
+                  }
+                  onDeleted?.(id)
+                  onClose()
+                }}
+              >
+                {t('agents.delete.action')}
+              </button>
+            ) : null}
             <button type="button" className={styles.secondary} onClick={onClose}>
               {t('agents.create.cancel')}
             </button>

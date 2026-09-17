@@ -228,6 +228,12 @@
   min-width: 0;
 }
 
+.agentActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem;
+}
+
 .agentEditBtn {
   width: 1.6rem;
   height: 1.6rem;
@@ -250,6 +256,11 @@
 .agentEditBtn:hover {
   color: var(--color-brand-strong);
   background: var(--color-brand-soft);
+}
+
+.agentDeleteBtn:hover {
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
 }
 
 .addAgentBtn {
