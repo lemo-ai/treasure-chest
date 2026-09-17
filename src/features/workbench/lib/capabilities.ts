@@ -11,6 +11,7 @@ export type WorkbenchCapabilityId =
   | 'music'
   | 'transcribe'
   | 'research'
+  | 'create_agent'
 
 export interface WorkbenchCapability {
   id: WorkbenchCapabilityId
@@ -26,6 +27,7 @@ export const WORKBENCH_CAPABILITIES: WorkbenchCapability[] = [
   { id: 'knowledge', labelKey: 'workbench.cap.knowledge', status: 'ready' },
   { id: 'mcp', labelKey: 'workbench.cap.mcp', status: 'ready' },
   { id: 'skills', labelKey: 'workbench.cap.skills', status: 'ready' },
+  { id: 'create_agent', labelKey: 'workbench.cap.create_agent', status: 'ready' },
   { id: 'image', labelKey: 'workbench.cap.image', status: 'ready' },
   { id: 'write', labelKey: 'workbench.cap.write', status: 'ready' },
   { id: 'translate', labelKey: 'workbench.cap.translate', status: 'ready' },
@@ -42,7 +44,7 @@ export const WORKBENCH_PRIMARY_CAP_IDS: WorkbenchCapabilityId[] = [
   'knowledge',
   'mcp',
   'skills',
-  'image',
+  'create_agent',
 ]
 
 export function splitWorkbenchCapabilities(): {

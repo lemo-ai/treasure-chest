@@ -1,0 +1,203 @@
+.wrap {
+  position: relative;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-ink-secondary);
+}
+
+.link {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.trigger {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0.4rem 0.65rem 0.4rem 0.55rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trigger:hover {
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+}
+
+.triggerOpen {
+  border-color: color-mix(in srgb, var(--color-brand) 55%, var(--color-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 16%, transparent);
+}
+
+.triggerBody {
+  min-width: 0;
+}
+
+.placeholder {
+  color: var(--color-ink-tertiary);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: 100%;
+  padding: 0.15rem 0.2rem 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand) 12%, var(--color-bg-muted));
+  border: 1px solid color-mix(in srgb, var(--color-brand) 22%, var(--color-border));
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.chipText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 9rem;
+}
+
+.chipX {
+  display: grid;
+  place-items: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: none;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-secondary);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chipX:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.caret {
+  color: var(--color-ink-tertiary);
+  font-size: 0.75rem;
+}
+
+.menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.35rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-card);
+}
+
+.empty {
+  margin: 0;
+  padding: 0.7rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-ink-tertiary);
+}
+
+.option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.55rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.5rem 0.55rem;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  color: var(--color-ink);
+}
+
+.option:hover:not(:disabled) {
+  background: var(--color-bg-muted);
+}
+
+.option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.optionOn {
+  background: color-mix(in srgb, var(--color-brand) 8%, transparent);
+}
+
+.box {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.1rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--color-border);
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--color-on-brand);
+  background: var(--color-bg);
+  flex-shrink: 0;
+}
+
+.boxOn {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+}
+
+.optionText {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.optionLabel {
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.optionHint {
+  font-size: 0.72rem;
+  color: var(--color-ink-tertiary);
+}

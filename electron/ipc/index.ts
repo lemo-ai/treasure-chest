@@ -433,10 +433,13 @@ export function registerAllIpc(): void {
     renameHarnessSession(payload.id, payload.title),
   )
   ipcMain.handle(IpcChannels.harness.deleteSession, (_e, id: string) => deleteHarnessSession(id))
-  ipcMain.handle(IpcChannels.harness.setActiveSession, (_e, id: string | null) => {
-    setHarnessActiveSessionId(id)
-    return true
-  })
+  ipcMain.handle(
+    IpcChannels.harness.setActiveSession,
+    (_e, id: string | null, agentId?: string) => {
+      setHarnessActiveSessionId(id, agentId)
+      return true
+    },
+  )
   ipcMain.handle(IpcChannels.harness.listEvents, (_e, sessionId: string) =>
     listHarnessEvents(sessionId),
   )
@@ -659,6 +662,74 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.settings.setNotifications, (_e, partial: Partial<NotificationSettings>) =>
     settingsStore.setNotifications(partial),
   )
+  ipcMain.handle(IpcChannels.settings.setDataSources, (_e, partial: Partial<import('@shared').DataSourcesSettings>) =>
+    settingsStore.setDataSources(partial),
+  )
+  ipcMain.handle(
+    IpcChannels.settings.upsertDataSource,
+    (_e, input: import('@shared').DataSourceConfig) => settingsStore.upsertDataSource(input),
+  )
+  ipcMain.handle(IpcChannels.settings.deleteDataSource, (_e, id: string) =>
+    settingsStore.deleteDataSource(String(id || '')),
+  )
+  ipcMain.handle(IpcChannels.settings.previewDataSource, (_e, id: string) =>
+    import('../modules/dataSources/DataSourceService').then((m) => m.previewDataSource(String(id || ''))),
+  )
+  ipcMain.handle(IpcChannels.settings.testDataSource, (_e, input: import('@shared').DataSourceConfig) =>
+    import('../modules/dataSources/DataSourceService').then((m) => m.testDataSource(input)),
+  )
+  ipcMain.handle(IpcChannels.settings.pickDataSourceFile, async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const opts: Electron.OpenDialogOptions = {
+      title: 'Select data source file',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Text / Data',
+          extensions: [
+            'txt',
+            'md',
+            'markdown',
+            'json',
+            'jsonl',
+            'csv',
+            'tsv',
+            'yaml',
+            'yml',
+            'xml',
+            'html',
+            'htm',
+            'log',
+            'db',
+            'sqlite',
+            'sqlite3',
+          ],
+        },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    }
+    const result = win
+      ? await dialog.showOpenDialog(win, opts)
+      : await dialog.showOpenDialog(opts)
+    if (result.canceled || !result.filePaths[0]) return null
+    return result.filePaths[0]
+  })
+  ipcMain.handle(IpcChannels.settings.listDataSourceDrivers, () =>
+    import('../modules/dataSources/DataSourceDbService').then((m) => m.listDataSourceDrivers()),
+  )
+  ipcMain.handle(
+    IpcChannels.settings.ensureDataSourceDriver,
+    (_e, kind: string, version?: string) =>
+      import('../modules/dataSources/DataSourceDbService').then((m) =>
+        m.ensureDataSourceDriverForKind(String(kind || ''), version ? String(version) : undefined),
+      ),
+  )
+  ipcMain.handle(IpcChannels.settings.testDingTalk, () =>
+    import('../modules/notifications/ChannelNotify').then((m) => m.testDingTalk()),
+  )
+  ipcMain.handle(IpcChannels.settings.testEmail, () =>
+    import('../modules/notifications/ChannelNotify').then((m) => m.testEmail()),
+  )
   ipcMain.handle(IpcChannels.settings.setFortuneSettings, (_e, partial: Partial<FortuneSettings>) =>
     settingsStore.setFortuneSettings(partial),
   )
@@ -692,6 +763,53 @@ export function registerAllIpc(): void {
     import('../modules/skills/SkillsStore').then((m) => m.uninstallSkill(id)),
   )
 
+  ipcMain.handle(IpcChannels.schedules.getSnapshot, () =>
+    import('../modules/schedules/SchedulesStore').then((m) => m.getSchedulesSnapshot()),
+  )
+  ipcMain.handle(IpcChannels.schedules.listTasks, () =>
+    import('../modules/schedules/SchedulesStore').then((m) => m.listScheduleTasks()),
+  )
+  ipcMain.handle(
+    IpcChannels.schedules.upsertTask,
+    (_e, input: import('@shared').UpsertScheduleTaskInput) =>
+      import('../modules/schedules/SchedulesStore').then((m) => m.upsertScheduleTask(input)),
+  )
+  ipcMain.handle(IpcChannels.schedules.deleteTask, (_e, id: string) =>
+    import('../modules/schedules/SchedulesStore').then((m) => m.deleteScheduleTask(id)),
+  )
+  ipcMain.handle(
+    IpcChannels.schedules.setTaskEnabled,
+    (_e, payload: { id: string; enabled: boolean }) =>
+      import('../modules/schedules/SchedulesStore').then((m) =>
+        m.setScheduleTaskEnabled(payload.id, payload.enabled),
+      ),
+  )
+  ipcMain.handle(IpcChannels.schedules.runTaskNow, async (_e, id: string) => {
+    await import('../modules/schedules/ScheduleRunner').then((m) =>
+      m.executeScheduleTask(String(id || ''), { force: true }),
+    )
+    return import('../modules/schedules/SchedulesStore').then((m) => m.getSchedulesSnapshot())
+  })
+
+  ipcMain.handle(IpcChannels.inbox.getSnapshot, () =>
+    import('../modules/notifications/InboxStore').then((m) => m.getInboxSnapshot()),
+  )
+  ipcMain.handle(IpcChannels.inbox.list, () =>
+    import('../modules/notifications/InboxStore').then((m) => m.listInboxItems()),
+  )
+  ipcMain.handle(IpcChannels.inbox.markRead, (_e, id: string) =>
+    import('../modules/notifications/InboxStore').then((m) => m.markInboxRead(String(id || ''))),
+  )
+  ipcMain.handle(IpcChannels.inbox.markAllRead, () =>
+    import('../modules/notifications/InboxStore').then((m) => m.markAllInboxRead()),
+  )
+  ipcMain.handle(IpcChannels.inbox.remove, (_e, id: string) =>
+    import('../modules/notifications/InboxStore').then((m) => m.removeInboxItem(String(id || ''))),
+  )
+  ipcMain.handle(IpcChannels.inbox.clear, () =>
+    import('../modules/notifications/InboxStore').then((m) => m.clearInbox()),
+  )
+
   ipcMain.handle(IpcChannels.knowledge.listDocuments, (_e, collectionId?: string) =>
     listKnowledgeDocuments(collectionId),
   )
@@ -717,15 +835,19 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.knowledge.listCollections, () => listKnowledgeCollections())
   ipcMain.handle(
     IpcChannels.knowledge.createCollection,
-    (_e, payload: { name: string; description?: string; color?: string }) =>
-      createKnowledgeCollection(payload),
+    (
+      _e,
+      payload: { name: string; description?: string; color?: string; parentId?: string | null },
+    ) => createKnowledgeCollection(payload),
   )
   ipcMain.handle(
     IpcChannels.knowledge.renameCollection,
     (_e, payload: { id: string; name: string }) => renameKnowledgeCollection(payload.id, payload.name),
   )
-  ipcMain.handle(IpcChannels.knowledge.deleteCollection, (_e, id: string) =>
-    deleteKnowledgeCollection(id),
+  ipcMain.handle(
+    IpcChannels.knowledge.deleteCollection,
+    (_e, id: string, opts?: { mode?: 'cascade' | 'move' }) =>
+      deleteKnowledgeCollection(String(id || ''), opts),
   )
   ipcMain.handle(IpcChannels.knowledge.getSettings, () => getKnowledgeSettings())
   ipcMain.handle(

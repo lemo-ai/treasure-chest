@@ -91,6 +91,35 @@ const api = {
     ipcRenderer.invoke(IpcChannels.settings.setLaunchBehavior, behavior),
   setNotifications: (partial: Partial<NotificationSettings>): Promise<NotificationSettings> =>
     ipcRenderer.invoke(IpcChannels.settings.setNotifications, partial),
+  setDataSources: (
+    partial: Partial<import('@shared').DataSourcesSettings>,
+  ): Promise<import('@shared').DataSourcesSettings> =>
+    ipcRenderer.invoke(IpcChannels.settings.setDataSources, partial),
+  upsertDataSource: (
+    input: import('@shared').DataSourceConfig,
+  ): Promise<import('@shared').DataSourceConfig> =>
+    ipcRenderer.invoke(IpcChannels.settings.upsertDataSource, input),
+  deleteDataSource: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.settings.deleteDataSource, id),
+  previewDataSource: (id: string): Promise<{ ok: boolean; text?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.settings.previewDataSource, id),
+  testDataSource: (
+    input: import('@shared').DataSourceConfig,
+  ): Promise<{ ok: boolean; text?: string; error?: string; latencyMs?: number }> =>
+    ipcRenderer.invoke(IpcChannels.settings.testDataSource, input),
+  pickDataSourceFile: (): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.settings.pickDataSourceFile),
+  listDataSourceDrivers: (): Promise<import('@shared').DataSourceDriverInfo[]> =>
+    ipcRenderer.invoke(IpcChannels.settings.listDataSourceDrivers),
+  ensureDataSourceDriver: (
+    kind: string,
+    version?: string,
+  ): Promise<{ ok: boolean; status?: unknown; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.settings.ensureDataSourceDriver, kind, version),
+  testDingTalkNotify: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.settings.testDingTalk),
+  testEmailNotify: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.settings.testEmail),
   setFortuneSettings: (partial: Partial<FortuneSettings>): Promise<FortuneSettings> =>
     ipcRenderer.invoke(IpcChannels.settings.setFortuneSettings, partial),
   setStocksSettings: (partial: Partial<StocksSettings>): Promise<StocksSettings> =>
@@ -207,8 +236,8 @@ const api = {
     ipcRenderer.invoke(IpcChannels.harness.renameSession, { id, title }),
   harnessDeleteSession: (id: string): Promise<boolean> =>
     ipcRenderer.invoke(IpcChannels.harness.deleteSession, id),
-  harnessSetActiveSession: (id: string | null): Promise<boolean> =>
-    ipcRenderer.invoke(IpcChannels.harness.setActiveSession, id),
+  harnessSetActiveSession: (id: string | null, agentId?: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.harness.setActiveSession, id, agentId),
   harnessListMessages: (sessionId: string): Promise<import('@shared').HarnessMessage[]> =>
     ipcRenderer.invoke(IpcChannels.harness.listMessages, sessionId),
   harnessAppendUserMessage: (sessionId: string, content: string): Promise<import('@shared').HarnessMessage> =>
@@ -736,6 +765,7 @@ const api = {
     name: string
     description?: string
     color?: string
+    parentId?: string | null
   }): Promise<import('@shared').KnowledgeCollection> =>
     ipcRenderer.invoke(IpcChannels.knowledge.createCollection, payload),
   renameKnowledgeCollection: (payload: {
@@ -743,8 +773,10 @@ const api = {
     name: string
   }): Promise<import('@shared').KnowledgeCollection | null> =>
     ipcRenderer.invoke(IpcChannels.knowledge.renameCollection, payload),
-  deleteKnowledgeCollection: (id: string): Promise<boolean> =>
-    ipcRenderer.invoke(IpcChannels.knowledge.deleteCollection, id),
+  deleteKnowledgeCollection: (
+    id: string,
+    opts?: { mode?: 'cascade' | 'move' },
+  ): Promise<boolean> => ipcRenderer.invoke(IpcChannels.knowledge.deleteCollection, id, opts),
   getKnowledgeSettings: (): Promise<import('@shared').KnowledgeSettings> =>
     ipcRenderer.invoke(IpcChannels.knowledge.getSettings),
   setKnowledgeSettings: (
@@ -826,6 +858,40 @@ const api = {
   }> => ipcRenderer.invoke(IpcChannels.skills.installMarkdown, markdown),
   uninstallSkill: (id: string): Promise<boolean> =>
     ipcRenderer.invoke(IpcChannels.skills.uninstall, id),
+  getSchedulesSnapshot: (): Promise<import('@shared').SchedulesSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.schedules.getSnapshot),
+  listScheduleTasks: (): Promise<import('@shared').ScheduleTask[]> =>
+    ipcRenderer.invoke(IpcChannels.schedules.listTasks),
+  upsertScheduleTask: (
+    input: import('@shared').UpsertScheduleTaskInput,
+  ): Promise<import('@shared').ScheduleTask> =>
+    ipcRenderer.invoke(IpcChannels.schedules.upsertTask, input),
+  deleteScheduleTask: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.schedules.deleteTask, id),
+  setScheduleTaskEnabled: (id: string, enabled: boolean): Promise<import('@shared').ScheduleTask | null> =>
+    ipcRenderer.invoke(IpcChannels.schedules.setTaskEnabled, { id, enabled }),
+  runScheduleTaskNow: (id: string): Promise<import('@shared').SchedulesSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.schedules.runTaskNow, id),
+  getInboxSnapshot: (): Promise<import('@shared').InboxSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.inbox.getSnapshot),
+  listInboxItems: (): Promise<import('@shared').InboxItem[]> =>
+    ipcRenderer.invoke(IpcChannels.inbox.list),
+  markInboxRead: (id: string): Promise<import('@shared').InboxItem | null> =>
+    ipcRenderer.invoke(IpcChannels.inbox.markRead, id),
+  markAllInboxRead: (): Promise<number> => ipcRenderer.invoke(IpcChannels.inbox.markAllRead),
+  removeInboxItem: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.inbox.remove, id),
+  clearInbox: (): Promise<number> => ipcRenderer.invoke(IpcChannels.inbox.clear),
+  onInboxAppended: (cb: (item: import('@shared').InboxItem) => void): (() => void) => {
+    const handler = (_: unknown, item: import('@shared').InboxItem): void => cb(item)
+    ipcRenderer.on(IpcChannels.inbox.appended, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.inbox.appended, handler)
+  },
+  onInboxOpen: (cb: (payload: { id: string }) => void): (() => void) => {
+    const handler = (_: unknown, payload: { id: string }): void => cb(payload)
+    ipcRenderer.on(IpcChannels.inbox.open, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.inbox.open, handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('treasureChest', api)

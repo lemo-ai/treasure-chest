@@ -1,14 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
   IconBook,
+  IconBell,
   IconCalendar,
-  IconFortune,
+  IconClock,
   IconPlus,
   IconSettings,
-  IconSkill,
-  IconStocks,
   IconTools,
   IconWorkbench,
 } from '@renderer/shared/ui/icons'
@@ -19,29 +18,23 @@ import {
   listAgents,
   type AgentDef,
 } from '@renderer/features/agents/lib/agentRegistry'
+import { AgentAvatar } from '@renderer/features/agents/components/AgentAvatar'
 import { CreateAgentModal } from '@renderer/features/agents/components/CreateAgentModal'
+import { InboxToastHost } from '@renderer/features/notifications/components/InboxToastHost'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import styles from './AppLayout.module.css'
-
-function agentNavIcon(agent: AgentDef): ReactNode {
-  if (agent.id === 'fortune') return <IconFortune />
-  if (agent.id === 'stocks') return <IconStocks />
-  return <IconSkill />
-}
 
 export function AppLayout(): React.JSX.Element {
   useTheme()
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
-  const [version, setVersion] = useState('')
-  const [createOpen, setCreateOpen] = useState(false)
-  const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
-  const [agents, setAgents] = useState<AgentDef[]>(() => listAgents())
   const flushMain =
     location.pathname === '/' ||
     location.pathname.startsWith('/workbench') ||
     location.pathname.startsWith('/knowledge') ||
+    location.pathname.startsWith('/schedules') ||
+    location.pathname.startsWith('/notifications') ||
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/changelog') ||
     location.pathname.startsWith('/tools/image') ||
@@ -55,6 +48,12 @@ export function AppLayout(): React.JSX.Element {
   const workbenchActive =
     onWorkbench && (activeAgentParam === null || isDirectChatId(activeAgentParam))
 
+  const [version, setVersion] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
+  const [agents, setAgents] = useState<AgentDef[]>(() => listAgents())
+  const [unread, setUnread] = useState(0)
+
   useEffect(() => {
     void window.treasureChest.getVersion().then(setVersion)
   }, [])
@@ -62,6 +61,22 @@ export function AppLayout(): React.JSX.Element {
   useEffect(() => {
     setAgents(listAgents())
   }, [location.pathname, location.search, createOpen, editingAgent])
+
+  useEffect(() => {
+    const refreshUnread = (): void => {
+      void window.treasureChest.getInboxSnapshot().then((snap) => setUnread(snap.unreadCount))
+    }
+    refreshUnread()
+    const offAppend = window.treasureChest.onInboxAppended(() => refreshUnread())
+    const offOpen = window.treasureChest.onInboxOpen((payload) => {
+      navigate(`/notifications?id=${encodeURIComponent(payload.id)}`)
+      refreshUnread()
+    })
+    return () => {
+      offAppend()
+      offOpen()
+    }
+  }, [navigate, location.pathname])
 
   return (
     <div className={styles.shell}>
@@ -108,24 +123,24 @@ export function AppLayout(): React.JSX.Element {
                     isActive ? `${styles.link} ${styles.linkActive}` : styles.link
                   }
                 >
-                  <span className={styles.linkIcon}>{agentNavIcon(agent)}</span>
+                  <span className={styles.linkIcon}>
+                    <AgentAvatar agent={agent} size="sm" fallback="skill" />
+                  </span>
                   <span className={styles.linkLabel}>{agentDisplayName(agent, t)}</span>
                 </NavLink>
-                {!agent.builtin ? (
-                  <button
-                    type="button"
-                    className={styles.agentEditBtn}
-                    title={t('agents.edit.action')}
-                    aria-label={t('agents.edit.action')}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setEditingAgent(agent)
-                    }}
-                  >
-                    ✎
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  className={styles.agentEditBtn}
+                  title={t('agents.edit.action')}
+                  aria-label={t('agents.edit.action')}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setEditingAgent(agent)
+                  }}
+                >
+                  ✎
+                </button>
               </div>
             )
           })}
@@ -139,6 +154,22 @@ export function AppLayout(): React.JSX.Element {
             </span>
             <span className={styles.linkLabel}>{t('nav.addAgent')}</span>
           </button>
+
+          <NavLink to="/schedules" className={navClass}>
+            <span className={styles.linkIcon}>
+              <IconClock />
+            </span>
+            <span className={styles.linkLabel}>{t('nav.schedules')}</span>
+          </NavLink>
+          <NavLink to="/notifications" className={navClass}>
+            <span className={styles.linkIcon}>
+              <IconBell />
+              {unread > 0 ? (
+                <span className={styles.badge}>{unread > 99 ? '99+' : unread}</span>
+              ) : null}
+            </span>
+            <span className={styles.linkLabel}>{t('nav.notifications')}</span>
+          </NavLink>
 
           <div className={styles.sectionLabel}>{t('nav.sectionTools')}</div>
           <NavLink to="/calendar" className={navClass}>
@@ -203,6 +234,8 @@ export function AppLayout(): React.JSX.Element {
           }}
         />
       ) : null}
+
+      <InboxToastHost />
     </div>
   )
 }

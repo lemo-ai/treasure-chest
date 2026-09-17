@@ -14,9 +14,13 @@ export interface KnowledgeCollection {
   name: string
   description: string
   color: string
+  /** Parent collection id; null = root-level */
+  parentId: string | null
   createdAt: string
   updatedAt: string
   documentCount: number
+  /** Direct child collection count */
+  childCount: number
 }
 
 export type KnowledgeDocStatus = 'ready' | 'pending' | 'error'

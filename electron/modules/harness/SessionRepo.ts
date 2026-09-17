@@ -115,13 +115,72 @@ export function getActiveSessionId(): string | null {
   }
 }
 
-export function setActiveSessionId(id: string | null): void {
+function readActiveSessionIdByAgentRaw(): Record<string, string | null> {
+  const row = getDb()
+    .prepare(`SELECT value FROM app_settings WHERE key = 'harness.activeSessionIdByAgent'`)
+    .get() as { value: string } | undefined
+  if (!row?.value) return {}
+  try {
+    const parsed = JSON.parse(row.value) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const out: Record<string, string | null> = {}
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === 'string' || v === null) out[k] = v
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function writeActiveSessionIdByAgent(map: Record<string, string | null>): void {
   getDb()
     .prepare(
       `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     )
-    .run('harness.activeSessionId', JSON.stringify(id), nowIso())
+    .run('harness.activeSessionIdByAgent', JSON.stringify(map), nowIso())
+}
+
+/** Per-agent active session map; seeds from legacy global pointer when empty. */
+export function getActiveSessionIdByAgent(): Record<string, string | null> {
+  const map = readActiveSessionIdByAgentRaw()
+  if (Object.keys(map).length > 0) return map
+  const legacy = getActiveSessionId()
+  if (!legacy) return {}
+  const session = getSession(legacy)
+  if (!session) return {}
+  const seeded = { [session.agentId]: legacy }
+  writeActiveSessionIdByAgent(seeded)
+  return seeded
+}
+
+export function getActiveSessionIdForAgent(agentId: string): string | null {
+  const map = getActiveSessionIdByAgent()
+  const id = map[agentId]
+  return typeof id === 'string' ? id : null
+}
+
+export function setActiveSessionId(id: string | null, agentId?: string): void {
+  const db = getDb()
+  db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  ).run('harness.activeSessionId', JSON.stringify(id), nowIso())
+
+  const map = { ...getActiveSessionIdByAgent() }
+  let resolvedAgent = agentId
+  if (!resolvedAgent && id) {
+    resolvedAgent = getSession(id)?.agentId
+  }
+  if (resolvedAgent) {
+    map[resolvedAgent] = id
+    writeActiveSessionIdByAgent(map)
+  }
+}
+
+export function setActiveSessionIdByAgentMap(map: Record<string, string | null>): void {
+  writeActiveSessionIdByAgent(map)
 }
 
 interface EventRow {
@@ -238,15 +297,17 @@ export function forkSession(
 export function buildStoreSnapshot(): {
   sessions: AgentSession[]
   activeSessionId: string | null
+  activeSessionIdByAgent: Record<string, string | null>
   messagesBySession: Record<string, HarnessMessage[]>
 } {
   const sessions = listSessions()
+  const activeSessionIdByAgent = getActiveSessionIdByAgent()
   const activeSessionId = getActiveSessionId()
   const messagesBySession: Record<string, HarnessMessage[]> = {}
   for (const s of sessions) {
     messagesBySession[s.id] = deriveMessages(s.id)
   }
-  return { sessions, activeSessionId, messagesBySession }
+  return { sessions, activeSessionId, activeSessionIdByAgent, messagesBySession }
 }
 
 export function migrateFromLocal(input: MigrateLocalHarnessInput): { imported: number } {

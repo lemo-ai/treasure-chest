@@ -1,14 +1,12 @@
 import type { SessionEvent } from '@shared'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
   IconBook,
-  IconChatBubble,
   IconChevronLeft,
   IconChevronRight,
   IconClose,
-  IconFortune,
   IconGrid,
   IconGlobe,
   IconImage,
@@ -23,7 +21,6 @@ import {
   IconSend,
   IconSkill,
   IconSparkles,
-  IconStocks,
   IconTranslate,
   IconVideo,
   IconWrite,
@@ -38,6 +35,10 @@ import {
   type AgentDef,
   type AgentId,
 } from '@renderer/features/agents/lib/agentRegistry'
+import { AgentAvatar } from '@renderer/features/agents/components/AgentAvatar'
+import { AgentSpecCard } from '@renderer/features/agents/components/AgentSpecCard'
+import { UserAvatar } from '@renderer/features/agents/components/UserAvatar'
+import { parseAgentSpec } from '@renderer/features/agents/lib/parseAgentSpec'
 import {
   WORKBENCH_CAPABILITIES,
   WORKBENCH_PRIMARY_CAP_IDS,
@@ -80,7 +81,8 @@ import {
   createSession,
   deleteSession,
   forkSession,
-  getActiveSessionId,
+  getActiveSessionIdForAgent,
+  getSession,
   hydrateSessionStore,
   listMessages,
   listSessions,
@@ -174,10 +176,7 @@ function readWebSearchOn(): boolean {
 }
 
 function agentIcon(agent: AgentDef): React.JSX.Element {
-  if (isDirectChatId(String(agent.id))) return <IconChatBubble />
-  if (agent.id === 'fortune') return <IconFortune />
-  if (agent.id === 'stocks') return <IconStocks />
-  return <IconSparkles />
+  return <AgentAvatar agent={agent} size="lg" fallback="sparkles" />
 }
 
 function capabilityIcon(id: WorkbenchCapabilityId): ReactNode {
@@ -192,6 +191,8 @@ function capabilityIcon(id: WorkbenchCapabilityId): ReactNode {
       return <IconMcp />
     case 'skills':
       return <IconSkill />
+    case 'create_agent':
+      return <IconSparkles />
     case 'image':
       return <IconImage />
     case 'write':
@@ -214,6 +215,7 @@ function capabilityIcon(id: WorkbenchCapabilityId): ReactNode {
 export function WorkbenchPage(): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [panelOpen, setPanelOpen] = useState(readPanelOpen)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -237,6 +239,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const [terminalTick, setTerminalTick] = useState(0)
   const [liveSessionEvents, setLiveSessionEvents] = useState<SessionEvent[]>([])
   const [pendingApproval, setPendingApproval] = useState<ToolApprovalRequest | null>(null)
+  const pendingApprovalBySessionRef = useRef<Map<string, ToolApprovalRequest>>(new Map())
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStepState[]>([])
   const [workflowTitle, setWorkflowTitle] = useState('')
   const [armedWorkflow, setArmedWorkflow] = useState<WorkflowId | null>(null)
@@ -260,13 +263,111 @@ export function WorkbenchPage(): React.JSX.Element {
   const [hasApiKey, setHasApiKey] = useState(false)
   const [mediaCaps, setMediaCaps] = useState<MediaCapabilitiesSnapshot | null>(null)
   const [capOptions, setCapOptions] = useState<CapOptionValues>({ ...DEFAULT_CAP_OPTIONS })
-  const [sending, setSending] = useState(false)
+  const [streamingSessions, setStreamingSessions] = useState<Record<string, true>>({})
+  const streamingSessionsRef = useRef<Record<string, true>>({})
   const [streamText, setStreamText] = useState('')
   const [streamStatus, setStreamStatus] = useState('')
   const [streamSessionId, setStreamSessionId] = useState<string | null>(null)
   const streamSessionRef = useRef<string | null>(null)
-  const activeStreamIdRef = useRef<string | null>(null)
+  const streamIdsBySessionRef = useRef<Map<string, string>>(new Map())
+  const activeAgentRef = useRef<AgentId>(activeAgent)
+  const activeIdRef = useRef<string | null>(null)
+  activeAgentRef.current = activeAgent
+  activeIdRef.current = activeId
+  const draftByAgentRef = useRef<Record<string, string>>({})
+  const attachmentsByAgentRef = useRef<Record<string, WorkbenchAttachment[]>>({})
+  const liveStreamRef = useRef<
+    Record<
+      string,
+      {
+        text: string
+        status: string
+        citations: KnowledgeCitation[]
+        toolSteps: LlmToolStep[]
+      }
+    >
+  >({})
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const attachmentsRef = useRef(attachments)
+  attachmentsRef.current = attachments
+
+  const isSessionStreaming = (sessionId: string | null | undefined): boolean =>
+    sessionId != null && sessionId in streamingSessionsRef.current
+
+  const activeStreaming = activeId != null && activeId in streamingSessions
+
+  const markSessionStreaming = (sessionId: string, streaming: boolean): void => {
+    const prev = streamingSessionsRef.current
+    let next = prev
+    if (streaming) {
+      if (prev[sessionId]) return
+      next = { ...prev, [sessionId]: true }
+    } else {
+      if (!prev[sessionId]) return
+      next = { ...prev }
+      delete next[sessionId]
+    }
+    // Keep ref in sync immediately so refresh/syncLiveStream don't clear the live bubble.
+    streamingSessionsRef.current = next
+    setStreamingSessions(next)
+  }
+
+  const syncLiveStreamToUi = (sessionId: string | null): void => {
+    if (!sessionId || !isSessionStreaming(sessionId)) {
+      setStreamSessionId(null)
+      setStreamText('')
+      setStreamStatus('')
+      setStreamCitations([])
+      setStreamToolSteps([])
+      return
+    }
+    const live = liveStreamRef.current[sessionId]
+    setStreamSessionId(sessionId)
+    setStreamText(live?.text ?? '')
+    setStreamStatus(live?.status ?? '')
+    setStreamCitations(live?.citations ?? [])
+    setStreamToolSteps(live?.toolSteps ?? [])
+  }
+
+  const patchLiveStream = (
+    sessionId: string,
+    patch: Partial<{
+      text: string
+      status: string
+      citations: KnowledgeCitation[]
+      toolSteps: LlmToolStep[]
+    }>,
+  ): void => {
+    const prev = liveStreamRef.current[sessionId] ?? {
+      text: '',
+      status: '',
+      citations: [] as KnowledgeCitation[],
+      toolSteps: [] as LlmToolStep[],
+    }
+    const next = { ...prev, ...patch }
+    if (patch.text !== undefined) {
+      next.text = patch.text
+    }
+    liveStreamRef.current[sessionId] = next
+    if (activeIdRef.current !== sessionId) return
+    // Re-bind live session id on every patch so a raced refresh can't leave deltas invisible.
+    setStreamSessionId(sessionId)
+    if (patch.text !== undefined) setStreamText(next.text)
+    if (patch.status !== undefined) setStreamStatus(next.status)
+    if (patch.citations !== undefined) setStreamCitations(next.citations)
+    if (patch.toolSteps !== undefined) setStreamToolSteps(next.toolSteps)
+  }
+
+  const clearLiveStream = (sessionId: string): void => {
+    delete liveStreamRef.current[sessionId]
+    streamIdsBySessionRef.current.delete(sessionId)
+    markSessionStreaming(sessionId, false)
+    if (activeIdRef.current === sessionId) {
+      syncLiveStreamToUi(null)
+    }
+  }
   const fileRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -290,7 +391,7 @@ export function WorkbenchPage(): React.JSX.Element {
   }
 
   const refresh = (preferSessionId?: string | null, forAgent?: AgentId): void => {
-    const agentId = forAgent ?? activeAgent
+    const agentId = forAgent ?? activeAgentRef.current
     const all = listSessions()
     setSessions(all)
     const scoped = all.filter((s) => s.agentId === agentId)
@@ -298,12 +399,14 @@ export function WorkbenchPage(): React.JSX.Element {
       preferSessionId && scoped.some((s) => s.id === preferSessionId)
         ? preferSessionId
         : null
-    const current = getActiveSessionId()
-    const keepCurrent = current && scoped.some((s) => s.id === current) ? current : null
-    const nextId = preferred ?? keepCurrent ?? scoped[0]?.id ?? null
+    const remembered = getActiveSessionIdForAgent(String(agentId))
+    const keepRemembered =
+      remembered && scoped.some((s) => s.id === remembered) ? remembered : null
+    const nextId = preferred ?? keepRemembered ?? scoped[0]?.id ?? null
     setActiveId(nextId)
+    // Always persist this agent's cursor (including null) so agents stay isolated.
+    setActiveSessionId(nextId, String(agentId))
     if (nextId) {
-      setActiveSessionId(nextId)
       setMessages(listMessages(nextId))
       const arts = listArtifacts(nextId)
       setArtifacts(arts)
@@ -313,6 +416,16 @@ export function WorkbenchPage(): React.JSX.Element {
       setArtifacts([])
       setActiveArtifactId(null)
     }
+    syncLiveStreamToUi(nextId)
+    setPendingApproval(
+      nextId ? pendingApprovalBySessionRef.current.get(nextId) ?? null : null,
+    )
+  }
+
+  const refreshForSession = (sessionId: string): void => {
+    const ses = getSession(sessionId)
+    if (ses) refresh(sessionId, ses.agentId as AgentId)
+    else refresh(null, activeAgentRef.current)
   }
 
   const appendAssistant = (
@@ -340,7 +453,15 @@ export function WorkbenchPage(): React.JSX.Element {
       if (arts[0]) setActiveArtifactId(arts[0].id)
     }
     window.setTimeout(() => {
-      void reloadHarnessStore().then(() => refresh(sessionId))
+      void reloadHarnessStore().then(() => {
+        const ses = getSession(sessionId)
+        // Don't steal focus if the user already switched to another agent.
+        if (!ses || activeAgentRef.current !== ses.agentId) {
+          setSessions(listSessions())
+          return
+        }
+        refresh(sessionId, ses.agentId as AgentId)
+      })
     }, 4000)
   }
 
@@ -394,19 +515,69 @@ export function WorkbenchPage(): React.JSX.Element {
           : getAgent(agentId)
             ? agentId
             : DIRECT_CHAT_ID
+      const prevAgent = String(activeAgentRef.current)
+      draftByAgentRef.current[prevAgent] = draftRef.current
+      attachmentsByAgentRef.current[prevAgent] = attachmentsRef.current
       setActiveAgent(next)
+      setDraft(draftByAgentRef.current[String(next)] ?? '')
+      setAttachments(attachmentsByAgentRef.current[String(next)] ?? [])
+      setActiveCap(null)
+      setArmedWorkflow(null)
+      setLiveSessionEvents([])
       refresh(null, next)
+      window.setTimeout(() => inputRef.current?.focus(), 0)
     })
   }, [searchParams])
 
   useEffect(() => {
     const agent = getAgent(activeAgent)
     if (!agent || agent.builtin || !agent.preferredModel) return
-    const group = modelGroups.find((g) => g.models.includes(agent.preferredModel!))
-    if (!group) return
+    const preferred = agent.preferredModel.trim()
+    const encoded = decodeChatModelRef(preferred)
+    const model = encoded?.modelId || preferred
+    const group =
+      (encoded && modelGroups.find((g) => g.id === encoded.providerId && g.models.includes(model))) ||
+      modelGroups.find((g) => g.models.includes(model))
+    if (!group || !model) return
     setActiveProviderId(group.id)
-    setSelectedModel(agent.preferredModel)
+    setSelectedModel(model)
+    // Must persist provider+model: chat uses main-process settings for API base URL/key.
+    void window.treasureChest
+      .setFortuneSettings({
+        aiActiveProviderId: group.id,
+        aiModel: model,
+      })
+      .then((next) => {
+        applyAiSettings(next)
+        void window.treasureChest.getMediaCapabilities().then(setMediaCaps)
+      })
+      .catch(() => {
+        /* ignore */
+      })
   }, [activeAgent, modelGroups])
+
+  /** Ensure the model we send matches an active provider endpoint (avoids qwen-plus on DeepSeek, etc.). */
+  const syncChatEndpoint = async (model: string): Promise<string> => {
+    const m = model.trim()
+    if (!m) return m
+    const group =
+      (activeProviderId &&
+        modelGroups.find((g) => g.id === activeProviderId && g.models.includes(m))) ||
+      modelGroups.find((g) => g.models.includes(m))
+    if (!group) return m
+    setActiveProviderId(group.id)
+    setSelectedModel(m)
+    try {
+      const next = await window.treasureChest.setFortuneSettings({
+        aiActiveProviderId: group.id,
+        aiModel: m,
+      })
+      applyAiSettings(next)
+    } catch {
+      /* ignore */
+    }
+    return m
+  }
 
   useEffect(() => {
     try {
@@ -426,7 +597,7 @@ export function WorkbenchPage(): React.JSX.Element {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length, activeId, sending, streamText])
+  }, [messages.length, activeId, activeStreaming, streamText])
 
   const togglePanel = (): void => setPanelOpen((v) => !v)
 
@@ -462,14 +633,19 @@ export function WorkbenchPage(): React.JSX.Element {
 
   const onNewSession = (): void => {
     const title = i18n.language.startsWith('zh') ? '新会话' : 'New chat'
-    void createSession(activeAgent, title).then((created) => {
-      refresh(created.id, activeAgent)
+    const agentAtCreate = activeAgent
+    void createSession(agentAtCreate, title).then((created) => {
+      if (activeAgentRef.current !== agentAtCreate) {
+        setSessions(listSessions())
+        return
+      }
+      refresh(created.id, agentAtCreate)
       inputRef.current?.focus()
     })
   }
 
   const onSelectSession = (id: string): void => {
-    setActiveSessionId(id)
+    setActiveSessionId(id, String(activeAgent))
     refresh(id, activeAgent)
   }
 
@@ -498,17 +674,14 @@ export function WorkbenchPage(): React.JSX.Element {
   }
 
   const onStopGeneration = (): void => {
-    if (activeStreamIdRef.current) {
-      void window.treasureChest.cancelWorkbenchStream(activeStreamIdRef.current)
+    if (!activeId) return
+    const streamId = streamIdsBySessionRef.current.get(activeId)
+    if (streamId) {
+      void window.treasureChest.cancelWorkbenchStream(streamId)
     }
-    activeStreamIdRef.current = null
     streamSessionRef.current = null
-    setStreamSessionId(null)
-    setSending(false)
-    setStreamText('')
-    setStreamStatus('')
-    setStreamCitations([])
-    setStreamToolSteps([])
+    clearLiveStream(activeId)
+    pendingApprovalBySessionRef.current.delete(activeId)
     setPendingApproval(null)
   }
 
@@ -546,13 +719,11 @@ export function WorkbenchPage(): React.JSX.Element {
     if (opts.appendUser !== false) {
       appendMessage(sessionId, 'user', opts.userContent)
     }
-    refresh(sessionId)
-    setStreamText('')
-    setStreamStatus('')
-    setStreamCitations([])
-    setStreamToolSteps([])
+    refreshForSession(sessionId)
+    patchLiveStream(sessionId, { text: '', status: '', citations: [], toolSteps: [] })
+    markSessionStreaming(sessionId, true)
     streamSessionRef.current = sessionId
-    setStreamSessionId(sessionId)
+    if (activeIdRef.current === sessionId) syncLiveStreamToUi(sessionId)
     setLiveSessionEvents([])
 
     const knowledgeCollectionId =
@@ -560,13 +731,12 @@ export function WorkbenchPage(): React.JSX.Element {
         ? activeAgentDef.knowledgeCollectionIds?.[0]
         : undefined
     const toolFlags = agentChatToolFlags(activeAgentDef, directMode)
-    const chatModel =
-      !directMode &&
-      !activeAgentDef.builtin &&
-      activeAgentDef.preferredModel &&
-      modelOptions.includes(activeAgentDef.preferredModel)
-        ? activeAgentDef.preferredModel
-        : selectedModel
+    const preferredRaw = !directMode && !activeAgentDef.builtin ? activeAgentDef.preferredModel : undefined
+    const preferredDecoded = preferredRaw ? decodeChatModelRef(preferredRaw) : null
+    const preferredModelId = preferredDecoded?.modelId || preferredRaw?.trim() || ''
+    const chatModel = await syncChatEndpoint(
+      preferredModelId && modelOptions.includes(preferredModelId) ? preferredModelId : selectedModel,
+    )
 
     try {
       const res = await window.treasureChest.workbenchChatStream(
@@ -587,52 +757,45 @@ export function WorkbenchPage(): React.JSX.Element {
           skillPrompt: opts.skillPrompt,
         },
         (delta) => {
-          if (streamSessionRef.current !== sessionId) return
-          setStreamStatus('')
-          setStreamText((prev) => prev + delta)
+          const prevText = liveStreamRef.current[sessionId]?.text ?? ''
+          patchLiveStream(sessionId, { text: prevText + delta, status: '' })
         },
         (status) => {
-          if (streamSessionRef.current !== sessionId) return
-          setStreamStatus(status)
+          patchLiveStream(sessionId, { status })
         },
         (citations) => {
-          if (streamSessionRef.current !== sessionId) return
-          setStreamCitations(citations)
+          patchLiveStream(sessionId, { citations })
         },
         (step) => {
-          if (streamSessionRef.current !== sessionId) return
-          setStreamToolSteps((prev) => {
-            const idx = prev.findIndex((s) => s.id === step.id)
-            if (idx >= 0) {
-              const next = [...prev]
-              next[idx] = step
-              return next
-            }
-            return [...prev, step]
-          })
+          const prevSteps = liveStreamRef.current[sessionId]?.toolSteps ?? []
+          const idx = prevSteps.findIndex((s) => s.id === step.id)
+          const toolSteps =
+            idx >= 0
+              ? prevSteps.map((s, i) => (i === idx ? step : s))
+              : [...prevSteps, step]
+          patchLiveStream(sessionId, { toolSteps })
         },
         (request) => {
-          if (streamSessionRef.current !== sessionId) return
-          setPendingApproval(request)
+          pendingApprovalBySessionRef.current.set(sessionId, request)
+          if (activeIdRef.current === sessionId) setPendingApproval(request)
         },
         (ev) => {
-          if (streamSessionRef.current !== sessionId) return
-          appendLiveSessionEvent(ev)
+          if (activeIdRef.current === sessionId) appendLiveSessionEvent(ev)
         },
         (streamId) => {
-          activeStreamIdRef.current = streamId
+          streamIdsBySessionRef.current.set(sessionId, streamId)
         },
       )
-      if (streamSessionRef.current !== sessionId) return false
+      if (!isSessionStreaming(sessionId)) return false
       if (res.error === 'cancelled') {
         await finishHarnessTurn(sessionId)
-        refresh(sessionId)
+        refreshForSession(sessionId)
         setTrajectoryTick((n) => n + 1)
         return false
       }
       if (res.ok && res.text?.trim()) {
         await finishHarnessTurn(sessionId)
-        refresh(sessionId)
+        refreshForSession(sessionId)
         return true
       }
       appendMessage(
@@ -640,47 +803,39 @@ export function WorkbenchPage(): React.JSX.Element {
         'system',
         t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
       )
-      refresh(sessionId)
+      refreshForSession(sessionId)
       return false
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (streamSessionRef.current === sessionId) {
-        appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
-        refresh(sessionId)
-      }
+      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
+      if (activeIdRef.current === sessionId) refreshForSession(sessionId)
       return false
     } finally {
-      activeStreamIdRef.current = null
-      if (streamSessionRef.current === sessionId) {
-        setStreamText('')
-        setStreamStatus('')
-        setStreamCitations([])
-        setStreamToolSteps([])
-      }
+      if (streamSessionRef.current === sessionId) streamSessionRef.current = null
     }
   }
 
   const runDailyBriefWorkflow = async (): Promise<void> => {
-    if (sending) return
+    if (activeId && isSessionStreaming(activeId)) return
     if (!selectedModel) {
       const sid = await ensureSession(activeAgent)
       appendMessage(sid, 'system', t('workbench.needModel'))
-      refresh(sid)
+      refreshForSession(sid)
       return
     }
     if (!hasApiKey && !localEndpoint) {
       const sid = await ensureSession(activeAgent)
       appendMessage(sid, 'system', t('workbench.needApiKey'))
-      refresh(sid)
+      refreshForSession(sid)
       return
     }
     const sessionId = await ensureSession(activeAgent)
     const steps = initWorkflowSteps('daily_brief')
     appendMessage(sessionId, 'user', t('workbench.workflow.kickoff.dailyBrief'))
-    setSending(true)
+    markSessionStreaming(sessionId, true)
     streamSessionRef.current = sessionId
-    setStreamSessionId(sessionId)
-    refresh(sessionId)
+    if (activeIdRef.current === sessionId) syncLiveStreamToUi(sessionId)
+    refreshForSession(sessionId)
 
     try {
       const stocksStep = steps[0]!
@@ -716,7 +871,7 @@ export function WorkbenchPage(): React.JSX.Element {
         appendMessage(sessionId, 'system', t('workbench.workflow.stocksMissing'))
         setWorkflowStepStatus(stocksStep.id, 'done')
       }
-      refresh(sessionId)
+      refreshForSession(sessionId)
 
       const briefStep = steps[1]!
       setWorkflowStepStatus(briefStep.id, 'running')
@@ -727,35 +882,34 @@ export function WorkbenchPage(): React.JSX.Element {
       })
       setWorkflowStepStatus(briefStep.id, ok ? 'done' : 'error')
     } finally {
-      streamSessionRef.current = null
-      setStreamSessionId(null)
-      setSending(false)
-      refresh(sessionId)
+      if (streamSessionRef.current === sessionId) streamSessionRef.current = null
+      clearLiveStream(sessionId)
+      if (activeIdRef.current === sessionId) refreshForSession(sessionId)
     }
   }
 
   const runDeepResearchWorkflow = async (topic: string): Promise<void> => {
-    if (sending) return
+    if (activeId && isSessionStreaming(activeId)) return
     if (!selectedModel) {
       const sid = await ensureSession(activeAgent)
       appendMessage(sid, 'system', t('workbench.needModel'))
-      refresh(sid)
+      refreshForSession(sid)
       return
     }
     if (!hasApiKey && !localEndpoint) {
       const sid = await ensureSession(activeAgent)
       appendMessage(sid, 'system', t('workbench.needApiKey'))
-      refresh(sid)
+      refreshForSession(sid)
       return
     }
     const sessionId = await ensureSession(activeAgent)
     const steps = initWorkflowSteps('deep_research')
     appendMessage(sessionId, 'user', t('workbench.workflow.kickoff.deepResearch', { topic }))
     setArmedWorkflow(null)
-    setSending(true)
+    markSessionStreaming(sessionId, true)
     streamSessionRef.current = sessionId
-    setStreamSessionId(sessionId)
-    refresh(sessionId)
+    if (activeIdRef.current === sessionId) syncLiveStreamToUi(sessionId)
+    refreshForSession(sessionId)
 
     try {
       const plan = steps[0]!
@@ -787,49 +941,51 @@ export function WorkbenchPage(): React.JSX.Element {
       })
       setWorkflowStepStatus(report.id, ok ? 'done' : 'error')
     } finally {
-      streamSessionRef.current = null
-      setStreamSessionId(null)
-      setSending(false)
-      refresh(sessionId)
+      if (streamSessionRef.current === sessionId) streamSessionRef.current = null
+      clearLiveStream(sessionId)
+      if (activeIdRef.current === sessionId) refreshForSession(sessionId)
     }
   }
 
   const sendText = async (text: string): Promise<void> => {
     const content = text.trim()
-    if ((!content && attachments.length === 0) || sending) return
+    if (!content && attachments.length === 0) return
     if (armedWorkflow === 'deep_research' && content) {
       setDraft('')
+      draftByAgentRef.current[String(activeAgent)] = ''
       await runDeepResearchWorkflow(content)
       return
     }
     if (!selectedModel) {
       const sessionId = await ensureSession(activeAgent)
       appendMessage(sessionId, 'system', t('workbench.needModel'))
-      refresh(sessionId)
+      refreshForSession(sessionId)
       return
     }
     if (!hasApiKey && !localEndpoint) {
       const sessionId = await ensureSession(activeAgent)
       appendMessage(sessionId, 'system', t('workbench.needApiKey'))
-      refresh(sessionId)
+      refreshForSession(sessionId)
       return
     }
 
     const sessionId = await ensureSession(activeAgent)
+    if (isSessionStreaming(sessionId)) return
     const fileLine =
       attachments.length > 0
         ? `\n${t('workbench.attachedFiles', { files: attachments.map((a) => a.name).join('、') })}`
         : ''
     appendMessage(sessionId, 'user', `${content}${fileLine}`.trim())
     setDraft('')
+    draftByAgentRef.current[String(activeAgent)] = ''
+    attachmentsByAgentRef.current[String(activeAgent)] = []
     setAttachments([])
-    setSending(true)
-    setStreamText('')
-    setStreamStatus('')
+    patchLiveStream(sessionId, { text: '', status: '', citations: [], toolSteps: [] })
+    markSessionStreaming(sessionId, true)
     streamSessionRef.current = sessionId
-    setStreamSessionId(sessionId)
+    if (activeIdRef.current === sessionId) syncLiveStreamToUi(sessionId)
     setLiveSessionEvents([])
-    refresh(sessionId)
+    refreshForSession(sessionId)
 
     const useKnowledge =
       /@知识库|@knowledge/i.test(content) ||
@@ -845,13 +1001,12 @@ export function WorkbenchPage(): React.JSX.Element {
         ? activeAgentDef.knowledgeCollectionIds?.[0]
         : undefined
     const toolFlags = agentChatToolFlags(activeAgentDef, directMode)
-    const chatModel =
-      !directMode &&
-      !activeAgentDef.builtin &&
-      activeAgentDef.preferredModel &&
-      modelOptions.includes(activeAgentDef.preferredModel)
-        ? activeAgentDef.preferredModel
-        : selectedModel
+    const preferredRaw = !directMode && !activeAgentDef.builtin ? activeAgentDef.preferredModel : undefined
+    const preferredDecoded = preferredRaw ? decodeChatModelRef(preferredRaw) : null
+    const preferredModelId = preferredDecoded?.modelId || preferredRaw?.trim() || ''
+    const chatModel = await syncChatEndpoint(
+      preferredModelId && modelOptions.includes(preferredModelId) ? preferredModelId : selectedModel,
+    )
     const skill =
       installedSkills.find((s) => s.id === activeSkillId) ||
       WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)
@@ -871,77 +1026,70 @@ export function WorkbenchPage(): React.JSX.Element {
 
     try {
       if (activeCap === 'image') {
-        setStreamStatus(t('workbench.imageGenerating'))
+        patchLiveStream(sessionId, { status: t('workbench.imageGenerating') })
         const img = await window.treasureChest.generateImage({
           prompt: content,
           size: imageSizeFromOptions(capOptions),
           style: capOptions.imageStyle,
           quality: capOptions.imageQuality,
         })
-        if (streamSessionRef.current === sessionId) {
-          if (img.ok && img.url) {
-            const meta = [
-              capOptions.imageAspect,
-              capOptions.imageQuality,
-              capOptions.imageStyle,
-            ]
-              .filter(Boolean)
-              .join(' · ')
-            const md = `![${content.slice(0, 40)}](${img.url})\n\n${t('workbench.imageDone')}${
-              meta ? ` (${meta})` : ''
-            }`
-            appendAssistant(sessionId, md)
-          } else {
-            appendMessage(
-              sessionId,
-              'system',
-              t('workbench.chatFailed', { error: img.error || t('workbench.chatUnknownError') }),
-            )
-          }
+        if (img.ok && img.url) {
+          const meta = [
+            capOptions.imageAspect,
+            capOptions.imageQuality,
+            capOptions.imageStyle,
+          ]
+            .filter(Boolean)
+            .join(' · ')
+          const md = `![${content.slice(0, 40)}](${img.url})\n\n${t('workbench.imageDone')}${
+            meta ? ` (${meta})` : ''
+          }`
+          appendAssistant(sessionId, md)
+        } else {
+          appendMessage(
+            sessionId,
+            'system',
+            t('workbench.chatFailed', { error: img.error || t('workbench.chatUnknownError') }),
+          )
         }
       } else if (activeCap === 'video') {
-        setStreamStatus(t('workbench.videoGenerating'))
+        patchLiveStream(sessionId, { status: t('workbench.videoGenerating') })
         const vid = await window.treasureChest.generateVideo({
           prompt: content,
           durationSec: Number(capOptions.videoDuration || 5),
           aspectRatio: capOptions.videoAspect,
           resolution: capOptions.videoResolution,
         })
-        if (streamSessionRef.current === sessionId) {
-          if (vid.ok && (vid.text || vid.url)) {
-            appendAssistant(sessionId, vid.text || `[video](${vid.url})`)
-          } else {
-            appendMessage(
-              sessionId,
-              'system',
-              t('workbench.chatFailed', { error: vid.error || t('workbench.chatUnknownError') }),
-            )
-          }
+        if (vid.ok && (vid.text || vid.url)) {
+          appendAssistant(sessionId, vid.text || `[video](${vid.url})`)
+        } else {
+          appendMessage(
+            sessionId,
+            'system',
+            t('workbench.chatFailed', { error: vid.error || t('workbench.chatUnknownError') }),
+          )
         }
       } else if (activeCap === 'music') {
-        setStreamStatus(t('workbench.musicGenerating'))
+        patchLiveStream(sessionId, { status: t('workbench.musicGenerating') })
         const music = await window.treasureChest.generateMusic({
           prompt: content,
           durationSec: Number(capOptions.musicDuration || 60),
           style: capOptions.musicStyle,
           instrumental: capOptions.musicInstrumental !== 'no',
         })
-        if (streamSessionRef.current === sessionId) {
-          if (music.ok && (music.text || music.url)) {
-            appendAssistant(sessionId, music.text || `[audio](${music.url})`)
-          } else {
-            appendMessage(
-              sessionId,
-              'system',
-              t('workbench.chatFailed', { error: music.error || t('workbench.chatUnknownError') }),
-            )
-          }
+        if (music.ok && (music.text || music.url)) {
+          appendAssistant(sessionId, music.text || `[audio](${music.url})`)
+        } else {
+          appendMessage(
+            sessionId,
+            'system',
+            t('workbench.chatFailed', { error: music.error || t('workbench.chatUnknownError') }),
+          )
         }
       } else {
-        setStreamCitations([])
-        setStreamToolSteps([])
+        patchLiveStream(sessionId, { citations: [], toolSteps: [] })
         const capabilityMode =
-          activeCap && ['write', 'translate', 'research', 'skills'].includes(activeCap)
+          activeCap && ['write', 'translate', 'research', 'skills', 'create_agent'].includes(activeCap)
             ? activeCap
             : undefined
         const res = await window.treasureChest.workbenchChatStream(
@@ -962,73 +1110,55 @@ export function WorkbenchPage(): React.JSX.Element {
             skillPrompt: mergedSkillPrompt || undefined,
           },
           (delta) => {
-            if (streamSessionRef.current !== sessionId) return
-            setStreamStatus('')
-            setStreamText((prev) => prev + delta)
+            const prevText = liveStreamRef.current[sessionId]?.text ?? ''
+            patchLiveStream(sessionId, { text: prevText + delta, status: '' })
           },
           (status) => {
-            if (streamSessionRef.current !== sessionId) return
-            setStreamStatus(status)
+            patchLiveStream(sessionId, { status })
           },
           (citations) => {
-            if (streamSessionRef.current !== sessionId) return
-            setStreamCitations(citations)
+            patchLiveStream(sessionId, { citations })
           },
           (step) => {
-            if (streamSessionRef.current !== sessionId) return
-            setStreamToolSteps((prev) => {
-              const idx = prev.findIndex((s) => s.id === step.id)
-              if (idx >= 0) {
-                const next = [...prev]
-                next[idx] = step
-                return next
-              }
-              return [...prev, step]
-            })
+            const prevSteps = liveStreamRef.current[sessionId]?.toolSteps ?? []
+            const idx = prevSteps.findIndex((s) => s.id === step.id)
+            const toolSteps =
+              idx >= 0
+                ? prevSteps.map((s, i) => (i === idx ? step : s))
+                : [...prevSteps, step]
+            patchLiveStream(sessionId, { toolSteps })
           },
           (request) => {
-            if (streamSessionRef.current !== sessionId) return
-            setPendingApproval(request)
+            pendingApprovalBySessionRef.current.set(sessionId, request)
+            if (activeIdRef.current === sessionId) setPendingApproval(request)
           },
           (ev) => {
-            if (streamSessionRef.current !== sessionId) return
-            appendLiveSessionEvent(ev)
+            if (activeIdRef.current === sessionId) appendLiveSessionEvent(ev)
+          },
+          (streamId) => {
+            streamIdsBySessionRef.current.set(sessionId, streamId)
           },
         )
-        if (streamSessionRef.current === sessionId) {
-          if (res.ok && res.text?.trim()) {
-            await finishHarnessTurn(sessionId)
-          } else {
-            appendMessage(
-              sessionId,
-              'system',
-              t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
-            )
-          }
+        if (res.ok && res.text?.trim()) {
+          await finishHarnessTurn(sessionId)
+        } else {
+          appendMessage(
+            sessionId,
+            'system',
+            t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
+          )
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (streamSessionRef.current === sessionId) {
-        appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
-      }
+      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
     } finally {
-      if (streamSessionRef.current === sessionId) {
-        streamSessionRef.current = null
-        setStreamSessionId(null)
-        setStreamText('')
-        setStreamStatus('')
-        setStreamCitations([])
-        setStreamToolSteps([])
-        setSending(false)
-        refresh(sessionId)
+      if (streamSessionRef.current === sessionId) streamSessionRef.current = null
+      clearLiveStream(sessionId)
+      if (activeIdRef.current === sessionId) {
+        refreshForSession(sessionId)
       } else {
-        setSending(false)
-        setStreamText('')
-        setStreamStatus('')
-        setStreamCitations([])
-        setStreamToolSteps([])
-        setStreamSessionId(null)
+        setSessions(listSessions())
       }
     }
   }
@@ -1071,7 +1201,7 @@ export function WorkbenchPage(): React.JSX.Element {
       setActiveCap(id)
       const sessionId = await ensureSession(activeAgent)
       appendMessage(sessionId, 'system', t('workbench.mcpHint'))
-      refresh(sessionId)
+      refreshForSession(sessionId)
       return
     }
     if (id === 'skills') {
@@ -1086,7 +1216,7 @@ export function WorkbenchPage(): React.JSX.Element {
       })
       return
     }
-    if (id === 'image' || id === 'write' || id === 'translate' || id === 'research' || id === 'video' || id === 'music') {
+    if (id === 'image' || id === 'write' || id === 'translate' || id === 'research' || id === 'video' || id === 'music' || id === 'create_agent') {
       if (id === 'image' || id === 'video' || id === 'music') {
         const level = mediaLevelOf(id)
         if (level === 'no') {
@@ -1100,9 +1230,14 @@ export function WorkbenchPage(): React.JSX.Element {
       setActiveCap((prev) => (prev === id ? null : id))
       inputRef.current?.focus()
       const sessionId = await ensureSession(activeAgent)
+      if (id === 'create_agent') {
+        appendMessage(sessionId, 'system', t('workbench.capArmedCreateAgent'))
+        refreshForSession(sessionId)
+        return
+      }
       if (mediaLevelOf(id) !== 'maybe') {
         appendMessage(sessionId, 'system', t('workbench.capArmed', { name: capName }))
-        refresh(sessionId)
+        refreshForSession(sessionId)
       }
       return
     }
@@ -1116,18 +1251,18 @@ export function WorkbenchPage(): React.JSX.Element {
       }
       const sessionId = await ensureSession(activeAgent)
       appendMessage(sessionId, 'system', t('workbench.transcribePickHint'))
-      refresh(sessionId)
+      refreshForSession(sessionId)
       void (async () => {
         const filePath = await window.treasureChest.pickAudioFile()
         if (!filePath) {
           appendMessage(sessionId, 'system', t('workbench.transcribeCancelled'))
-          refresh(sessionId)
+          refreshForSession(sessionId)
           return
         }
-        setSending(true)
-        setStreamStatus(t('workbench.transcribeGenerating'))
+        markSessionStreaming(sessionId, true)
+        patchLiveStream(sessionId, { status: t('workbench.transcribeGenerating') })
         streamSessionRef.current = sessionId
-        setStreamSessionId(sessionId)
+        if (activeIdRef.current === sessionId) syncLiveStreamToUi(sessionId)
         try {
           const res = await window.treasureChest.transcribeAudio({ filePath })
           if (res.ok && res.text) {
@@ -1148,18 +1283,16 @@ export function WorkbenchPage(): React.JSX.Element {
             }),
           )
         } finally {
-          streamSessionRef.current = null
-          setStreamSessionId(null)
-          setStreamStatus('')
-          setSending(false)
-          refresh(sessionId)
+          if (streamSessionRef.current === sessionId) streamSessionRef.current = null
+          clearLiveStream(sessionId)
+          if (activeIdRef.current === sessionId) refreshForSession(sessionId)
         }
       })()
       return
     }
     const sessionId = await ensureSession(activeAgent)
     appendMessage(sessionId, 'system', t('workbench.capSoon', { name: capName }))
-    refresh(sessionId)
+    refreshForSession(sessionId)
   }
 
   useEffect(() => {
@@ -1257,16 +1390,82 @@ export function WorkbenchPage(): React.JSX.Element {
         `${t('workbench.media.maybeTitle', { name })}\n\n${t('workbench.media.maybeBody', { provider })}`,
       )
     }
-    refresh(sessionId)
+    refreshForSession(sessionId)
   }
 
-  const quickPrompts = directMode
-    ? ['workbench.chip.direct1', 'workbench.chip.direct2', 'workbench.chip.direct3']
-    : activeAgent === 'fortune'
-      ? ['workbench.chip.fortune1', 'workbench.chip.fortune2', 'workbench.chip.fortune3']
-      : activeAgent === 'stocks'
-        ? ['workbench.chip.stocks1', 'workbench.chip.stocks2', 'workbench.chip.stocks3']
-        : ['workbench.chip.custom1', 'workbench.chip.custom2', 'workbench.chip.custom3']
+  const quickChips = useMemo(() => {
+    type Chip = { id: string; label: string; action: 'send' | 'workflow_brief' | 'workflow_research' | 'create_agent' }
+    if (directMode) {
+      return [
+        {
+          id: WORKFLOW_DEFS.daily_brief.chipKey,
+          label: t(WORKFLOW_DEFS.daily_brief.chipKey),
+          action: 'workflow_brief' as const,
+        },
+        {
+          id: WORKFLOW_DEFS.deep_research.chipKey,
+          label: t(WORKFLOW_DEFS.deep_research.chipKey),
+          action: 'workflow_research' as const,
+        },
+        {
+          id: 'workbench.chip.direct1',
+          label: t('workbench.chip.direct1'),
+          action: 'send' as const,
+        },
+        {
+          id: 'workbench.chip.createAgent',
+          label: t('workbench.chip.createAgent'),
+          action: 'create_agent' as const,
+        },
+        {
+          id: 'workbench.chip.direct3',
+          label: t('workbench.chip.direct3'),
+          action: 'send' as const,
+        },
+      ] satisfies Chip[]
+    }
+    if (activeAgent === 'fortune') {
+      return (['workbench.chip.fortune1', 'workbench.chip.fortune2', 'workbench.chip.fortune3'] as const).map(
+        (key) => ({ id: key, label: t(key), action: 'send' as const }),
+      )
+    }
+    if (activeAgent === 'stocks') {
+      return (['workbench.chip.stocks1', 'workbench.chip.stocks2', 'workbench.chip.stocks3'] as const).map(
+        (key) => ({ id: key, label: t(key), action: 'send' as const }),
+      )
+    }
+    const custom = (activeAgentDef.quickPrompts ?? []).map((p) => p.trim()).filter(Boolean)
+    if (custom.length) {
+      return custom.map((text, i) => ({
+        id: `agent-qp-${i}`,
+        label: text,
+        action: 'send' as const,
+      }))
+    }
+    return (['workbench.chip.custom1', 'workbench.chip.custom2', 'workbench.chip.custom3'] as const).map(
+      (key) => ({ id: key, label: t(key), action: 'send' as const }),
+    )
+  }, [directMode, activeAgent, activeAgentDef.quickPrompts, t])
+
+  const onAgentCreatedFromChat = (agent: AgentDef): void => {
+    setActiveCap(null)
+    void navigate(`/?agent=${encodeURIComponent(String(agent.id))}`)
+  }
+
+  const renderAssistantBody = (content: string, opts?: { streaming?: boolean }): ReactNode => {
+    const spec = parseAgentSpec(content)
+    const display = spec
+      ? content.replace(/```agent-spec\s*[\s\S]*?```/gi, '').trim()
+      : content
+    return (
+      <>
+        {display ? <MarkdownMessage content={display} streaming={opts?.streaming} /> : null}
+        {spec && !opts?.streaming ? (
+          <AgentSpecCard spec={spec} onCreated={onAgentCreatedFromChat} />
+        ) : null}
+      </>
+    )
+  }
 
   const { primary: allPrimaryCaps, overflow: baseOverflowCaps } = useMemo(
     () => splitWorkbenchCapabilities(),
@@ -1433,6 +1632,12 @@ export function WorkbenchPage(): React.JSX.Element {
                       }`}
                       onClick={() => onSelectSession(session.id)}
                     >
+                      <AgentAvatar
+                        agent={activeAgentDef}
+                        size="sm"
+                        fallback="sparkles"
+                        className={styles.sessionAvatar}
+                      />
                       <span className={styles.sessionTitle}>{session.title}</span>
                     </button>
                     <button
@@ -1499,6 +1704,7 @@ export function WorkbenchPage(): React.JSX.Element {
               </button>
             ) : null}
             <div className={styles.breadcrumb}>
+              <AgentAvatar agent={activeAgentDef} size="md" fallback="sparkles" className={styles.headAvatar} />
               <strong>{activeAgentName}</strong>
               <span className={styles.crumbSep}>›</span>
               <span>{activeSession?.title ?? t('workbench.newSession')}</span>
@@ -1566,22 +1772,6 @@ export function WorkbenchPage(): React.JSX.Element {
               {t('workbench.artifacts')}
               {artifacts.length > 0 ? ` (${artifacts.length})` : ''}
             </button>
-            {panelOpen ? (
-              <button
-                type="button"
-                className={styles.chipLink}
-                title={t('workbench.collapseSessions')}
-                onClick={togglePanel}
-              >
-                <IconChevronLeft />
-                {t('workbench.collapseSessions')}
-              </button>
-            ) : null}
-            {activeAgentDef.classicPath ? (
-              <Link className={styles.chipLink} to={activeAgentDef.classicPath}>
-                {t('workbench.openClassic')}
-              </Link>
-            ) : null}
             <Link className={styles.chipLink} to="/settings">
               <IconKey />
               {t('workbench.modelSettings')}
@@ -1590,7 +1780,7 @@ export function WorkbenchPage(): React.JSX.Element {
         </header>
 
         <div className={styles.messages}>
-          {messages.length === 0 && !sending ? (
+          {messages.length === 0 && !activeStreaming ? (
             <div className={styles.empty}>
               <div className={styles.emptyMark}>{agentIcon(activeAgentDef)}</div>
               <h1 className={styles.emptyTitle}>{activeAgentName}</h1>
@@ -1600,37 +1790,40 @@ export function WorkbenchPage(): React.JSX.Element {
                   : t('workbench.welcome', { agent: activeAgentName })}
               </p>
               <div className={styles.chips}>
-                {(directMode
-                  ? [
-                      WORKFLOW_DEFS.daily_brief.chipKey,
-                      WORKFLOW_DEFS.deep_research.chipKey,
-                      ...quickPrompts,
-                    ]
-                  : quickPrompts
-                ).map((key) => (
+                {quickChips.map((chip) => (
                   <button
-                    key={key}
+                    key={chip.id}
                     type="button"
                     className={styles.chip}
                     onClick={() => {
-                      if (key === WORKFLOW_DEFS.daily_brief.chipKey) {
+                      if (chip.action === 'workflow_brief') {
                         void runDailyBriefWorkflow()
                         return
                       }
-                      if (key === WORKFLOW_DEFS.deep_research.chipKey) {
+                      if (chip.action === 'workflow_research') {
                         setArmedWorkflow('deep_research')
                         setActiveCap('research')
                         void ensureSession(activeAgent).then((sid) => {
                           appendMessage(sid, 'system', t('workbench.workflow.armedResearch'))
-                          refresh(sid)
+                          refreshForSession(sid)
                           inputRef.current?.focus()
                         })
                         return
                       }
-                      void sendText(t(key))
+                      if (chip.action === 'create_agent') {
+                        setActiveCap('create_agent')
+                        void ensureSession(activeAgent).then((sid) => {
+                          appendMessage(sid, 'system', t('workbench.capArmedCreateAgent'))
+                          refreshForSession(sid)
+                          setDraft(t('workbench.chip.createAgentDraft'))
+                          inputRef.current?.focus()
+                        })
+                        return
+                      }
+                      void sendText(chip.label)
                     }}
                   >
-                    {t(key)}
+                    {chip.label}
                   </button>
                 ))}
               </div>
@@ -1652,13 +1845,20 @@ export function WorkbenchPage(): React.JSX.Element {
                   return (
                     <div key={msg.id} className={`${styles.bubbleRow} ${styles.bubbleRowUser}`}>
                       <div className={`${styles.bubble} ${styles.bubbleUser}`}>{msg.content}</div>
+                      <UserAvatar size="md" className={styles.msgAvatar} label={t('workbench.you')} />
                     </div>
                   )
                 }
                 return (
                   <div key={msg.id} className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
+                    <AgentAvatar
+                      agent={activeAgentDef}
+                      size="md"
+                      fallback="sparkles"
+                      className={styles.msgAvatar}
+                    />
                     <div className={styles.assistantMessage}>
-                      <MarkdownMessage content={msg.content} />
+                      {renderAssistantBody(msg.content)}
                       {msg.citations?.length ? (
                         <div className={styles.citations}>
                           <div className={styles.citationsTitle}>{t('workbench.citations')}</div>
@@ -1677,11 +1877,17 @@ export function WorkbenchPage(): React.JSX.Element {
                   </div>
                 )
               })}
-              {sending && streamSessionId === activeId ? (
+              {activeStreaming && streamSessionId === activeId ? (
                 <div className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
+                  <AgentAvatar
+                    agent={activeAgentDef}
+                    size="md"
+                    fallback="sparkles"
+                    className={styles.msgAvatar}
+                  />
                   <div className={styles.assistantMessage}>
                     {streamText ? (
-                      <MarkdownMessage content={streamText} streaming />
+                      renderAssistantBody(streamText, { streaming: true })
                     ) : (
                       <ThinkingIndicator
                         label={
@@ -1779,7 +1985,7 @@ export function WorkbenchPage(): React.JSX.Element {
             </div>
           ) : null}
           {activeCap &&
-          ['write', 'translate', 'research', 'skills', 'image', 'video', 'music'].includes(activeCap) ? (
+          ['write', 'translate', 'research', 'skills', 'image', 'video', 'music', 'create_agent'].includes(activeCap) ? (
             <div className={styles.modePanel}>
               <div className={styles.modePanelHead}>
                 <div className={styles.modePanelTitle}>
@@ -1867,7 +2073,10 @@ export function WorkbenchPage(): React.JSX.Element {
               ref={inputRef}
               className={styles.composerInput}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                draftByAgentRef.current[String(activeAgent)] = e.target.value
+              }}
               onKeyDown={onKeyDown}
               placeholder={
                 activeCap === 'image'
@@ -1882,7 +2091,9 @@ export function WorkbenchPage(): React.JSX.Element {
                           ? t('workbench.placeholder.write')
                           : activeCap === 'research'
                             ? t('workbench.placeholder.research')
-                            : t('workbench.inputPlaceholder')
+                            : activeCap === 'create_agent'
+                              ? t('workbench.placeholder.createAgent')
+                              : t('workbench.inputPlaceholder')
               }
               rows={2}
             />
@@ -1991,12 +2202,12 @@ export function WorkbenchPage(): React.JSX.Element {
                 ) : null}
                 <button
                   type="button"
-                  className={sending ? styles.stopBtn : styles.sendBtn}
-                  disabled={!sending && !draft.trim() && attachments.length === 0}
-                  onClick={() => (sending ? onStopGeneration() : void sendText(draft))}
-                  aria-label={sending ? t('workbench.stop') : t('workbench.send')}
+                  className={activeStreaming ? styles.stopBtn : styles.sendBtn}
+                  disabled={!activeStreaming && !draft.trim() && attachments.length === 0}
+                  onClick={() => (activeStreaming ? onStopGeneration() : void sendText(draft))}
+                  aria-label={activeStreaming ? t('workbench.stop') : t('workbench.send')}
                 >
-                  {sending ? <IconClose /> : <IconSend />}
+                  {activeStreaming ? <IconClose /> : <IconSend />}
                 </button>
               </div>
             </div>
@@ -2046,6 +2257,7 @@ export function WorkbenchPage(): React.JSX.Element {
           onResolve={(approved) => {
             const req = pendingApproval
             setPendingApproval(null)
+            if (activeId) pendingApprovalBySessionRef.current.delete(activeId)
             void window.treasureChest.resolveToolApproval({
               streamId: req.streamId,
               toolCallId: req.toolCallId,

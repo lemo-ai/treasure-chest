@@ -226,6 +226,25 @@ export function IconDial(props: IconProps): React.JSX.Element {
   )
 }
 
+export function IconClock(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="8.25" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  )
+}
+
+export function IconInbox(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 8.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V8.5Z" />
+      <path d="M4 8.5 6.8 4.8A1.5 1.5 0 0 1 8 4.2h8a1.5 1.5 0 0 1 1.2.6L20 8.5" />
+      <path d="M4 13h4.2l1.3 2h5l1.3-2H20" />
+    </svg>
+  )
+}
+
 export function IconBell(props: IconProps): React.JSX.Element {
   return (
     <svg {...base} {...props}>

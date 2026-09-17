@@ -60,9 +60,32 @@ function ensureDefaultCollection(): void {
   if (row) return
   const now = new Date().toISOString()
   db.prepare(
-    `INSERT INTO knowledge_collections (id, name, description, color, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO knowledge_collections (id, name, description, color, parent_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, NULL, ?, ?)`,
   ).run(DEFAULT_COLLECTION_ID, '默认知识库', '系统默认分区', '#0fbea8', now, now)
+}
+
+function listDescendantCollectionIds(rootId: string): string[] {
+  const db = getDb()
+  const rows = db
+    .prepare(`SELECT id, parent_id FROM knowledge_collections`)
+    .all() as Array<{ id: string; parent_id: string | null }>
+  const byParent = new Map<string | null, string[]>()
+  for (const r of rows) {
+    const p = r.parent_id || null
+    const list = byParent.get(p) ?? []
+    list.push(r.id)
+    byParent.set(p, list)
+  }
+  const out: string[] = []
+  const walk = (id: string): void => {
+    for (const child of byParent.get(id) ?? []) {
+      out.push(child)
+      walk(child)
+    }
+  }
+  walk(rootId)
+  return out
 }
 
 function migrateLegacySettings(raw: Record<string, unknown>): Partial<KnowledgeSettings> {
@@ -122,7 +145,8 @@ export function listKnowledgeCollections(): KnowledgeCollection[] {
   const rows = getDb()
     .prepare(
       `SELECT c.*,
-        (SELECT COUNT(1) FROM knowledge_documents d WHERE d.collection_id = c.id) AS documentCount
+        (SELECT COUNT(1) FROM knowledge_documents d WHERE d.collection_id = c.id) AS documentCount,
+        (SELECT COUNT(1) FROM knowledge_collections ch WHERE ch.parent_id = c.id) AS childCount
        FROM knowledge_collections c
        ORDER BY c.updated_at DESC`,
     )
@@ -131,35 +155,56 @@ export function listKnowledgeCollections(): KnowledgeCollection[] {
     name: string
     description: string
     color: string
+    parent_id: string | null
     created_at: string
     updated_at: string
     documentCount: number
+    childCount: number
   }>
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    description: r.description || '',
-    color: r.color || '#0fbea8',
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-    documentCount: r.documentCount ?? 0,
-  }))
+  const idSet = new Set(rows.map((r) => r.id))
+  return rows.map((r) => {
+    const rawParent = r.parent_id || null
+    // Orphan → treat as root so the tree still renders
+    const parentId = rawParent && idSet.has(rawParent) && rawParent !== r.id ? rawParent : null
+    return {
+      id: r.id,
+      name: r.name,
+      description: r.description || '',
+      color: r.color || '#0fbea8',
+      parentId,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      documentCount: r.documentCount ?? 0,
+      childCount: r.childCount ?? 0,
+    }
+  })
 }
 
 export function createKnowledgeCollection(input: {
   name: string
   description?: string
   color?: string
+  parentId?: string | null
 }): KnowledgeCollection {
   const id = `col_${randomUUID().slice(0, 8)}`
   const now = new Date().toISOString()
   const name = input.name.trim() || 'Untitled'
+  let parentId = input.parentId?.trim() || null
+  if (parentId === DEFAULT_COLLECTION_ID) {
+    // allow children under default
+  }
+  if (parentId) {
+    const parent = getDb()
+      .prepare('SELECT id FROM knowledge_collections WHERE id = ?')
+      .get(parentId) as { id: string } | undefined
+    if (!parent) parentId = null
+  }
   getDb()
     .prepare(
-      `INSERT INTO knowledge_collections (id, name, description, color, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO knowledge_collections (id, name, description, color, parent_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, name, input.description?.trim() || '', input.color || '#4c8dff', now, now)
+    .run(id, name, input.description?.trim() || '', input.color || '#4c8dff', parentId, now, now)
   return listKnowledgeCollections().find((c) => c.id === id)!
 }
 
@@ -172,30 +217,78 @@ export function renameKnowledgeCollection(id: string, name: string): KnowledgeCo
   return listKnowledgeCollections().find((c) => c.id === id) ?? null
 }
 
-export function deleteKnowledgeCollection(id: string): boolean {
-  if (id === DEFAULT_COLLECTION_ID) return false
+function deleteDocumentsInCollection(collectionId: string): string[] {
   const db = getDb()
   const docs = db
     .prepare('SELECT id FROM knowledge_documents WHERE collection_id = ?')
-    .all(id) as Array<{ id: string }>
-  const tx = db.transaction(() => {
-    for (const doc of docs) {
-      db.prepare(
-        'DELETE FROM knowledge_chunk_embeddings WHERE chunk_id IN (SELECT id FROM knowledge_chunks WHERE document_id = ?)',
-      ).run(doc.id)
-      db.prepare('DELETE FROM knowledge_chunks_fts WHERE document_id = ?').run(doc.id)
-      db.prepare('DELETE FROM knowledge_chunks WHERE document_id = ?').run(doc.id)
-      db.prepare('DELETE FROM knowledge_documents WHERE id = ?').run(doc.id)
-    }
-    db.prepare('DELETE FROM knowledge_collections WHERE id = ?').run(id)
-  })
-  tx()
+    .all(collectionId) as Array<{ id: string }>
   for (const doc of docs) {
-    deleteKnowledgeBlob(doc.id)
+    db.prepare(
+      'DELETE FROM knowledge_chunk_embeddings WHERE chunk_id IN (SELECT id FROM knowledge_chunks WHERE document_id = ?)',
+    ).run(doc.id)
+    db.prepare('DELETE FROM knowledge_chunks_fts WHERE document_id = ?').run(doc.id)
+    db.prepare('DELETE FROM knowledge_chunks WHERE document_id = ?').run(doc.id)
+    db.prepare('DELETE FROM knowledge_documents WHERE id = ?').run(doc.id)
   }
+  return docs.map((d) => d.id)
+}
+
+export function deleteKnowledgeCollection(
+  id: string,
+  opts?: { mode?: 'cascade' | 'move' },
+): boolean {
+  if (id === DEFAULT_COLLECTION_ID) return false
+  const mode = opts?.mode === 'move' ? 'move' : 'cascade'
+  const db = getDb()
+  const row = db
+    .prepare('SELECT id, parent_id FROM knowledge_collections WHERE id = ?')
+    .get(id) as { id: string; parent_id: string | null } | undefined
+  if (!row) return false
+
+  const parentId = row.parent_id || null
+  const blobIds: string[] = []
+
+  if (mode === 'move') {
+    ensureDefaultCollection()
+    const tx = db.transaction(() => {
+      db.prepare(
+        `UPDATE knowledge_documents SET collection_id = ?, updated_at = ? WHERE collection_id = ?`,
+      ).run(DEFAULT_COLLECTION_ID, new Date().toISOString(), id)
+      // Promote direct children one level up
+      db.prepare(`UPDATE knowledge_collections SET parent_id = ?, updated_at = ? WHERE parent_id = ?`).run(
+        parentId,
+        new Date().toISOString(),
+        id,
+      )
+      db.prepare('DELETE FROM knowledge_collections WHERE id = ?').run(id)
+    })
+    tx()
+  } else {
+    const subtree = [id, ...listDescendantCollectionIds(id)]
+    const tx = db.transaction(() => {
+      for (const cid of subtree) {
+        blobIds.push(...deleteDocumentsInCollection(cid))
+      }
+      for (const cid of subtree) {
+        db.prepare('DELETE FROM knowledge_collections WHERE id = ?').run(cid)
+      }
+    })
+    tx()
+    for (const docId of blobIds) {
+      deleteKnowledgeBlob(docId)
+    }
+  }
+
   const settings = getKnowledgeSettings()
-  if (settings.defaultCollectionId === id) {
-    setKnowledgeSettings({ defaultCollectionId: DEFAULT_COLLECTION_ID })
+  if (settings.defaultCollectionId) {
+    const stillExists = Boolean(
+      db
+        .prepare('SELECT id FROM knowledge_collections WHERE id = ?')
+        .get(settings.defaultCollectionId),
+    )
+    if (!stillExists) {
+      setKnowledgeSettings({ defaultCollectionId: DEFAULT_COLLECTION_ID })
+    }
   }
   return true
 }

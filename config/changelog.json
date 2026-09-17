@@ -1,6 +1,34 @@
 {
   "releases": [
     {
+      "version": "0.3.0",
+      "date": "2026-09-17",
+      "title": {
+        "zh-CN": "调度 · 数据源 · 知识库分区树",
+        "en-US": "Schedules · data sources · knowledge tree"
+      },
+      "items": {
+        "zh-CN": [
+          "新增定时调度：卡片式任务、周期/窗口执行，结果可投递收件箱、钉钉与邮件",
+          "设置页数据源：卡片管理、按需安装驱动、连接测试；覆盖常见数据库（含 Redis / ClickHouse 等）",
+          "模型与 API 改为卡片式管理，添加与编辑体验更清晰",
+          "知识库分区支持树形上下级：新建/重命名/删除；删除时可选一并清理文档或移到默认分区",
+          "父分区文档数计入全部子分区；分区侧栏树形样式与内联新建子分区",
+          "运势/股票独立页收敛到工作台智能体；收件箱与通知通道完善",
+          "音视频工具页布局与响应式修正；工作台去掉对话框内重复的「收起会话」"
+        ],
+        "en-US": [
+          "Schedules: card tasks with once/daily/interval/window runs; deliver to inbox, DingTalk, and email",
+          "Settings data sources: card UI, on-demand drivers, connection test; common DBs including Redis / ClickHouse",
+          "Models & API redesigned as cards for clearer add/edit flows",
+          "Knowledge collections as a tree: create/rename/delete; delete can cascade docs or move them to default",
+          "Parent doc counts include all descendants; cleaner tree UI with inline sub-collection create",
+          "Fortune/Stocks standalone pages folded into workbench agents; inbox and notify channels improved",
+          "Audio toolkit layout/responsive fixes; remove duplicate “Hide sessions” from the chat header"
+        ]
+      }
+    },
+    {
       "version": "0.2.1",
       "date": "2026-09-15",
       "title": {

@@ -259,7 +259,7 @@ export function DocToolkitPage(): React.JSX.Element {
             ) : (
               <p className={styles.toastErr}>
                 {t('tools.doc.officeMissing')}{' '}
-                <Link className={styles.link} to="/settings?section=data">
+                <Link className={styles.link} to="/settings?section=dataSources">
                   {t('tools.doc.officeOpenSettings')}
                 </Link>
               </p>

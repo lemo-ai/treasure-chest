@@ -1,0 +1,9 @@
+.frame {
+  display: block;
+  width: 100%;
+  min-height: 28rem;
+  height: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 0.75rem;
+}

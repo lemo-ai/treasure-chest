@@ -1,0 +1,34 @@
+.root {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(145deg, var(--color-brand), var(--color-brand-hover));
+  color: var(--color-on-brand);
+  font-weight: 750;
+  line-height: 1;
+  user-select: none;
+}
+
+.size_sm {
+  width: 1.35rem;
+  height: 1.35rem;
+  font-size: 0.62rem;
+}
+
+.size_md {
+  width: 1.65rem;
+  height: 1.65rem;
+  font-size: 0.72rem;
+}
+
+.size_lg {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.82rem;
+}
+
+.letter {
+  transform: translateY(0.5px);
+}

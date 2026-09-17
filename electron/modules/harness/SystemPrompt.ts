@@ -113,6 +113,10 @@ export async function assembleSystemPrompt(
         zh: '当前模式：技能助手。严格按技能模板输出。',
         en: 'Mode: skills. Follow the skill template strictly.',
       },
+      create_agent: {
+        zh: `当前模式：帮用户创建智能体。澄清需求后，输出一个 \`\`\`agent-spec JSON 代码块（字段 name/description/systemPrompt/tone）。tone 为 brand|accent|highlight。用户会在界面点创建。`,
+        en: `Mode: create agent. After clarifying, output one \`\`\`agent-spec JSON block (name/description/systemPrompt/tone). tone: brand|accent|highlight. User confirms in UI.`,
+      },
     }
     const pack = map[mode]
     if (!pack) return skill || ''

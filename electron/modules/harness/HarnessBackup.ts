@@ -45,6 +45,7 @@ export function exportHarnessBackup(): HarnessBackupSection {
     events,
     goals: listAllGoals(),
     activeSessionId: SessionRepo.getActiveSessionId(),
+    activeSessionIdByAgent: SessionRepo.getActiveSessionIdByAgent(),
   }
 }
 
@@ -100,5 +101,13 @@ export function importHarnessBackup(section: HarnessBackupSection): void {
       )
     }
     SessionRepo.setActiveSessionId(section.activeSessionId)
+    if (section.activeSessionIdByAgent) {
+      SessionRepo.setActiveSessionIdByAgentMap(section.activeSessionIdByAgent)
+    } else if (section.activeSessionId) {
+      const session = SessionRepo.getSession(section.activeSessionId)
+      if (session) {
+        SessionRepo.setActiveSessionIdByAgentMap({ [session.agentId]: section.activeSessionId })
+      }
+    }
   })()
 }

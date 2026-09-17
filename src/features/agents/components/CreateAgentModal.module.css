@@ -71,6 +71,140 @@
   color: var(--color-ink-secondary);
 }
 
+.logoField {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.logoLabel {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--color-ink-secondary);
+}
+
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.logoPreview {
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--color-border);
+  background: linear-gradient(145deg, var(--color-brand-soft), var(--color-highlight-soft));
+  color: var(--color-brand-strong);
+}
+
+.logoActions {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.logoBtn,
+.logoClear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: fit-content;
+  border-radius: var(--radius-full);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.logoBtn {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+.logoBtn:hover:not(:disabled) {
+  background: var(--color-bg-muted);
+}
+
+.logoBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.logoClear {
+  border: none;
+  background: transparent;
+  color: var(--color-ink-secondary);
+  padding-left: 0.2rem;
+}
+
+.logoClear:hover:not(:disabled) {
+  color: var(--color-accent);
+}
+
+.promptList {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.promptRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.promptRow input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.promptRemove {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-tertiary);
+  cursor: pointer;
+}
+
+.promptRemove:hover:not(:disabled) {
+  background: var(--color-bg-muted);
+  color: var(--color-accent);
+}
+
+.promptRemove:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.promptAdd {
+  width: fit-content;
+  margin-top: 0.15rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-ink-secondary);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.promptAdd:hover {
+  color: var(--color-brand-strong);
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+}
+
 .field input,
 .field textarea,
 .field select {

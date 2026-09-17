@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { firstOutputModelId } from '@shared'
 import { ToolShell } from '../components/ToolShell'
 import styles from './VideoToolkitPage.module.css'
+import audioStyles from './AudioToolkitPage.module.css'
 
 type TabId = 'classic' | 'generate' | 'transcribe'
 type ExportFormat = 'mp3' | 'wav' | 'aac' | 'm4a' | 'ogg' | 'flac'
@@ -285,7 +286,8 @@ export function AudioToolkitPage(): React.JSX.Element {
   }
 
   return (
-    <ToolShell title={t('tools.audio.title')} subtitle={t('tools.audio.desc')}>
+    <ToolShell title={t('tools.audio.title')} subtitle={t('tools.audio.desc')} wide compact>
+      <div className={audioStyles.pageFill}>
       <div className={styles.modeBar}>
         <div className={styles.modes}>
           {(['classic', 'generate', 'transcribe'] as const).map((id) => (
@@ -322,10 +324,10 @@ export function AudioToolkitPage(): React.JSX.Element {
       </div>
 
       {tab === 'classic' ? (
-        <div className={styles.layout}>
+        <div className={`${styles.layout} ${audioStyles.layout}`}>
           <section className={styles.stage}>
             <div
-              className={styles.hero}
+              className={`${styles.hero} ${audioStyles.hero}`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault()
@@ -334,14 +336,13 @@ export function AudioToolkitPage(): React.JSX.Element {
             >
               {previewUrl ? (
                 <>
-                  <div className={styles.playerFrame}>
+                  <div className={`${styles.playerFrame} ${audioStyles.playerFrame}`}>
                     <audio
                       ref={audioRef}
-                      className={styles.player}
+                      className={`${styles.player} ${audioStyles.player}`}
                       src={previewUrl}
                       controls
                       preload="metadata"
-                      style={{ width: 'min(100%, 520px)' }}
                     />
                   </div>
                   {meta.duration > 0 ? (
@@ -415,7 +416,7 @@ export function AudioToolkitPage(): React.JSX.Element {
             )}
           </section>
 
-          <aside className={styles.panel}>
+          <aside className={`${styles.panel} ${audioStyles.panel}`}>
             <div className={styles.panelHead}>
               <h2 className={styles.panelTitle}>{t('tools.audio.info')}</h2>
               <p
@@ -570,8 +571,8 @@ export function AudioToolkitPage(): React.JSX.Element {
       ) : null}
 
       {tab === 'generate' ? (
-        <div className={styles.genStudio}>
-          <aside className={styles.panel}>
+        <div className={`${styles.genStudio} ${audioStyles.genStudio}`}>
+          <aside className={`${styles.panel} ${audioStyles.panel}`}>
             <h2 className={styles.panelTitle}>{t('tools.audio.generate')}</h2>
             <p className={styles.banner}>{t('tools.audio.generateHint')}</p>
             <label className={styles.field}>
@@ -657,9 +658,15 @@ export function AudioToolkitPage(): React.JSX.Element {
             )}
           </aside>
           <section className={styles.genStage}>
-            <div className={styles.hero}>
+            <div className={`${styles.hero} ${audioStyles.hero}`}>
               {selectedGen ? (
-                <audio className={styles.player} src={selectedGen.url} controls />
+                <div className={`${styles.playerFrame} ${audioStyles.playerFrame}`}>
+                  <audio
+                    className={`${styles.player} ${audioStyles.player}`}
+                    src={selectedGen.url}
+                    controls
+                  />
+                </div>
               ) : (
                 <div className={styles.empty}>
                   <strong>{t('tools.audio.genEmptyTitle')}</strong>
@@ -687,10 +694,10 @@ export function AudioToolkitPage(): React.JSX.Element {
       ) : null}
 
       {tab === 'transcribe' ? (
-        <div className={styles.layout}>
+        <div className={`${styles.layout} ${audioStyles.layout}`}>
           <section className={styles.stage}>
             <p className={styles.banner}>{t('tools.audio.transcribeHint')}</p>
-            <div className={styles.hero} style={{ alignItems: 'stretch' }}>
+            <div className={`${styles.hero} ${audioStyles.hero}`} style={{ alignItems: 'stretch' }}>
               <textarea
                 className={styles.textarea}
                 style={{ flex: 1, minHeight: 280, resize: 'vertical' }}
@@ -708,7 +715,7 @@ export function AudioToolkitPage(): React.JSX.Element {
               </div>
             )}
           </section>
-          <aside className={styles.panel}>
+          <aside className={`${styles.panel} ${audioStyles.panel}`}>
             <h2 className={styles.panelTitle}>{t('tools.audio.transcribe')}</h2>
             <p className={styles.hint}>{t('tools.audio.transcribePanelHint')}</p>
             {localPath ? (
@@ -738,6 +745,7 @@ export function AudioToolkitPage(): React.JSX.Element {
           </aside>
         </div>
       ) : null}
+      </div>
     </ToolShell>
   )
 }

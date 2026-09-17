@@ -2,36 +2,28 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type {
-  AiModelConfig,
   AppLocale,
+  DataSourceConfig,
   DesktopWidgetView,
   DialFaceStyle,
-  FortuneAiProviderConfig,
   HexagramSchool,
   LaunchBehavior,
   McpServerStatus,
   McpTransport,
-  MediaProfileId,
+  NotificationChannels,
   StocksRangeKey,
   StocksSettings,
   ThemeMode,
 } from '@shared'
 import {
-  AI_PROVIDER_PRESETS,
   ALL_STOCKS_RANGE_KEYS,
   DEFAULT_DESKTOP_WIDGET,
   DEFAULT_FORTUNE_SETTINGS,
-  DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_NOTIFICATION_CHANNELS,
   DEFAULT_STOCKS_SETTINGS,
   DIAL_FACE_STYLES,
   HEXAGRAM_SCHOOLS,
-  MEDIA_PROFILE_IDS,
   THEME_ACCENTS,
-  aiModelIds,
-  defaultAiModelConfig,
-  firstModelId,
-  mediaIdsFromModels,
-  modelsFromProviderPreset,
 } from '@shared'
 import { setAppLocale } from '@renderer/shared/lib/i18n'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
@@ -59,7 +51,8 @@ import {
 } from '@renderer/shared/ui/icons'
 import { BirthProfileForm } from '@renderer/features/fortune/components/BirthProfileForm'
 import { HarnessPluginMarketplace } from '../components/HarnessPluginMarketplace'
-import { AddModelModal } from '../components/AddModelModal'
+import { DataSourcesPanel } from '../components/DataSourcesPanel'
+import { ModelsApiPanel } from '../components/ModelsApiPanel'
 import { ImageEnginesPanel } from '../components/ImageEnginesPanel'
 import { LibreOfficePanel } from '../components/LibreOfficePanel'
 import { DebugPanel } from '../components/DebugPanel'
@@ -87,24 +80,13 @@ export function SettingsPage(): React.JSX.Element {
   })
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
   const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
-  const [fortuneDailyNotify, setFortuneDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
-  const [stocksDailyNotify, setStocksDailyNotify] = useState(DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
-  const [fortuneNotifyHour, setFortuneNotifyHour] = useState(DEFAULT_NOTIFICATION_SETTINGS.fortuneNotifyHour)
+  const [notifyChannels, setNotifyChannels] = useState<NotificationChannels>(DEFAULT_NOTIFICATION_CHANNELS)
+  const [channelTestMsg, setChannelTestMsg] = useState<string | null>(null)
+  const [dataSources, setDataSources] = useState<DataSourceConfig[]>([])
+  const [modelsRefreshKey, setModelsRefreshKey] = useState(0)
   const [stocksSettings, setStocksSettings] = useState<StocksSettings>({ ...DEFAULT_STOCKS_SETTINGS })
   const [hexagramSchool, setHexagramSchool] = useState<HexagramSchool>(DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
   const [fortuneAiPolish, setFortuneAiPolish] = useState(DEFAULT_FORTUNE_SETTINGS.aiPolish)
-  const [aiProviders, setAiProviders] = useState<FortuneAiProviderConfig[]>(DEFAULT_FORTUNE_SETTINGS.aiProviders)
-  const [aiActiveProviderId, setAiActiveProviderId] = useState(DEFAULT_FORTUNE_SETTINGS.aiActiveProviderId)
-  const [aiProviderName, setAiProviderName] = useState(DEFAULT_FORTUNE_SETTINGS.aiProviderName)
-  const [aiBaseUrl, setAiBaseUrl] = useState(DEFAULT_FORTUNE_SETTINGS.aiBaseUrl)
-  const [aiApiFormat, setAiApiFormat] = useState(DEFAULT_FORTUNE_SETTINGS.aiApiFormat)
-  const [aiModel, setAiModel] = useState(DEFAULT_FORTUNE_SETTINGS.aiModel)
-  const [aiApiKey, setAiApiKey] = useState(DEFAULT_FORTUNE_SETTINGS.aiApiKey)
-  const [aiMediaProfile, setAiMediaProfile] = useState<MediaProfileId>('auto')
-  const [modelModal, setModelModal] = useState<AiModelConfig | null | 'new'>(null)
-  const [aiSavedHint, setAiSavedHint] = useState<string | null>(null)
-  const [aiTesting, setAiTesting] = useState(false)
-  const [aiTestHint, setAiTestHint] = useState<string | null>(null)
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
   const [harnessSandboxRoot, setHarnessSandboxRoot] = useState('')
   const [harnessPluginsDir, setHarnessPluginsDir] = useState('')
@@ -136,6 +118,7 @@ export function SettingsPage(): React.JSX.Element {
     | 'skills'
     | 'mcp'
     | 'notifications'
+    | 'dataSources'
     | 'data'
     | 'debug'
   const [section, setSection] = useState<SettingsSection>('models')
@@ -150,6 +133,7 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'skills', labelKey: 'settings.nav.skills', icon: <IconSkill /> },
     { id: 'mcp', labelKey: 'settings.nav.mcp', icon: <IconLayers /> },
     { id: 'notifications', labelKey: 'settings.nav.notifications', icon: <IconBell /> },
+    { id: 'dataSources', labelKey: 'settings.nav.dataSources', icon: <IconUpload /> },
     { id: 'data', labelKey: 'settings.nav.data', icon: <IconDownload /> },
     { id: 'debug', labelKey: 'settings.nav.debug', icon: <IconBug /> },
   ]
@@ -270,25 +254,11 @@ export function SettingsPage(): React.JSX.Element {
     void window.treasureChest.getDesktopWidget().then(setWidget)
     void window.treasureChest.getSettingsSnapshot().then((snap) => {
       setLaunchBehavior(snap.launchBehavior)
-      setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
-      setStocksDailyNotify(snap.notifications?.stocksDaily ?? DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
-      setFortuneNotifyHour(snap.notifications?.fortuneNotifyHour ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneNotifyHour)
+      setNotifyChannels(snap.notifications?.channels ?? DEFAULT_NOTIFICATION_CHANNELS)
+      setDataSources(snap.dataSources?.sources ?? [])
       setStocksSettings(snap.stocks ?? DEFAULT_STOCKS_SETTINGS)
       setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
       setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
-      setAiProviders(snap.fortune?.aiProviders ?? DEFAULT_FORTUNE_SETTINGS.aiProviders)
-      setAiActiveProviderId(snap.fortune?.aiActiveProviderId ?? DEFAULT_FORTUNE_SETTINGS.aiActiveProviderId)
-      setAiProviderName(snap.fortune?.aiProviderName ?? DEFAULT_FORTUNE_SETTINGS.aiProviderName)
-      setAiBaseUrl(snap.fortune?.aiBaseUrl ?? DEFAULT_FORTUNE_SETTINGS.aiBaseUrl)
-      setAiApiFormat(snap.fortune?.aiApiFormat ?? DEFAULT_FORTUNE_SETTINGS.aiApiFormat)
-      setAiModel(snap.fortune?.aiModel ?? DEFAULT_FORTUNE_SETTINGS.aiModel)
-      setAiApiKey(snap.fortune?.aiApiKey ?? DEFAULT_FORTUNE_SETTINGS.aiApiKey)
-      {
-        const active =
-          (snap.fortune?.aiProviders ?? []).find((p) => p.id === snap.fortune?.aiActiveProviderId) ??
-          snap.fortune?.aiProviders?.[0]
-        setAiMediaProfile(active?.mediaProfile ?? 'auto')
-      }
     })
     void window.treasureChest.getMcpSettings().then((mcp) => {
       setMcpServers(mcp.servers.map(toMcpDraft))
@@ -311,6 +281,7 @@ export function SettingsPage(): React.JSX.Element {
       'skills',
       'mcp',
       'notifications',
+      'dataSources',
       'data',
       'debug',
     ]
@@ -384,21 +355,16 @@ export function SettingsPage(): React.JSX.Element {
     void window.treasureChest.setLaunchBehavior(behavior).then(setLaunchBehavior)
   }
 
-  const onFortuneDailyNotify = (fortuneDaily: boolean): void => {
-    void window.treasureChest.setNotifications({ fortuneDaily }).then((next) => {
-      setFortuneDailyNotify(next.fortuneDaily)
-    })
-  }
-
-  const onFortuneNotifyHour = (hour: number): void => {
-    void window.treasureChest.setNotifications({ fortuneNotifyHour: hour }).then((next) => {
-      setFortuneNotifyHour(next.fortuneNotifyHour)
-    })
-  }
-
-  const onStocksDailyNotify = (stocksDaily: boolean): void => {
-    void window.treasureChest.setNotifications({ stocksDaily }).then((next) => {
-      setStocksDailyNotify(next.stocksDaily)
+  const patchNotifyChannels = (partial: Partial<NotificationChannels>): void => {
+    const nextChannels: NotificationChannels = {
+      ...notifyChannels,
+      ...partial,
+      dingtalk: { ...notifyChannels.dingtalk, ...(partial.dingtalk ?? {}) },
+      email: { ...notifyChannels.email, ...(partial.email ?? {}) },
+    }
+    setNotifyChannels(nextChannels)
+    void window.treasureChest.setNotifications({ channels: nextChannels }).then((next) => {
+      setNotifyChannels(next.channels)
     })
   }
 
@@ -441,25 +407,12 @@ export function SettingsPage(): React.JSX.Element {
         setBackupMsg(t('settings.backupImported'))
         const snap = await window.treasureChest.getSettingsSnapshot()
         setLaunchBehavior(snap.launchBehavior)
-        setFortuneDailyNotify(snap.notifications?.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily)
-        setStocksDailyNotify(snap.notifications?.stocksDaily ?? DEFAULT_NOTIFICATION_SETTINGS.stocksDaily)
-        setFortuneNotifyHour(snap.notifications?.fortuneNotifyHour ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneNotifyHour)
+        setNotifyChannels(snap.notifications?.channels ?? DEFAULT_NOTIFICATION_CHANNELS)
+        setDataSources(snap.dataSources?.sources ?? [])
         setStocksSettings(snap.stocks ?? DEFAULT_STOCKS_SETTINGS)
         setHexagramSchool(snap.fortune?.hexagramSchool ?? DEFAULT_FORTUNE_SETTINGS.hexagramSchool)
         setFortuneAiPolish(snap.fortune?.aiPolish ?? DEFAULT_FORTUNE_SETTINGS.aiPolish)
-        setAiProviders(snap.fortune?.aiProviders ?? DEFAULT_FORTUNE_SETTINGS.aiProviders)
-        setAiActiveProviderId(snap.fortune?.aiActiveProviderId ?? DEFAULT_FORTUNE_SETTINGS.aiActiveProviderId)
-        setAiProviderName(snap.fortune?.aiProviderName ?? DEFAULT_FORTUNE_SETTINGS.aiProviderName)
-        setAiBaseUrl(snap.fortune?.aiBaseUrl ?? DEFAULT_FORTUNE_SETTINGS.aiBaseUrl)
-        setAiApiFormat(snap.fortune?.aiApiFormat ?? DEFAULT_FORTUNE_SETTINGS.aiApiFormat)
-        setAiModel(snap.fortune?.aiModel ?? DEFAULT_FORTUNE_SETTINGS.aiModel)
-        setAiApiKey(snap.fortune?.aiApiKey ?? DEFAULT_FORTUNE_SETTINGS.aiApiKey)
-        {
-          const active =
-            (snap.fortune?.aiProviders ?? []).find((p) => p.id === snap.fortune?.aiActiveProviderId) ??
-            snap.fortune?.aiProviders?.[0]
-          setAiMediaProfile(active?.mediaProfile ?? 'auto')
-        }
+        setModelsRefreshKey((k) => k + 1)
         const login = await window.treasureChest.getLaunchAtLogin()
         setLaunchAtLogin(login.configured)
         const w = await window.treasureChest.getDesktopWidget()
@@ -478,207 +431,6 @@ export function SettingsPage(): React.JSX.Element {
         setHarnessHint(t('settings.harnessSandboxUpdated'))
       }
     })
-  }
-
-  const onSaveAiConfig = (): void => {
-    setAiSavedHint(null)
-    const current =
-      aiProviders.find((p) => p.id === aiActiveProviderId) ?? aiProviders[0]
-    const resolvedModels = current?.models ?? []
-    const ids = aiModelIds(resolvedModels)
-    const resolvedModel = ids.includes(aiModel.trim()) ? aiModel.trim() : (ids[0] ?? '')
-    const media = mediaIdsFromModels(resolvedModels)
-    const nextProviders = aiProviders.map((provider) =>
-      provider.id === aiActiveProviderId
-        ? {
-            ...provider,
-            name: aiProviderName.trim() || provider.name,
-            baseUrl: aiBaseUrl.trim() || provider.baseUrl,
-            apiFormat: aiApiFormat,
-            models: resolvedModels,
-            apiKey: aiApiKey.trim(),
-            mediaProfile: aiMediaProfile,
-            imageModel: media.imageModel,
-            videoModel: media.videoModel,
-            musicModel: media.musicModel,
-          }
-        : provider,
-    )
-
-    void window.treasureChest
-      .setFortuneSettings({
-        aiProviderName: aiProviderName.trim(),
-        aiBaseUrl: aiBaseUrl.trim(),
-        aiApiFormat,
-        aiModels: ids,
-        aiModel: resolvedModel,
-        aiApiKey: aiApiKey.trim(),
-        aiProviders: nextProviders,
-        aiActiveProviderId,
-      })
-      .then((next) => {
-        setAiProviders(next.aiProviders)
-        setAiActiveProviderId(next.aiActiveProviderId)
-        setAiProviderName(next.aiProviderName)
-        setAiBaseUrl(next.aiBaseUrl)
-        setAiApiFormat(next.aiApiFormat)
-        setAiModel(next.aiModel)
-        setAiApiKey(next.aiApiKey)
-        {
-          const active =
-            next.aiProviders.find((p) => p.id === next.aiActiveProviderId) ?? next.aiProviders[0]
-          setAiMediaProfile(active?.mediaProfile ?? 'auto')
-        }
-        setAiSavedHint(t('settings.fortuneAiConfigSaved'))
-      })
-  }
-
-  const onTestAiConnection = (): void => {
-    const current = aiProviders.find((p) => p.id === aiActiveProviderId)
-    const model = aiModel.trim() || firstModelId(current?.models ?? [])
-    if (!model) {
-      setAiTestHint(t('settings.fortuneAiNeedModel'))
-      return
-    }
-    const provider: FortuneAiProviderConfig = {
-      id: aiActiveProviderId || 'temp-provider',
-      name: aiProviderName.trim() || 'Provider',
-      baseUrl: aiBaseUrl.trim(),
-      apiFormat: aiApiFormat,
-      models: current?.models?.length ? current.models : [defaultAiModelConfig(model)],
-      apiKey: aiApiKey.trim(),
-    }
-    setAiTesting(true)
-    setAiTestHint(t('settings.fortuneAiTesting'))
-    void window.treasureChest.testFortuneAiConnection({ provider, model }).then((res) => {
-      setAiTesting(false)
-      setAiTestHint(res.ok ? t('settings.fortuneAiTestPassed', { message: res.message }) : t('settings.fortuneAiTestFailed', { error: res.message }))
-    })
-  }
-
-  const patchActiveModels = (models: AiModelConfig[]): void => {
-    setAiProviders((prev) =>
-      prev.map((p) => (p.id === aiActiveProviderId ? { ...p, models } : p)),
-    )
-    const ids = aiModelIds(models)
-    if (!ids.includes(aiModel)) setAiModel(ids[0] ?? '')
-  }
-
-  const onSaveAiModel = (model: AiModelConfig): void => {
-    const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
-    const oldId = typeof modelModal === 'object' && modelModal ? modelModal.id : ''
-    const without = oldId ? current.filter((m) => m.id !== oldId) : current.filter((m) => m.id !== model.id)
-    const next = without.some((m) => m.id === model.id)
-      ? without.map((m) => (m.id === model.id ? model : m))
-      : [...without, model]
-    patchActiveModels(next)
-    setAiModel(model.id)
-    setModelModal(null)
-  }
-
-  const onRemoveAiModel = (modelId: string): void => {
-    const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
-    patchActiveModels(current.filter((m) => m.id !== modelId))
-  }
-
-  const onSelectProvider = (id: string): void => {
-    const provider = aiProviders.find((p) => p.id === id)
-    if (!provider) return
-    setAiActiveProviderId(provider.id)
-    setAiProviderName(provider.name)
-    setAiBaseUrl(provider.baseUrl)
-    setAiApiFormat(provider.apiFormat)
-    setAiModel(firstModelId(provider.models))
-    setAiApiKey(provider.apiKey)
-    setAiMediaProfile(provider.mediaProfile ?? 'auto')
-  }
-
-  const onAddProvider = (): void => {
-    const id = `provider-${Date.now()}`
-    const next: FortuneAiProviderConfig = {
-      id,
-      name: `Provider ${aiProviders.length + 1}`,
-      baseUrl: 'https://api.example.com/v1',
-      apiFormat: 'openai',
-      models: [],
-      apiKey: '',
-      mediaProfile: 'auto',
-    }
-    const nextProviders = [...aiProviders, next]
-    setAiProviders(nextProviders)
-    setAiActiveProviderId(next.id)
-    setAiProviderName(next.name)
-    setAiBaseUrl(next.baseUrl)
-    setAiApiFormat(next.apiFormat)
-    setAiModel('')
-    setAiApiKey(next.apiKey)
-    setAiMediaProfile('auto')
-  }
-
-  const applyCloudPreset = (presetId: string): void => {
-    const preset = AI_PROVIDER_PRESETS.find((p) => p.id === presetId)
-    if (!preset) return
-    const models = modelsFromProviderPreset(preset)
-    setAiProviderName(t(preset.nameKey))
-    setAiBaseUrl(preset.baseUrl)
-    setAiApiFormat(preset.apiFormat)
-    setAiMediaProfile(preset.mediaProfile)
-    setAiProviders((prev) =>
-      prev.map((p) =>
-        p.id === aiActiveProviderId
-          ? {
-              ...p,
-              name: t(preset.nameKey),
-              baseUrl: preset.baseUrl,
-              apiFormat: preset.apiFormat,
-              mediaProfile: preset.mediaProfile,
-              models,
-              imageModel: preset.imageModel,
-              videoModel: preset.videoModel,
-              musicModel: preset.musicModel,
-            }
-          : p,
-      ),
-    )
-    setAiModel(firstModelId(models))
-  }
-
-  const applyLocalPreset = (kind: 'ollama' | 'lmstudio'): void => {
-    const isOllama = kind === 'ollama'
-    const name = isOllama ? 'Ollama' : 'LM Studio'
-    const baseUrl = isOllama ? 'http://127.0.0.1:11434/v1' : 'http://127.0.0.1:1234/v1'
-    const fallbackId = isOllama ? 'qwen2.5:7b' : 'local-model'
-    const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
-    const models = current.length > 0 ? current : [defaultAiModelConfig(fallbackId)]
-    setAiProviderName(name)
-    setAiBaseUrl(baseUrl)
-    setAiApiFormat('openai')
-    setAiApiKey('')
-    setAiMediaProfile('openai_compat')
-    setAiProviders((prev) =>
-      prev.map((p) =>
-        p.id === aiActiveProviderId
-          ? { ...p, name, baseUrl, apiFormat: 'openai', mediaProfile: 'openai_compat', models }
-          : p,
-      ),
-    )
-    if (current.length === 0) setAiModel(fallbackId)
-  }
-
-  const onRemoveProvider = (id: string): void => {
-    const next = aiProviders.filter((p) => p.id !== id)
-    if (next.length === 0) return
-    setAiProviders(next)
-    if (aiActiveProviderId === id) {
-      const first = next[0]!
-      setAiActiveProviderId(first.id)
-      setAiProviderName(first.name)
-      setAiBaseUrl(first.baseUrl)
-      setAiApiFormat(first.apiFormat)
-      setAiModel(firstModelId(first.models))
-      setAiApiKey(first.apiKey)
-      setAiMediaProfile(first.mediaProfile ?? 'auto')
-    }
   }
 
   return (
@@ -994,178 +746,7 @@ export function SettingsPage(): React.JSX.Element {
       </div>
 
       <div className={styles.group} hidden={section !== 'models'}>
-        <h2 className={styles.label}>{t('settings.modelsTitle')}</h2>
-        <p className={styles.desc}>{t('settings.modelsHint')}</p>
-        <div className={styles.localPresetRow}>
-          <span className={styles.localPresetLabel}>{t('settings.modelsLocalPresets')}</span>
-          <button type="button" className={styles.localPresetBtn} onClick={() => applyLocalPreset('ollama')}>
-            {t('settings.modelsPreset.ollama')}
-          </button>
-          <button type="button" className={styles.localPresetBtn} onClick={() => applyLocalPreset('lmstudio')}>
-            {t('settings.modelsPreset.lmstudio')}
-          </button>
-        </div>
-        <div className={styles.localPresetRow}>
-          <span className={styles.localPresetLabel}>{t('settings.modelsCloudPresets')}</span>
-          {AI_PROVIDER_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className={styles.localPresetBtn}
-              onClick={() => applyCloudPreset(preset.id)}
-            >
-              {t(preset.nameKey)}
-            </button>
-          ))}
-        </div>
-        <p className={styles.settingHint}>{t('settings.modelsPresetHint')}</p>
-        <p className={styles.settingHint}>{t('settings.modelsLocalHint')}</p>
-        <div className={styles.aiProviderRow}>
-          <div className={styles.aiProviderList}>
-            {aiProviders.map((provider) => (
-              <div
-                key={provider.id}
-                className={`${styles.aiProviderChip} ${provider.id === aiActiveProviderId ? styles.aiProviderChipActive : ''}`}
-              >
-                <button type="button" className={styles.aiProviderPickBtn} onClick={() => onSelectProvider(provider.id)}>
-                  {provider.name}
-                </button>
-                {aiProviders.length > 1 ? (
-                  <button type="button" className={styles.aiProviderRemoveBtn} onClick={() => onRemoveProvider(provider.id)}>
-                    ×
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <button type="button" className={styles.aiAddBtn} onClick={onAddProvider}>
-            + {t('settings.fortuneAiProviderAdd')}
-          </button>
-        </div>
-        <div className={styles.aiGrid}>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.fortuneAiProviderName')}</span>
-            <input
-              className={styles.aiInput}
-              value={aiProviderName}
-              onChange={(e) => setAiProviderName(e.target.value)}
-              placeholder={t('settings.fortuneAiProviderNamePlaceholder')}
-            />
-          </label>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.fortuneAiBaseUrl')}</span>
-            <input
-              className={styles.aiInput}
-              value={aiBaseUrl}
-              onChange={(e) => setAiBaseUrl(e.target.value)}
-              placeholder={t('settings.fortuneAiBaseUrlPlaceholder')}
-            />
-          </label>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.fortuneAiApiKey')}</span>
-            <input
-              className={styles.aiInput}
-              value={aiApiKey}
-              onChange={(e) => setAiApiKey(e.target.value)}
-              placeholder={t('settings.fortuneAiApiKeyPlaceholder')}
-              type="password"
-              autoComplete="off"
-            />
-          </label>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.fortuneAiFormat')}</span>
-            <select
-              className={styles.aiSelect}
-              value={aiApiFormat}
-              onChange={(e) => setAiApiFormat(e.target.value as 'openai' | 'anthropic')}
-            >
-              <option value="openai">{t('settings.fortuneAiFormat.openai')}</option>
-              <option value="anthropic">{t('settings.fortuneAiFormat.anthropic')}</option>
-            </select>
-          </label>
-          <label className={styles.aiField}>
-            <span className={styles.aiLabel}>{t('settings.mediaProfile')}</span>
-            <select
-              className={styles.aiSelect}
-              value={aiMediaProfile}
-              onChange={(e) => setAiMediaProfile(e.target.value as MediaProfileId)}
-            >
-              {MEDIA_PROFILE_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {t(`settings.mediaProfile.${id}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <p className={styles.settingHint}>{t('settings.mediaProfileHint')}</p>
-        <div className={styles.aiModelBlock}>
-          <div className={styles.aiLabel}>{t('settings.fortuneAiModelList')}</div>
-          <p className={styles.settingHint}>{t('settings.fortuneAiModelHint')}</p>
-          <button type="button" className={styles.aiAddBtn} onClick={() => setModelModal('new')}>
-            + {t('settings.fortuneAiModelAdd')}
-          </button>
-          <div className={styles.aiModelList}>
-            {(aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []).map((model) => (
-              <div
-                key={model.id}
-                className={`${styles.aiModelRow} ${aiModel === model.id ? styles.aiModelRowActive : ''}`}
-              >
-                <button type="button" className={styles.aiModelPickBtn} onClick={() => setAiModel(model.id)}>
-                  <span className={styles.aiModelId}>{model.id}</span>
-                  <span className={styles.aiModelCaps}>
-                    {model.inputModalities.filter((m) => m !== 'text').map((m) => (
-                      <span key={`in-${m}`} className={styles.aiModelCap}>
-                        {t(`settings.modelModal.modality.${m}`)}
-                        {t('settings.modelModal.capIn')}
-                      </span>
-                    ))}
-                    {model.outputModalities.filter((m) => m !== 'text').map((m) => (
-                      <span key={`out-${m}`} className={styles.aiModelCap}>
-                        {t(`settings.modelModal.modality.${m}`)}
-                        {t('settings.modelModal.capOut')}
-                      </span>
-                    ))}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={styles.aiModelEditBtn}
-                  onClick={() => setModelModal(model)}
-                >
-                  {t('settings.fortuneAiModelEdit')}
-                </button>
-                <button type="button" className={styles.aiModelRemoveBtn} onClick={() => onRemoveAiModel(model.id)}>
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-        {modelModal !== null ? (
-          <AddModelModal
-            initial={modelModal === 'new' ? null : modelModal}
-            onClose={() => setModelModal(null)}
-            onSave={onSaveAiModel}
-          />
-        ) : null}
-        <div className={styles.aiActionRow}>
-          <SettingActionButton
-            icon={<IconSparkles />}
-            label={t('settings.fortuneAiSaveConfig')}
-            variant="secondary"
-            onClick={onSaveAiConfig}
-          />
-          <SettingActionButton
-            icon={<IconSparkles />}
-            label={aiTesting ? t('settings.fortuneAiTesting') : t('settings.fortuneAiTestConnection')}
-            variant="ghost"
-            onClick={onTestAiConnection}
-            disabled={aiTesting}
-          />
-        </div>
-        {aiSavedHint ? <p className={styles.hint}>{aiSavedHint}</p> : null}
-        {aiTestHint ? <p className={styles.hint}>{aiTestHint}</p> : null}
+        <ModelsApiPanel refreshKey={modelsRefreshKey} />
       </div>
 
       <div className={styles.group} hidden={section !== 'image'}>
@@ -1735,49 +1316,155 @@ export function SettingsPage(): React.JSX.Element {
 
       <div className={styles.group} hidden={section !== 'notifications'}>
         <h2 className={styles.label}>{t('settings.notifications')}</h2>
+        <p className={styles.desc}>{t('settings.channels.desc')}</p>
 
         <div className={styles.settingRow}>
           <div>
-            <div className={styles.settingTitle}>{t('settings.fortuneDailyNotify')}</div>
-            <div className={styles.settingHint}>{t('settings.fortuneDailyNotifyHint')}</div>
+            <div className={styles.settingTitle}>{t('settings.channels.workbench')}</div>
+            <div className={styles.settingHint}>{t('settings.channels.workbenchHint')}</div>
           </div>
           <ToggleSwitch
-            checked={fortuneDailyNotify}
-            label={t('settings.fortuneDailyNotify')}
-            onChange={onFortuneDailyNotify}
+            checked={notifyChannels.workbenchInbox}
+            label={t('settings.channels.workbench')}
+            onChange={(workbenchInbox) => patchNotifyChannels({ workbenchInbox })}
+          />
+        </div>
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.channels.desktop')}</div>
+            <div className={styles.settingHint}>{t('settings.channels.desktopHint')}</div>
+          </div>
+          <ToggleSwitch
+            checked={notifyChannels.desktopOs}
+            label={t('settings.channels.desktop')}
+            onChange={(desktopOs) => patchNotifyChannels({ desktopOs })}
           />
         </div>
 
-        <div className={styles.settingRow}>
-          <div>
-            <div className={styles.settingTitle}>{t('settings.fortuneNotifyHour')}</div>
-            <div className={styles.settingHint}>{t('settings.fortuneNotifyHourHint')}</div>
+        <div className={styles.channelCard}>
+          <div className={styles.dataCardHead}>
+            <div>
+              <h3 className={styles.dataCardTitle}>{t('settings.channels.dingtalk')}</h3>
+              <p className={styles.dataCardDesc}>{t('settings.channels.dingtalkHint')}</p>
+            </div>
+            <ToggleSwitch
+              checked={notifyChannels.dingtalk.enabled}
+              label={t('settings.channels.dingtalk')}
+              onChange={(enabled) => patchNotifyChannels({ dingtalk: { ...notifyChannels.dingtalk, enabled } })}
+            />
           </div>
-          <select
-            className={styles.hourSelect}
-            value={fortuneNotifyHour}
-            disabled={!fortuneDailyNotify}
-            onChange={(e) => onFortuneNotifyHour(Number(e.target.value))}
-          >
-            {Array.from({ length: 24 }, (_, hour) => (
-              <option key={hour} value={hour}>
-                {t('settings.fortuneNotifyHourOption', { hour: String(hour).padStart(2, '0') })}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className={styles.settingRow}>
-          <div>
-            <div className={styles.settingTitle}>{t('settings.stocksDailyNotify')}</div>
-            <div className={styles.settingHint}>{t('settings.stocksDailyNotifyHint')}</div>
-          </div>
-          <ToggleSwitch
-            checked={stocksDailyNotify}
-            label={t('settings.stocksDailyNotify')}
-            onChange={onStocksDailyNotify}
+          <label className={styles.field}>
+            <span>{t('settings.channels.webhookUrl')}</span>
+            <input
+              value={notifyChannels.dingtalk.webhookUrl}
+              onChange={(e) =>
+                setNotifyChannels((c) => ({
+                  ...c,
+                  dingtalk: { ...c.dingtalk, webhookUrl: e.target.value },
+                }))
+              }
+              onBlur={() => patchNotifyChannels({ dingtalk: notifyChannels.dingtalk })}
+            />
+          </label>
+          <label className={styles.field}>
+            <span>{t('settings.channels.dingtalkSecret')}</span>
+            <input
+              value={notifyChannels.dingtalk.secret}
+              onChange={(e) =>
+                setNotifyChannels((c) => ({
+                  ...c,
+                  dingtalk: { ...c.dingtalk, secret: e.target.value },
+                }))
+              }
+              onBlur={() => patchNotifyChannels({ dingtalk: notifyChannels.dingtalk })}
+            />
+          </label>
+          <SettingActionButton
+            icon={<IconBell />}
+            label={t('settings.channels.testDingTalk')}
+            onClick={() => {
+              setChannelTestMsg(null)
+              void window.treasureChest.testDingTalkNotify().then((r) => {
+                setChannelTestMsg(r.ok ? t('settings.channels.testOk') : t('settings.channels.testFail', { error: r.error }))
+              })
+            }}
           />
         </div>
+
+        <div className={styles.channelCard}>
+          <div className={styles.dataCardHead}>
+            <div>
+              <h3 className={styles.dataCardTitle}>{t('settings.channels.email')}</h3>
+              <p className={styles.dataCardDesc}>{t('settings.channels.emailHint')}</p>
+            </div>
+            <ToggleSwitch
+              checked={notifyChannels.email.enabled}
+              label={t('settings.channels.email')}
+              onChange={(enabled) => patchNotifyChannels({ email: { ...notifyChannels.email, enabled } })}
+            />
+          </div>
+          {(
+            [
+              ['to', 'to'],
+              ['from', 'from'],
+              ['smtpHost', 'smtpHost'],
+              ['user', 'user'],
+              ['pass', 'pass'],
+            ] as const
+          ).map(([key, labelKey]) => (
+            <label key={key} className={styles.field}>
+              <span>{t(`settings.channels.${labelKey}`)}</span>
+              <input
+                type={key === 'pass' ? 'password' : 'text'}
+                value={notifyChannels.email[key]}
+                onChange={(e) =>
+                  setNotifyChannels((c) => ({
+                    ...c,
+                    email: { ...c.email, [key]: e.target.value },
+                  }))
+                }
+                onBlur={() => patchNotifyChannels({ email: notifyChannels.email })}
+              />
+            </label>
+          ))}
+          <label className={styles.field}>
+            <span>{t('settings.channels.smtpPort')}</span>
+            <input
+              type="number"
+              value={notifyChannels.email.smtpPort}
+              onChange={(e) =>
+                setNotifyChannels((c) => ({
+                  ...c,
+                  email: { ...c.email, smtpPort: Number(e.target.value) || 465 },
+                }))
+              }
+              onBlur={() => patchNotifyChannels({ email: notifyChannels.email })}
+            />
+          </label>
+          <div className={styles.settingRow}>
+            <div className={styles.settingTitle}>{t('settings.channels.smtpSecure')}</div>
+            <ToggleSwitch
+              checked={notifyChannels.email.secure}
+              label={t('settings.channels.smtpSecure')}
+              onChange={(secure) => patchNotifyChannels({ email: { ...notifyChannels.email, secure } })}
+            />
+          </div>
+          <SettingActionButton
+            icon={<IconBell />}
+            label={t('settings.channels.testEmail')}
+            onClick={() => {
+              setChannelTestMsg(null)
+              void window.treasureChest.testEmailNotify().then((r) => {
+                setChannelTestMsg(r.ok ? t('settings.channels.testOk') : t('settings.channels.testFail', { error: r.error }))
+              })
+            }}
+          />
+        </div>
+        {channelTestMsg ? <p className={styles.desc}>{channelTestMsg}</p> : null}
+      </div>
+
+      <div className={styles.group} hidden={section !== 'dataSources'}>
+        <DataSourcesPanel sources={dataSources} onSourcesChange={setDataSources} />
       </div>
 
       <div className={styles.group} hidden={section !== 'data'}>

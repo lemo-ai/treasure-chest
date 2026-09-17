@@ -15,6 +15,8 @@ import {
 import {
   IconBook,
   IconCheck,
+  IconChevronDown,
+  IconChevronRight,
   IconDownload,
   IconLayers,
   IconPlus,
@@ -23,12 +25,107 @@ import {
   IconSparkles,
   IconTrash,
   IconUpload,
+  IconWrite,
 } from '@renderer/shared/ui/icons'
 import styles from './KnowledgePage.module.css'
 
 type Tab = 'documents' | 'search' | 'settings'
 
+type CollectionTreeRow = KnowledgeCollection & {
+  depth: number
+  hasChildren: boolean
+}
+
 const COLLECTION_COLORS = ['#0fbea8', '#4c8dff', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+const MAX_COLLECTION_DEPTH = 5
+
+function collectDescendantIds(rootId: string, list: KnowledgeCollection[]): string[] {
+  const byParent = new Map<string | null, KnowledgeCollection[]>()
+  for (const c of list) {
+    const p = c.parentId ?? null
+    const arr = byParent.get(p) ?? []
+    arr.push(c)
+    byParent.set(p, arr)
+  }
+  const out: string[] = []
+  const walk = (id: string): void => {
+    for (const child of byParent.get(id) ?? []) {
+      out.push(child.id)
+      walk(child.id)
+    }
+  }
+  walk(rootId)
+  return out
+}
+
+/** Own docs + all descendant collections' docs. */
+function subtreeDocumentCount(rootId: string, list: KnowledgeCollection[]): number {
+  const byId = new Map(list.map((c) => [c.id, c.documentCount ?? 0]))
+  let total = byId.get(rootId) ?? 0
+  for (const id of collectDescendantIds(rootId, list)) {
+    total += byId.get(id) ?? 0
+  }
+  return total
+}
+
+function collectionDepth(id: string, list: KnowledgeCollection[]): number {
+  const byId = new Map(list.map((c) => [c.id, c]))
+  let depth = 0
+  let cur = byId.get(id)
+  const seen = new Set<string>()
+  while (cur?.parentId) {
+    if (seen.has(cur.id)) break
+    seen.add(cur.id)
+    depth += 1
+    cur = byId.get(cur.parentId)
+  }
+  return depth
+}
+
+function buildCollectionTree(
+  list: KnowledgeCollection[],
+  expanded: Set<string>,
+): CollectionTreeRow[] {
+  const byParent = new Map<string | null, KnowledgeCollection[]>()
+  for (const c of list) {
+    const p = c.parentId ?? null
+    const arr = byParent.get(p) ?? []
+    arr.push(c)
+    byParent.set(p, arr)
+  }
+  for (const arr of byParent.values()) {
+    arr.sort((a, b) => {
+      if (a.id === 'default') return -1
+      if (b.id === 'default') return 1
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    })
+  }
+  const out: CollectionTreeRow[] = []
+  const walk = (parentId: string | null, depth: number): void => {
+    for (const node of byParent.get(parentId) ?? []) {
+      const kids = byParent.get(node.id) ?? []
+      const hasChildren = kids.length > 0
+      out.push({ ...node, depth, hasChildren })
+      if (hasChildren && expanded.has(node.id)) walk(node.id, depth + 1)
+    }
+  }
+  walk(null, 0)
+  return out
+}
+
+function ancestorIds(id: string, list: KnowledgeCollection[]): string[] {
+  const byId = new Map(list.map((c) => [c.id, c]))
+  const out: string[] = []
+  let cur = byId.get(id)
+  const seen = new Set<string>()
+  while (cur?.parentId) {
+    if (seen.has(cur.id)) break
+    seen.add(cur.id)
+    out.push(cur.parentId)
+    cur = byId.get(cur.parentId)
+  }
+  return out
+}
 
 const ACCEPT =
   KNOWLEDGE_ACCEPTED_EXTENSIONS.join(',') +
@@ -66,6 +163,12 @@ export function KnowledgePage(): React.JSX.Element {
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState('')
+  const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null)
+  const [editingCollectionName, setEditingCollectionName] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<KnowledgeCollection | null>(null)
+  const [expandedCollectionIds, setExpandedCollectionIds] = useState<Set<string>>(() => new Set())
+  const [createParentId, setCreateParentId] = useState<string | null>(null)
+  const [childDraftName, setChildDraftName] = useState('')
   const [pasteTitle, setPasteTitle] = useState('')
   const [pasteText, setPasteText] = useState('')
   const [showPaste, setShowPaste] = useState(false)
@@ -74,6 +177,16 @@ export function KnowledgePage(): React.JSX.Element {
   const refreshCollections = async (): Promise<KnowledgeCollection[]> => {
     const list = await window.treasureChest.listKnowledgeCollections()
     setCollections(list)
+    setExpandedCollectionIds((prev) => {
+      const next = new Set(prev)
+      // Keep parents of active path expanded; seed all parents on first load
+      if (prev.size === 0) {
+        for (const c of list) {
+          if ((c.childCount ?? 0) > 0) next.add(c.id)
+        }
+      }
+      return next
+    })
     return list
   }
 
@@ -110,7 +223,32 @@ export function KnowledgePage(): React.JSX.Element {
   useEffect(() => {
     if (!activeCollectionId) return
     void refreshDocs(activeCollectionId)
+    setExpandedCollectionIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ancestorIds(activeCollectionId, collections)) next.add(id)
+      return next
+    })
   }, [activeCollectionId])
+
+  const treeRows = buildCollectionTree(collections, expandedCollectionIds)
+
+  const deleteImpact = (() => {
+    if (!deleteTarget) return { docs: 0, children: 0, subtreeDocs: 0 }
+    const descendants = collectDescendantIds(deleteTarget.id, collections)
+    const directChildren = descendants.filter((id) => {
+      const c = collections.find((x) => x.id === id)
+      return c?.parentId === deleteTarget.id
+    }).length
+    const subtreeIds = new Set([deleteTarget.id, ...descendants])
+    const subtreeDocs = collections
+      .filter((c) => subtreeIds.has(c.id))
+      .reduce((sum, c) => sum + (c.documentCount ?? 0), 0)
+    return {
+      docs: deleteTarget.documentCount ?? 0,
+      children: deleteTarget.childCount ?? directChildren,
+      subtreeDocs,
+    }
+  })()
 
   const ingestFiles = async (files: FileList | File[] | null): Promise<void> => {
     if (!files || (Array.isArray(files) ? files.length === 0 : files.length === 0)) return
@@ -201,21 +339,104 @@ export function KnowledgePage(): React.JSX.Element {
     }
   }
 
-  const onCreateCollection = async (): Promise<void> => {
-    const name = newCollectionName.trim()
+  const createCollection = async (
+    nameRaw: string,
+    parentId: string | null,
+  ): Promise<void> => {
+    const name = nameRaw.trim()
     if (!name) return
+    if (parentId && collectionDepth(parentId, collections) >= MAX_COLLECTION_DEPTH - 1) {
+      setError(t('knowledge.collectionDepthLimit', { max: MAX_COLLECTION_DEPTH }))
+      return
+    }
     const color = COLLECTION_COLORS[collections.length % COLLECTION_COLORS.length]
-    const created = await window.treasureChest.createKnowledgeCollection({ name, color })
+    const created = await window.treasureChest.createKnowledgeCollection({
+      name,
+      color,
+      parentId,
+    })
     setNewCollectionName('')
+    setChildDraftName('')
+    setCreateParentId(null)
+    if (parentId) {
+      setExpandedCollectionIds((prev) => new Set(prev).add(parentId))
+    }
     await refreshAll(created.id)
   }
 
-  const onDeleteCollection = async (id: string): Promise<void> => {
-    if (id === 'default') return
-    const ok = window.confirm(t('knowledge.deleteCollectionConfirm'))
-    if (!ok) return
-    await window.treasureChest.deleteKnowledgeCollection(id)
-    await refreshAll(null)
+  const onCreateRootCollection = async (): Promise<void> => {
+    await createCollection(newCollectionName, null)
+  }
+
+  const onCreateChildCollection = async (): Promise<void> => {
+    if (!createParentId) return
+    await createCollection(childDraftName, createParentId)
+  }
+
+  const startCreateChild = (parent: KnowledgeCollection): void => {
+    if (collectionDepth(parent.id, collections) >= MAX_COLLECTION_DEPTH - 1) {
+      setError(t('knowledge.collectionDepthLimit', { max: MAX_COLLECTION_DEPTH }))
+      return
+    }
+    setEditingCollectionId(null)
+    setCreateParentId(parent.id)
+    setChildDraftName('')
+    setExpandedCollectionIds((prev) => new Set(prev).add(parent.id))
+  }
+
+  const cancelCreateChild = (): void => {
+    setCreateParentId(null)
+    setChildDraftName('')
+  }
+
+  const toggleExpanded = (id: string): void => {
+    setExpandedCollectionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const startRenameCollection = (col: KnowledgeCollection): void => {
+    setCreateParentId(null)
+    setChildDraftName('')
+    setEditingCollectionId(col.id)
+    setEditingCollectionName(col.name)
+  }
+
+  const commitRenameCollection = async (): Promise<void> => {
+    const id = editingCollectionId
+    const name = editingCollectionName.trim()
+    if (!id) return
+    if (!name) {
+      setEditingCollectionId(null)
+      return
+    }
+    const current = collections.find((c) => c.id === id)
+    if (current && current.name === name) {
+      setEditingCollectionId(null)
+      return
+    }
+    try {
+      await window.treasureChest.renameKnowledgeCollection({ id, name })
+      setEditingCollectionId(null)
+      await refreshCollections()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const onDeleteCollection = async (mode: 'cascade' | 'move'): Promise<void> => {
+    if (!deleteTarget || deleteTarget.id === 'default') return
+    const id = deleteTarget.id
+    setDeleteTarget(null)
+    try {
+      await window.treasureChest.deleteKnowledgeCollection(id, { mode })
+      await refreshAll(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   const onSearch = async (): Promise<void> => {
@@ -326,44 +547,176 @@ export function KnowledgePage(): React.JSX.Element {
           <IconLayers />
         </div>
         <ul className={styles.collectionList}>
-          {collections.map((col) => (
-            <li key={col.id}>
-              <button
-                type="button"
-                className={`${styles.collectionItem} ${
-                  col.id === activeCollectionId ? styles.collectionActive : ''
-                }`}
-                onClick={() => setActiveCollectionId(col.id)}
-              >
-                <span className={styles.dot} style={{ background: col.color }} />
-                <span className={styles.collectionMeta}>
-                  <strong>{col.name}</strong>
-                  <em>{t('knowledge.docCount', { count: col.documentCount })}</em>
-                </span>
-                {col.id !== 'default' ? (
-                  <span
-                    className={styles.collectionDelete}
-                    role="button"
-                    tabIndex={0}
-                    title={t('knowledge.deleteCollection')}
+          {treeRows.map((col) => {
+            const isActive = col.id === activeCollectionId
+            const isEditing = editingCollectionId === col.id
+            const expanded = expandedCollectionIds.has(col.id)
+            const canAddChild = col.depth < MAX_COLLECTION_DEPTH - 1
+            const showChildDraft = createParentId === col.id
+            const totalDocs = subtreeDocumentCount(col.id, collections)
+            return (
+              <li key={col.id} className={styles.collectionLi}>
+                <div
+                  className={`${styles.collectionItem} ${isActive ? styles.collectionActive : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (!isEditing) setActiveCollectionId(col.id)
+                  }}
+                  onKeyDown={(e) => {
+                    if (isEditing) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setActiveCollectionId(col.id)
+                    }
+                  }}
+                  onDoubleClick={(e) => {
+                    e.preventDefault()
+                    startRenameCollection(col)
+                  }}
+                >
+                  <span className={styles.treeGuides} aria-hidden>
+                    {Array.from({ length: col.depth }, (_, i) => (
+                      <span key={i} className={styles.treeGuide} />
+                    ))}
+                  </span>
+                  <button
+                    type="button"
+                    className={`${styles.collectionTwist} ${
+                      col.hasChildren ? '' : styles.collectionTwistEmpty
+                    }`}
+                    aria-hidden={!col.hasChildren}
+                    tabIndex={col.hasChildren ? 0 : -1}
+                    aria-label={
+                      col.hasChildren
+                        ? expanded
+                          ? t('knowledge.collapseCollection')
+                          : t('knowledge.expandCollection')
+                        : undefined
+                    }
                     onClick={(e) => {
                       e.stopPropagation()
-                      void onDeleteCollection(col.id)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        void onDeleteCollection(col.id)
-                      }
+                      if (col.hasChildren) toggleExpanded(col.id)
                     }}
                   >
-                    <IconTrash />
+                    {col.hasChildren ? (
+                      expanded ? (
+                        <IconChevronDown />
+                      ) : (
+                        <IconChevronRight />
+                      )
+                    ) : null}
+                  </button>
+                  <span
+                    className={styles.collectionSwatch}
+                    style={{ background: col.color }}
+                    aria-hidden
+                  />
+                  <span className={styles.collectionMeta}>
+                    {isEditing ? (
+                      <input
+                        className={styles.collectionInlineInput}
+                        value={editingCollectionName}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setEditingCollectionName(e.target.value)}
+                        onBlur={() => void commitRenameCollection()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void commitRenameCollection()
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            setEditingCollectionId(null)
+                          }
+                        }}
+                      />
+                    ) : (
+                      <strong title={t('knowledge.renameCollectionHint')}>{col.name}</strong>
+                    )}
+                    <span
+                      className={styles.collectionCount}
+                      title={t('knowledge.docCount', { count: totalDocs })}
+                    >
+                      {totalDocs}
+                    </span>
                   </span>
+                  <span className={styles.collectionActions}>
+                    {canAddChild ? (
+                      <button
+                        type="button"
+                        className={`${styles.collectionActionBtn} ${styles.hasTip}`}
+                        data-tip={t('knowledge.addChildCollection')}
+                        aria-label={t('knowledge.addChildCollection')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startCreateChild(col)
+                        }}
+                      >
+                        <IconPlus />
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={`${styles.collectionActionBtn} ${styles.hasTip}`}
+                      data-tip={t('knowledge.renameCollection')}
+                      aria-label={t('knowledge.renameCollection')}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startRenameCollection(col)
+                      }}
+                    >
+                      <IconWrite />
+                    </button>
+                    {col.id !== 'default' ? (
+                      <button
+                        type="button"
+                        className={`${styles.collectionActionBtn} ${styles.collectionDelete} ${styles.hasTip}`}
+                        data-tip={t('knowledge.deleteCollection')}
+                        aria-label={t('knowledge.deleteCollection')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteTarget(col)
+                        }}
+                      >
+                        <IconTrash />
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+                {showChildDraft ? (
+                  <div
+                    className={styles.childDraft}
+                    style={{ paddingLeft: `${1.15 + (col.depth + 1) * 0.9}rem` }}
+                  >
+                    <span className={styles.collectionSwatch} style={{ opacity: 0.45 }} aria-hidden />
+                    <input
+                      className={styles.collectionInlineInput}
+                      value={childDraftName}
+                      autoFocus
+                      placeholder={t('knowledge.newChildCollectionPlaceholder')}
+                      onChange={(e) => setChildDraftName(e.target.value)}
+                      onBlur={() => {
+                        if (childDraftName.trim()) void onCreateChildCollection()
+                        else cancelCreateChild()
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void onCreateChildCollection()
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelCreateChild()
+                        }
+                      }}
+                    />
+                  </div>
                 ) : null}
-              </button>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
 
         <div className={styles.newCollection}>
@@ -372,13 +725,14 @@ export function KnowledgePage(): React.JSX.Element {
             onChange={(e) => setNewCollectionName(e.target.value)}
             placeholder={t('knowledge.newCollectionPlaceholder')}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void onCreateCollection()
+              if (e.key === 'Enter') void onCreateRootCollection()
             }}
           />
           <button
             type="button"
-            onClick={() => void onCreateCollection()}
+            onClick={() => void onCreateRootCollection()}
             disabled={!newCollectionName.trim()}
+            aria-label={t('knowledge.newCollectionPlaceholder')}
           >
             <IconPlus />
           </button>
@@ -560,8 +914,9 @@ export function KnowledgePage(): React.JSX.Element {
                           <div className={styles.rowActions}>
                             <button
                               type="button"
-                              className={styles.iconBtn}
-                              title={t('knowledge.reembed')}
+                              className={`${styles.iconBtn} ${styles.hasTip}`}
+                              data-tip={t('knowledge.reembedTip')}
+                              aria-label={t('knowledge.reembedTip')}
                               onClick={() => {
                                 void (async () => {
                                   setBusy(true)
@@ -581,16 +936,19 @@ export function KnowledgePage(): React.JSX.Element {
                             </button>
                             <button
                               type="button"
-                              className={styles.iconBtn}
-                              title={t('knowledge.download')}
+                              className={`${styles.iconBtn} ${styles.hasTip}`}
+                              data-tip={t('knowledge.download')}
+                              aria-label={t('knowledge.download')}
+                              disabled={!doc.hasOriginal}
                               onClick={() => void onDownloadDoc(doc.id)}
                             >
                               <IconDownload />
                             </button>
                             <button
                               type="button"
-                              className={styles.iconBtn}
-                              title={t('knowledge.delete')}
+                              className={`${styles.iconBtn} ${styles.iconBtnDanger} ${styles.hasTip}`}
+                              data-tip={t('knowledge.deleteTip')}
+                              aria-label={t('knowledge.deleteTip')}
                               onClick={() => void onDeleteDoc(doc.id)}
                             >
                               <IconTrash />
@@ -902,6 +1260,79 @@ export function KnowledgePage(): React.JSX.Element {
           </section>
         ) : null}
       </main>
+
+      {deleteTarget ? (
+        <div
+          className={styles.modalBackdrop}
+          role="presentation"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kb-delete-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="kb-delete-title" className={styles.modalTitle}>
+              {t('knowledge.deleteCollectionTitle', { name: deleteTarget.name })}
+            </h3>
+            {deleteImpact.subtreeDocs > 0 || deleteImpact.children > 0 ? (
+              <>
+                <p className={styles.modalBody}>
+                  {t('knowledge.deleteCollectionHasTree', {
+                    docs: deleteImpact.subtreeDocs,
+                    children: deleteImpact.children,
+                  })}
+                </p>
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.modalGhost}
+                    onClick={() => setDeleteTarget(null)}
+                  >
+                    {t('knowledge.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.modalSecondary}
+                    onClick={() => void onDeleteCollection('move')}
+                  >
+                    {t('knowledge.deleteCollectionKeepDocs')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.modalDanger}
+                    onClick={() => void onDeleteCollection('cascade')}
+                  >
+                    {t('knowledge.deleteCollectionWithDocs')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className={styles.modalBody}>{t('knowledge.deleteCollectionEmpty')}</p>
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.modalGhost}
+                    onClick={() => setDeleteTarget(null)}
+                  >
+                    {t('knowledge.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.modalDanger}
+                    onClick={() => void onDeleteCollection('cascade')}
+                  >
+                    {t('knowledge.deleteCollection')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

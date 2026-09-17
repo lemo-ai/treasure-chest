@@ -1,0 +1,74 @@
+/* Audio toolkit layout overrides on top of VideoToolkitPage.module.css */
+
+.pageFill {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+
+.layout,
+.genStudio {
+  height: auto !important;
+  min-height: 0;
+  align-items: start;
+}
+
+.hero {
+  flex: 0 1 auto;
+  min-height: 220px;
+  justify-content: center;
+}
+
+.playerFrame {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 110px;
+  padding: 1.35rem 1.5rem;
+  box-sizing: border-box;
+}
+
+.player {
+  width: min(100%, 560px);
+  max-width: 100%;
+  height: auto;
+}
+
+.panel {
+  max-height: min(78vh, 860px);
+  width: 100%;
+}
+
+.genStage .hero {
+  min-height: 260px;
+  height: auto;
+}
+
+@media (max-width: 980px) {
+  .layout,
+  .genStudio {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    min-height: 0;
+  }
+
+  .panel {
+    max-height: none;
+  }
+
+  .hero {
+    min-height: 200px;
+  }
+}
+
+@media (max-width: 640px) {
+  .pageFill {
+    gap: var(--space-2);
+  }
+
+  .playerFrame {
+    padding: 1rem;
+  }
+}

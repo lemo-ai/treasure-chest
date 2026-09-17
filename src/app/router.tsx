@@ -2,11 +2,11 @@ import { createHashRouter } from 'react-router'
 import { AppLayout } from './layout/AppLayout'
 import { CalendarPage } from '@renderer/features/calendar/pages/CalendarPage'
 import { CalendarWidgetPage } from '@renderer/features/calendar/pages/CalendarWidgetPage'
-import { FortunePage } from '@renderer/features/fortune/pages/FortunePage'
-import { StocksPage } from '@renderer/features/stocks/pages/StocksPage'
 import { SettingsPage } from '@renderer/features/settings/pages/SettingsPage'
 import { WorkbenchPage } from '@renderer/features/workbench/pages/WorkbenchPage'
 import { KnowledgePage } from '@renderer/features/knowledge/pages/KnowledgePage'
+import { SchedulesPage } from '@renderer/features/schedules/pages/SchedulesPage'
+import { NotificationsPage } from '@renderer/features/notifications/pages/NotificationsPage'
 import { ChangelogPage } from '@renderer/features/changelog/pages/ChangelogPage'
 import { ToolsHubPage } from '@renderer/features/tools/pages/ToolsHubPage'
 import { TimestampPage } from '@renderer/features/tools/pages/TimestampPage'
@@ -30,6 +30,8 @@ export const router = createHashRouter([
       { index: true, element: <WorkbenchPage /> },
       { path: 'workbench', element: <WorkbenchPage /> },
       { path: 'knowledge', element: <KnowledgePage /> },
+      { path: 'schedules', element: <SchedulesPage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
       { path: 'calendar', element: <CalendarPage /> },
       { path: 'tools', element: <ToolsHubPage /> },
       { path: 'tools/timestamp', element: <TimestampPage /> },
@@ -40,8 +42,6 @@ export const router = createHashRouter([
       { path: 'tools/video', element: <VideoToolkitPage /> },
       { path: 'tools/audio', element: <AudioToolkitPage /> },
       { path: 'tools/doc', element: <DocToolkitPage /> },
-      { path: 'fortune', element: <FortunePage /> },
-      { path: 'stocks', element: <StocksPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'changelog', element: <ChangelogPage /> },
     ],

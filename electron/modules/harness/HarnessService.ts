@@ -65,8 +65,8 @@ export function getHarnessActiveSessionId(): string | null {
   return SessionRepo.getActiveSessionId()
 }
 
-export function setHarnessActiveSessionId(id: string | null): void {
-  SessionRepo.setActiveSessionId(id)
+export function setHarnessActiveSessionId(id: string | null, agentId?: string): void {
+  SessionRepo.setActiveSessionId(id, agentId)
 }
 
 export function listHarnessEvents(sessionId: string): SessionEvent[] {

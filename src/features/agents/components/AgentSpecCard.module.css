@@ -1,0 +1,103 @@
+.card {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-brand) 8%, var(--color-bg-elevated));
+  display: grid;
+  gap: var(--space-2);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.head strong {
+  font-size: 0.9rem;
+  color: var(--color-ink);
+}
+
+.badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+}
+
+.meta {
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.meta div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.meta dt {
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: var(--color-ink-tertiary);
+}
+
+.meta dd {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--color-ink);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.prompt {
+  max-height: 8rem;
+  overflow: auto;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 0.78rem;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-accent);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.createBtn {
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  cursor: pointer;
+}
+
+.createBtn:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+}
+
+.createBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.done {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--color-brand-strong);
+}

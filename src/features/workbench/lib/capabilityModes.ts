@@ -20,6 +20,30 @@ export const CAPABILITY_SYSTEM_PROMPTS: Partial<
     zh: '当前模式：技能助手。按用户选择的技能模板完成任务，严格遵循模板要求的输出格式。',
     en: 'Mode: skills. Follow the selected skill template and its output format strictly.',
   },
+  create_agent: {
+    zh: `当前模式：帮用户创建智能体（面向小白）。
+流程：
+1) 用一两句澄清：这个助手要帮用户做什么、对谁说话、有什么禁忌。
+2) 信息够用后，给出拟创建方案的白话说明（名称、简介、会怎么回答）。
+3) 然后必须输出一个且仅一个 Markdown 代码块，语言标记为 agent-spec，内容是 JSON：
+\`\`\`agent-spec
+{"name":"不超过40字","description":"一句话简介","systemPrompt":"完整人设与回答规范","tone":"brand","quickPrompts":["快捷问题1","快捷问题2","快捷问题3"]}
+\`\`\`
+tone 只能是 brand / accent / highlight 之一。
+quickPrompts 可选，1～6 条短句，用于空会话欢迎区点击提问。
+不要省略 agent-spec 代码块；用户点界面上的「创建」按钮后才会真正写入工作台。`,
+    en: `Mode: help the user create an agent (beginner-friendly).
+Flow:
+1) Briefly clarify what the agent should do, audience, and constraints.
+2) When enough info, summarize the proposed agent in plain language.
+3) Then output exactly one Markdown fenced block with language tag agent-spec and JSON:
+\`\`\`agent-spec
+{"name":"max 40 chars","description":"one-line intro","systemPrompt":"full persona","tone":"brand","quickPrompts":["chip 1","chip 2","chip 3"]}
+\`\`\`
+tone must be brand, accent, or highlight.
+quickPrompts is optional (1–6 short starter questions for the empty chat).
+Do not omit the agent-spec block; the UI Create button persists it.`,
+  },
 }
 
 export interface WorkbenchSkill {

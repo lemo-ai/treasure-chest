@@ -252,6 +252,19 @@ function runMigrations(database: Database.Database): void {
     `)
     database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(8)
   }
+  if (current < 9) {
+    const cols = database.prepare(`PRAGMA table_info(knowledge_collections)`).all() as Array<{
+      name: string
+    }>
+    const names = new Set(cols.map((c) => c.name))
+    if (!names.has('parent_id')) {
+      database.exec(`ALTER TABLE knowledge_collections ADD COLUMN parent_id TEXT`)
+    }
+    database.exec(
+      `CREATE INDEX IF NOT EXISTS idx_knowledge_collections_parent ON knowledge_collections(parent_id)`,
+    )
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(9)
+  }
 }
 
 function setSetting(database: Database.Database, key: string, value: unknown): void {

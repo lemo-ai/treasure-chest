@@ -8,8 +8,6 @@ import { registerAllIpc } from '../ipc'
 import { initSettingsStore, settingsStore } from '../modules/settings/SettingsStore'
 import { initFortuneStore } from '../modules/fortune/FortuneStore'
 import { syncLaunchAtLogin } from '../modules/system/LaunchService'
-import { startFortuneNotificationScheduler, stopFortuneNotificationScheduler } from '../modules/notifications/FortuneNotificationService'
-import { startStocksScheduler, stopStocksScheduler } from '../modules/stocks/StocksScheduler'
 import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
 import { applyAppDockIcon } from '../utils/appIcon'
 import { logger } from '../utils/logger'
@@ -47,8 +45,9 @@ if (isHarnessHeadless) {
   initFortuneStore()
   syncLaunchAtLogin()
   registerAllIpc()
-  startFortuneNotificationScheduler()
-  startStocksScheduler()
+  void import('../modules/schedules/SchedulesStore').then((m) => m.migrateSchedulesFromSettings())
+  void import('../modules/schedules/ScheduleRunner').then((m) => m.startScheduleRunner())
+  // Builtin fortune/stocks ticks are owned by ScheduleRunner now.
 
   const behavior = settingsStore.getLaunchBehavior()
   const widget = settingsStore.getDesktopWidget()
@@ -86,8 +85,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  stopFortuneNotificationScheduler()
-  stopStocksScheduler()
+  void import('../modules/schedules/ScheduleRunner').then((m) => m.stopScheduleRunner())
   disposeAllMcpSessions()
   void import('../modules/harness/coding/LspService').then((m) => m.shutdownLsp())
   void import('../modules/harness/coding/DshWebService').then((m) => m.stopEmbeddedDshWeb())

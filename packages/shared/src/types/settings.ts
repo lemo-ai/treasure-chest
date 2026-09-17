@@ -3,6 +3,7 @@ import type { CalendarMode } from './calendar'
 import type { FortuneSettings } from './fortune'
 import type { StocksSettings } from './stocks'
 import type { McpSettings } from './mcp'
+import type { DataSourcesSettings } from './dataSources'
 
 export type { AppLocale, ThemeMode }
 
@@ -81,6 +82,31 @@ export interface DesktopWidgetView extends DesktopWidgetSettings {
 /** What to show right after the app launches. */
 export type LaunchBehavior = 'main' | 'tray' | 'widget'
 
+export interface NotificationChannelDingTalk {
+  enabled: boolean
+  webhookUrl: string
+  /** Optional SEC sign secret */
+  secret: string
+}
+
+export interface NotificationChannelEmail {
+  enabled: boolean
+  to: string
+  smtpHost: string
+  smtpPort: number
+  secure: boolean
+  user: string
+  pass: string
+  from: string
+}
+
+export interface NotificationChannels {
+  workbenchInbox: boolean
+  desktopOs: boolean
+  dingtalk: NotificationChannelDingTalk
+  email: NotificationChannelEmail
+}
+
 export interface NotificationSettings {
   /** Push a desktop notification when today's fortune is ready. */
   fortuneDaily: boolean
@@ -88,12 +114,34 @@ export interface NotificationSettings {
   fortuneNotifyHour: number
   /** Push when a daily stocks report finishes (auto or after first run of the day). */
   stocksDaily: boolean
+  channels: NotificationChannels
+}
+
+export const DEFAULT_NOTIFICATION_CHANNELS: NotificationChannels = {
+  workbenchInbox: true,
+  desktopOs: true,
+  dingtalk: {
+    enabled: false,
+    webhookUrl: '',
+    secret: '',
+  },
+  email: {
+    enabled: false,
+    to: '',
+    smtpHost: '',
+    smtpPort: 465,
+    secure: true,
+    user: '',
+    pass: '',
+    from: '',
+  },
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   fortuneDaily: false,
   fortuneNotifyHour: 8,
   stocksDaily: false,
+  channels: { ...DEFAULT_NOTIFICATION_CHANNELS, dingtalk: { ...DEFAULT_NOTIFICATION_CHANNELS.dingtalk }, email: { ...DEFAULT_NOTIFICATION_CHANNELS.email } },
 }
 
 export interface AppSettingsSnapshot {
@@ -109,6 +157,7 @@ export interface AppSettingsSnapshot {
   fortune: FortuneSettings
   stocks: StocksSettings
   mcp: McpSettings
+  dataSources: DataSourcesSettings
 }
 
 export const DEFAULT_LAUNCH_AT_LOGIN = true

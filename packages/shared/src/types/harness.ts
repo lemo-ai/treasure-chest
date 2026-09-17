@@ -286,7 +286,10 @@ export interface HarnessMessage {
 
 export interface HarnessStoreSnapshot {
   sessions: AgentSession[]
+  /** Last focused session overall (compat / backup). Prefer activeSessionIdByAgent. */
   activeSessionId: string | null
+  /** Per-agent last active session — agents keep isolated cursors. */
+  activeSessionIdByAgent: Record<string, string | null>
   messagesBySession: Record<string, HarnessMessage[]>
 }
 
@@ -345,4 +348,5 @@ export interface HarnessBackupSection {
   events: SessionEvent[]
   goals: AgentGoal[]
   activeSessionId: string | null
+  activeSessionIdByAgent?: Record<string, string | null>
 }

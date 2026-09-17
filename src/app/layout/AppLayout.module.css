@@ -156,6 +156,7 @@
 }
 
 .linkIcon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 1.35rem;
@@ -163,6 +164,36 @@
   font-size: 1.1rem;
   flex-shrink: 0;
   opacity: 0.9;
+}
+
+.badge {
+  position: absolute;
+  top: -0.42rem;
+  right: -0.62rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #ff6b6b, var(--color-accent));
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 780;
+  line-height: 1.05rem;
+  text-align: center;
+  box-shadow:
+    0 0 0 2px var(--color-bg),
+    0 4px 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  animation: badgePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
 }
 
 .linkLabel {

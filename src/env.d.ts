@@ -9,6 +9,8 @@ import type {
   DesktopWidgetView,
   LaunchBehavior,
   NotificationSettings,
+  DataSourceConfig,
+  DataSourcesSettings,
   FortuneSettings,
   DailyFortune,
   FortuneAiConnectionTestInput,
@@ -25,6 +27,11 @@ import type {
   WatchlistItem,
   ThemeMode,
   ThemeAccent,
+  ScheduleTask,
+  SchedulesSnapshot,
+  UpsertScheduleTaskInput,
+  InboxItem,
+  InboxSnapshot,
 } from '@shared'
 
 interface TreasureChestApi {
@@ -59,6 +66,21 @@ interface TreasureChestApi {
   setLaunchAtLogin: (enabled: boolean) => Promise<{ configured: boolean; system: boolean }>
   setLaunchBehavior: (behavior: LaunchBehavior) => Promise<LaunchBehavior>
   setNotifications: (partial: Partial<NotificationSettings>) => Promise<NotificationSettings>
+  setDataSources: (partial: Partial<DataSourcesSettings>) => Promise<DataSourcesSettings>
+  upsertDataSource: (input: DataSourceConfig) => Promise<DataSourceConfig>
+  deleteDataSource: (id: string) => Promise<boolean>
+  previewDataSource: (id: string) => Promise<{ ok: boolean; text?: string; error?: string }>
+  testDataSource: (
+    input: DataSourceConfig,
+  ) => Promise<{ ok: boolean; text?: string; error?: string; latencyMs?: number }>
+  pickDataSourceFile: () => Promise<string | null>
+  listDataSourceDrivers: () => Promise<import('@shared').DataSourceDriverInfo[]>
+  ensureDataSourceDriver: (
+    kind: string,
+    version?: string,
+  ) => Promise<{ ok: boolean; status?: unknown; error?: string }>
+  testDingTalkNotify: () => Promise<{ ok: boolean; error?: string }>
+  testEmailNotify: () => Promise<{ ok: boolean; error?: string }>
   setFortuneSettings: (partial: Partial<FortuneSettings>) => Promise<FortuneSettings>
   setStocksSettings: (partial: Partial<StocksSettings>) => Promise<StocksSettings>
   generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string) => Promise<FortuneAiResponse>
@@ -85,7 +107,7 @@ interface TreasureChestApi {
   harnessCreateSession: (agentId: string, title: string, id?: string) => Promise<import('@shared').AgentSession>
   harnessRenameSession: (id: string, title: string) => Promise<boolean>
   harnessDeleteSession: (id: string) => Promise<boolean>
-  harnessSetActiveSession: (id: string | null) => Promise<boolean>
+  harnessSetActiveSession: (id: string | null, agentId?: string) => Promise<boolean>
   harnessListMessages: (sessionId: string) => Promise<import('@shared').HarnessMessage[]>
   harnessAppendUserMessage: (sessionId: string, content: string) => Promise<import('@shared').HarnessMessage>
   harnessAppendSystemMessage: (sessionId: string, content: string) => Promise<import('@shared').HarnessMessage>
@@ -159,12 +181,16 @@ interface TreasureChestApi {
     name: string
     description?: string
     color?: string
+    parentId?: string | null
   }) => Promise<import('@shared').KnowledgeCollection>
   renameKnowledgeCollection: (payload: {
     id: string
     name: string
   }) => Promise<import('@shared').KnowledgeCollection | null>
-  deleteKnowledgeCollection: (id: string) => Promise<boolean>
+  deleteKnowledgeCollection: (
+    id: string,
+    opts?: { mode?: 'cascade' | 'move' },
+  ) => Promise<boolean>
   getKnowledgeSettings: () => Promise<import('@shared').KnowledgeSettings>
   setKnowledgeSettings: (
     partial: Partial<import('@shared').KnowledgeSettings>,
@@ -533,6 +559,20 @@ interface TreasureChestApi {
     prompt: string
   }>
   uninstallSkill: (id: string) => Promise<boolean>
+  getSchedulesSnapshot: () => Promise<SchedulesSnapshot>
+  listScheduleTasks: () => Promise<ScheduleTask[]>
+  upsertScheduleTask: (input: UpsertScheduleTaskInput) => Promise<ScheduleTask>
+  deleteScheduleTask: (id: string) => Promise<boolean>
+  setScheduleTaskEnabled: (id: string, enabled: boolean) => Promise<ScheduleTask | null>
+  runScheduleTaskNow: (id: string) => Promise<SchedulesSnapshot>
+  getInboxSnapshot: () => Promise<InboxSnapshot>
+  listInboxItems: () => Promise<InboxItem[]>
+  markInboxRead: (id: string) => Promise<InboxItem | null>
+  markAllInboxRead: () => Promise<number>
+  removeInboxItem: (id: string) => Promise<boolean>
+  clearInbox: () => Promise<number>
+  onInboxAppended: (cb: (item: InboxItem) => void) => () => void
+  onInboxOpen: (cb: (payload: { id: string }) => void) => () => void
 }
 
 declare global {

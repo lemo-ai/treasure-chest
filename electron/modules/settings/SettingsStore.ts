@@ -5,12 +5,15 @@ import type {
   AppLocale,
   AppSettingsSnapshot,
   CalendarMode,
+  DataSourcesSettings,
+  DataSourceConfig,
   DesktopWidgetSettings,
   DesktopWidgetView,
   DialFaceStyle,
   LaunchBehavior,
   McpSettings,
   McpServerConfig,
+  NotificationChannels,
   NotificationSettings,
   ThemeMode,
   ThemeAccent,
@@ -21,11 +24,13 @@ import type {
   StocksRangeKey,
 } from '@shared'
 import {
+  DEFAULT_DATA_SOURCES_SETTINGS,
   DEFAULT_DESKTOP_WIDGET,
   DEFAULT_FORTUNE_SETTINGS,
   DEFAULT_LAUNCH_AT_LOGIN,
   DEFAULT_LAUNCH_BEHAVIOR,
   DEFAULT_MCP_SETTINGS,
+  DEFAULT_NOTIFICATION_CHANNELS,
   DEFAULT_NOTIFICATION_SETTINGS,
   DEFAULT_STOCKS_SETTINGS,
   DIAL_FACE_STYLES,
@@ -53,6 +58,106 @@ interface PersistedSettings {
   fortune: FortuneSettings
   stocks: StocksSettings
   mcp: McpSettings
+  dataSources: DataSourcesSettings
+}
+
+function cloneChannels(channels?: Partial<NotificationChannels> | null): NotificationChannels {
+  const base = DEFAULT_NOTIFICATION_CHANNELS
+  const src = channels ?? {}
+  return {
+    workbenchInbox: src.workbenchInbox ?? base.workbenchInbox,
+    desktopOs: src.desktopOs ?? base.desktopOs,
+    dingtalk: {
+      ...base.dingtalk,
+      ...(src.dingtalk ?? {}),
+      webhookUrl: String(src.dingtalk?.webhookUrl ?? base.dingtalk.webhookUrl),
+      secret: String(src.dingtalk?.secret ?? base.dingtalk.secret),
+      enabled: Boolean(src.dingtalk?.enabled ?? base.dingtalk.enabled),
+    },
+    email: {
+      ...base.email,
+      ...(src.email ?? {}),
+      to: String(src.email?.to ?? base.email.to),
+      smtpHost: String(src.email?.smtpHost ?? base.email.smtpHost),
+      smtpPort: Number(src.email?.smtpPort ?? base.email.smtpPort) || 465,
+      secure: Boolean(src.email?.secure ?? base.email.secure),
+      user: String(src.email?.user ?? base.email.user),
+      pass: String(src.email?.pass ?? base.email.pass),
+      from: String(src.email?.from ?? base.email.from),
+      enabled: Boolean(src.email?.enabled ?? base.email.enabled),
+    },
+  }
+}
+
+function parseNotifications(raw: unknown): NotificationSettings {
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Partial<NotificationSettings>
+  return {
+    fortuneDaily: Boolean(src.fortuneDaily ?? DEFAULT_NOTIFICATION_SETTINGS.fortuneDaily),
+    fortuneNotifyHour: Number.isFinite(src.fortuneNotifyHour)
+      ? Math.min(23, Math.max(0, Math.floor(Number(src.fortuneNotifyHour))))
+      : DEFAULT_NOTIFICATION_SETTINGS.fortuneNotifyHour,
+    stocksDaily: Boolean(src.stocksDaily ?? DEFAULT_NOTIFICATION_SETTINGS.stocksDaily),
+    channels: cloneChannels(src.channels),
+  }
+}
+
+function parseDataSources(raw: unknown): DataSourcesSettings {
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Partial<DataSourcesSettings>
+  const list = Array.isArray(src.sources) ? src.sources : []
+  const allowed = new Set([
+    'http_json',
+    'http_text',
+    'local_file',
+    'static_text',
+    'sqlite',
+    'duckdb',
+    'postgres',
+    'mysql',
+    'mariadb',
+    'mssql',
+    'oracle',
+    'mongodb',
+    'redis',
+    'clickhouse',
+    'cassandra',
+    'elasticsearch',
+    'influxdb',
+    'dynamodb',
+    'snowflake',
+    'cockroach',
+    'tidb',
+    'redshift',
+    'trino',
+    'qdrant',
+    'chroma',
+  ])
+  const sources: DataSourceConfig[] = list
+    .filter((s): s is DataSourceConfig => Boolean(s && typeof s === 'object' && typeof (s as DataSourceConfig).id === 'string'))
+    .map((s) => ({
+      id: String(s.id),
+      name: String(s.name || s.id).slice(0, 80),
+      enabled: s.enabled !== false,
+      kind: allowed.has(String(s.kind)) ? (s.kind as DataSourceConfig['kind']) : 'static_text',
+      icon: typeof s.icon === 'string' ? s.icon.slice(0, 500_000) : undefined,
+      url: typeof s.url === 'string' ? s.url : undefined,
+      headers: s.headers && typeof s.headers === 'object' ? { ...s.headers } : undefined,
+      jsonPath: typeof s.jsonPath === 'string' ? s.jsonPath : undefined,
+      path: typeof s.path === 'string' ? s.path : undefined,
+      content: typeof s.content === 'string' ? s.content.slice(0, 50_000) : undefined,
+      host: typeof s.host === 'string' ? s.host : undefined,
+      port: typeof s.port === 'number' && Number.isFinite(s.port) ? Math.floor(s.port) : undefined,
+      database: typeof s.database === 'string' ? s.database : undefined,
+      username: typeof s.username === 'string' ? s.username : undefined,
+      password: typeof s.password === 'string' ? s.password : undefined,
+      ssl: typeof s.ssl === 'boolean' ? s.ssl : undefined,
+      sql: typeof s.sql === 'string' ? s.sql.slice(0, 20_000) : undefined,
+      collection: typeof s.collection === 'string' ? s.collection : undefined,
+      query: typeof s.query === 'string' ? s.query.slice(0, 20_000) : undefined,
+      topK: typeof s.topK === 'number' && Number.isFinite(s.topK) ? Math.floor(s.topK) : undefined,
+      driverVersion: typeof s.driverVersion === 'string' ? s.driverVersion.slice(0, 40) : undefined,
+      updatedAt: typeof s.updatedAt === 'string' ? s.updatedAt : new Date().toISOString(),
+    }))
+  return { sources }
 }
 
 const memory: PersistedSettings = {
@@ -63,10 +168,11 @@ const memory: PersistedSettings = {
   desktopWidget: { ...DEFAULT_DESKTOP_WIDGET },
   launchAtLogin: DEFAULT_LAUNCH_AT_LOGIN,
   launchBehavior: DEFAULT_LAUNCH_BEHAVIOR,
-  notifications: { ...DEFAULT_NOTIFICATION_SETTINGS },
+  notifications: parseNotifications(DEFAULT_NOTIFICATION_SETTINGS),
   fortune: { ...DEFAULT_FORTUNE_SETTINGS },
   stocks: { ...DEFAULT_STOCKS_SETTINGS },
   mcp: { servers: [...DEFAULT_MCP_SETTINGS.servers] },
+  dataSources: { sources: [] },
 }
 
 function settingsPath(): string {
@@ -302,13 +408,11 @@ function loadFromDb(): void {
   memory.launchAtLogin = getSetting('system.launchAtLogin', memory.launchAtLogin)
   memory.launchBehavior = parseLaunchBehavior(getSetting('system.launchBehavior', memory.launchBehavior))
   memory.desktopWidget = parseDesktopWidget(getSetting('desktop.widget', memory.desktopWidget))
-  memory.notifications = {
-    ...DEFAULT_NOTIFICATION_SETTINGS,
-    ...getSetting('notifications', DEFAULT_NOTIFICATION_SETTINGS),
-  }
+  memory.notifications = parseNotifications(getSetting('notifications', DEFAULT_NOTIFICATION_SETTINGS))
   memory.fortune = parseFortuneSettings(getSetting('fortune', DEFAULT_FORTUNE_SETTINGS))
   memory.stocks = parseStocksSettings(getSetting('stocks', DEFAULT_STOCKS_SETTINGS))
   memory.mcp = parseMcpSettings(getSetting('mcp', DEFAULT_MCP_SETTINGS))
+  memory.dataSources = parseDataSources(getSetting('dataSources', DEFAULT_DATA_SOURCES_SETTINGS))
 }
 
 /** Fallback for dev runs before DB init: legacy settings.json */
@@ -341,6 +445,7 @@ function persist(): void {
   setSetting('fortune', memory.fortune)
   setSetting('stocks', memory.stocks)
   setSetting('mcp', memory.mcp)
+  setSetting('dataSources', memory.dataSources)
 }
 
 export function initSettingsStore(): void {
@@ -364,7 +469,7 @@ export const settingsStore = {
       desktopWidget: { ...memory.desktopWidget },
       launchAtLogin: memory.launchAtLogin,
       launchBehavior: memory.launchBehavior,
-      notifications: { ...memory.notifications },
+      notifications: parseNotifications(memory.notifications),
       fortune: { ...memory.fortune },
       stocks: { ...memory.stocks },
       mcp: {
@@ -372,6 +477,12 @@ export const settingsStore = {
           ...s,
           args: [...s.args],
           env: s.env ? { ...s.env } : undefined,
+          headers: s.headers ? { ...s.headers } : undefined,
+        })),
+      },
+      dataSources: {
+        sources: memory.dataSources.sources.map((s) => ({
+          ...s,
           headers: s.headers ? { ...s.headers } : undefined,
         })),
       },
@@ -468,12 +579,61 @@ export const settingsStore = {
     return memory.launchBehavior
   },
   getNotifications(): NotificationSettings {
-    return { ...memory.notifications }
+    return parseNotifications(memory.notifications)
   },
   setNotifications(partial: Partial<NotificationSettings>): NotificationSettings {
-    memory.notifications = { ...memory.notifications, ...partial }
+    const prev = parseNotifications(memory.notifications)
+    memory.notifications = parseNotifications({
+      ...prev,
+      ...partial,
+      channels: partial.channels
+        ? cloneChannels({
+            ...prev.channels,
+            ...partial.channels,
+            dingtalk: { ...prev.channels.dingtalk, ...(partial.channels.dingtalk ?? {}) },
+            email: { ...prev.channels.email, ...(partial.channels.email ?? {}) },
+          })
+        : prev.channels,
+    })
     persist()
-    return { ...memory.notifications }
+    return parseNotifications(memory.notifications)
+  },
+  getDataSources(): DataSourcesSettings {
+    return parseDataSources(memory.dataSources)
+  },
+  setDataSources(partial: Partial<DataSourcesSettings>): DataSourcesSettings {
+    memory.dataSources = parseDataSources({
+      ...memory.dataSources,
+      ...partial,
+      sources: partial.sources ?? memory.dataSources.sources,
+    })
+    persist()
+    return parseDataSources(memory.dataSources)
+  },
+  upsertDataSource(input: Omit<DataSourceConfig, 'updatedAt'> & { updatedAt?: string }): DataSourceConfig {
+    const sources = [...memory.dataSources.sources]
+    const stamp = new Date().toISOString()
+    const next: DataSourceConfig = {
+      ...input,
+      name: String(input.name || input.id).slice(0, 80),
+      enabled: input.enabled !== false,
+      updatedAt: stamp,
+    }
+    const idx = sources.findIndex((s) => s.id === next.id)
+    if (idx >= 0) sources[idx] = next
+    else sources.push(next)
+    memory.dataSources = { sources }
+    persist()
+    return { ...next, headers: next.headers ? { ...next.headers } : undefined }
+  },
+  deleteDataSource(id: string): boolean {
+    const before = memory.dataSources.sources.length
+    memory.dataSources = {
+      sources: memory.dataSources.sources.filter((s) => s.id !== id),
+    }
+    if (memory.dataSources.sources.length === before) return false
+    persist()
+    return true
   },
   getFortuneSettings(): FortuneSettings {
     return { ...memory.fortune }
@@ -598,13 +758,11 @@ export const settingsStore = {
     memory.desktopWidget = parseDesktopWidget(snapshot.desktopWidget)
     memory.launchAtLogin = Boolean(snapshot.launchAtLogin)
     memory.launchBehavior = parseLaunchBehavior(snapshot.launchBehavior)
-    memory.notifications = {
-      ...DEFAULT_NOTIFICATION_SETTINGS,
-      ...snapshot.notifications,
-    }
+    memory.notifications = parseNotifications(snapshot.notifications)
     memory.fortune = parseFortuneSettings(snapshot.fortune ?? DEFAULT_FORTUNE_SETTINGS)
     memory.stocks = parseStocksSettings(snapshot.stocks ?? DEFAULT_STOCKS_SETTINGS)
     memory.mcp = parseMcpSettings(snapshot.mcp ?? DEFAULT_MCP_SETTINGS)
+    memory.dataSources = parseDataSources(snapshot.dataSources ?? DEFAULT_DATA_SOURCES_SETTINGS)
     persist()
     return settingsStore.getSnapshot()
   },
@@ -622,6 +780,7 @@ export const settingsStore = {
       fortune: memory.fortune,
       stocks: memory.stocks,
       mcp: memory.mcp,
+      dataSources: memory.dataSources,
     }
   },
   importSettingsMap(entries: Record<string, unknown>): void {
@@ -639,10 +798,7 @@ export const settingsStore = {
       memory.desktopWidget = parseDesktopWidget(entries['desktop.widget'])
     }
     if (entries.notifications) {
-      memory.notifications = {
-        ...DEFAULT_NOTIFICATION_SETTINGS,
-        ...(entries.notifications as NotificationSettings),
-      }
+      memory.notifications = parseNotifications(entries.notifications)
     }
     if (entries.fortune) {
       memory.fortune = parseFortuneSettings(entries.fortune)
@@ -652,6 +808,9 @@ export const settingsStore = {
     }
     if (entries.mcp) {
       memory.mcp = parseMcpSettings(entries.mcp)
+    }
+    if (entries.dataSources) {
+      memory.dataSources = parseDataSources(entries.dataSources)
     }
     persist()
   },

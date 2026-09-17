@@ -33,10 +33,18 @@ function readLegacy(): LegacyStore | null {
   }
 }
 
-function ensureCache(): HarnessStoreSnapshot {
-  if (!cache) {
-    return { sessions: [], activeSessionId: null, messagesBySession: {} }
+function emptySnapshot(): HarnessStoreSnapshot {
+  return {
+    sessions: [],
+    activeSessionId: null,
+    activeSessionIdByAgent: {},
+    messagesBySession: {},
   }
+}
+
+function ensureCache(): HarnessStoreSnapshot {
+  if (!cache) return emptySnapshot()
+  if (!cache.activeSessionIdByAgent) cache.activeSessionIdByAgent = {}
   return cache
 }
 
@@ -61,12 +69,13 @@ export async function hydrateSessionStore(): Promise<void> {
       localStorage.removeItem(STORAGE_KEY)
     }
     cache = await window.treasureChest.harnessGetStore()
+    if (!cache.activeSessionIdByAgent) cache.activeSessionIdByAgent = {}
   })()
   await hydratePromise
 }
 
-async function persistActive(id: string | null): Promise<void> {
-  await window.treasureChest.harnessSetActiveSession(id)
+async function persistActive(id: string | null, agentId?: string): Promise<void> {
+  await window.treasureChest.harnessSetActiveSession(id, agentId)
 }
 
 export function listSessions(agentId?: WorkbenchAgentId): WorkbenchSession[] {
@@ -75,14 +84,32 @@ export function listSessions(agentId?: WorkbenchAgentId): WorkbenchSession[] {
   return [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
+/** Global last-active (compat). Prefer getActiveSessionIdForAgent. */
 export function getActiveSessionId(): string | null {
   return ensureCache().activeSessionId
 }
 
-export function setActiveSessionId(id: string | null): void {
+export function getActiveSessionIdForAgent(agentId: string): string | null {
   const store = ensureCache()
+  const id = store.activeSessionIdByAgent?.[agentId]
+  return typeof id === 'string' ? id : null
+}
+
+/** Set active session for an agent (isolated). Also updates global pointer. */
+export function setActiveSessionId(id: string | null, agentId?: string): void {
+  const store = ensureCache()
+  let resolvedAgent = agentId
+  if (!resolvedAgent && id) {
+    resolvedAgent = store.sessions.find((s) => s.id === id)?.agentId
+  }
+  if (resolvedAgent) {
+    store.activeSessionIdByAgent = {
+      ...(store.activeSessionIdByAgent ?? {}),
+      [resolvedAgent]: id,
+    }
+  }
   store.activeSessionId = id
-  void persistActive(id)
+  void persistActive(id, resolvedAgent)
 }
 
 export async function forkSession(sourceSessionId: string, boundarySeq?: number): Promise<WorkbenchSession | null> {
@@ -96,8 +123,7 @@ export async function forkSession(sourceSessionId: string, boundarySeq?: number)
   const store = ensureCache()
   store.sessions = [forked, ...store.sessions.filter((s) => s.id !== forked.id)]
   store.messagesBySession[forked.id] = await reloadMessages(forked.id)
-  store.activeSessionId = forked.id
-  await persistActive(forked.id)
+  setActiveSessionId(forked.id, forked.agentId)
   return forked
 }
 
@@ -111,8 +137,7 @@ export async function createSession(agentId: WorkbenchAgentId, title: string): P
   const store = ensureCache()
   store.sessions = [session, ...store.sessions.filter((s) => s.id !== session.id)]
   store.messagesBySession[session.id] = store.messagesBySession[session.id] ?? []
-  store.activeSessionId = session.id
-  await persistActive(session.id)
+  setActiveSessionId(session.id, String(agentId))
   return session
 }
 
@@ -127,12 +152,27 @@ export function renameSession(id: string, title: string): void {
 
 export function deleteSession(id: string): void {
   const store = ensureCache()
+  const removed = store.sessions.find((s) => s.id === id)
   store.sessions = store.sessions.filter((s) => s.id !== id)
   delete store.messagesBySession[id]
-  if (store.activeSessionId === id) {
-    store.activeSessionId = store.sessions[0]?.id ?? null
-    void persistActive(store.activeSessionId)
+
+  const agentId = removed?.agentId
+  const wasActiveForAgent = agentId
+    ? store.activeSessionIdByAgent?.[agentId] === id
+    : false
+  const wasGlobalActive = store.activeSessionId === id
+
+  if (wasActiveForAgent && agentId) {
+    const nextSameAgent = store.sessions.find((s) => s.agentId === agentId)
+    setActiveSessionId(nextSameAgent?.id ?? null, agentId)
+  } else if (wasGlobalActive) {
+    // Prefer keeping global pointer on a session from the same agent when possible.
+    const nextSameAgent = agentId
+      ? store.sessions.find((s) => s.agentId === agentId)
+      : undefined
+    setActiveSessionId(nextSameAgent?.id ?? store.sessions[0]?.id ?? null, agentId)
   }
+
   void window.treasureChest.harnessDeleteSession(id)
 }
 
@@ -216,5 +256,6 @@ export async function syncFromHarness(sessionId: string): Promise<WorkbenchMessa
 /** Reload full harness snapshot from main (e.g. after async session title). */
 export async function reloadHarnessStore(): Promise<HarnessStoreSnapshot> {
   cache = await window.treasureChest.harnessGetStore()
+  if (!cache.activeSessionIdByAgent) cache.activeSessionIdByAgent = {}
   return cache
 }

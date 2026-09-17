@@ -314,6 +314,10 @@
   white-space: nowrap;
 }
 
+.sessionAvatar {
+  flex-shrink: 0;
+}
+
 .chatHead {
   display: flex;
   align-items: center;
@@ -429,6 +433,11 @@
   font-size: 1.8rem;
   box-shadow: var(--shadow-card);
   animation: floatIn 0.55s ease both;
+  overflow: hidden;
+}
+
+.headAvatar {
+  flex-shrink: 0;
 }
 
 .emptyTitle {
@@ -488,6 +497,8 @@
 
 .bubbleRow {
   display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
 }
 
 .bubbleRowUser {
@@ -496,6 +507,10 @@
 
 .bubbleRowAssistant {
   justify-content: flex-start;
+}
+
+.msgAvatar {
+  margin-top: 0.2rem;
 }
 
 .bubble {

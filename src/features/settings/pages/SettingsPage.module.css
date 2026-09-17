@@ -157,6 +157,46 @@
   line-height: 1.5;
 }
 
+.subLabel {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 var(--space-3);
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--color-ink-secondary);
+}
+
+.dsPathRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dsPathRow input {
+  width: 100%;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
 .localPresetRow {
   display: flex;
   flex-wrap: wrap;
@@ -1471,11 +1511,24 @@
   gap: 0.85rem;
 }
 
-.dataCard {
+.channelCard {
+  margin-top: 1rem;
+  padding: 1.05rem 1.15rem 1.1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-bg) 55%, var(--color-bg-elevated));
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.channelCard .field {
+  margin-bottom: 0;
+}
+
+.channelCard .settingRow {
+  margin: 0;
+  padding: 0;
 }
 
 .dataCardBody {
