@@ -15,6 +15,9 @@
           "知识库分区支持树形上下级：新建/重命名/删除；删除时可选一并清理文档或移到默认分区",
           "父分区文档数计入全部子分区；分区侧栏树形样式与内联新建子分区",
           "运势/股票独立页收敛到工作台智能体；收件箱与通知通道完善",
+          "预置官方开源 MCP（Memory / Sequential Thinking / Filesystem 等），设置页改为卡片式管理",
+          "智能体支持删除；设置新增「智能体」管理页",
+          "侧栏文案改为「智能体指挥中枢」；通知入口移至设置下方；设置默认进入「常规」",
           "音视频工具页布局与响应式修正；工作台去掉对话框内重复的「收起会话」"
         ],
         "en-US": [
@@ -24,6 +27,9 @@
           "Knowledge collections as a tree: create/rename/delete; delete can cascade docs or move them to default",
           "Parent doc counts include all descendants; cleaner tree UI with inline sub-collection create",
           "Fortune/Stocks standalone pages folded into workbench agents; inbox and notify channels improved",
+          "Seed official open-source MCPs (Memory / Sequential Thinking / Filesystem, etc.) with a card-based settings UI",
+          "Delete custom agents; new Agents management page in Settings",
+          "Sidebar tag → Agent Command Hub; Notifications under Settings; Settings opens on General by default",
           "Audio toolkit layout/responsive fixes; remove duplicate “Hide sessions” from the chat header"
         ]
       }
