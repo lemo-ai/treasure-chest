@@ -139,7 +139,6 @@ export function draftToConfig(draft: DataSourceDraft): DataSourceConfig {
   const isInflux = kind === 'influxdb'
   const isDynamo = kind === 'dynamodb'
   const isSnowflake = kind === 'snowflake'
-  const isTrino = kind === 'trino'
   const urlOptional =
     kind === 'mongodb' ||
     kind === 'redis' ||
@@ -561,7 +560,7 @@ export function DataSourceEditorModal({
                     }
                   />
                 </label>
-                {draft.kind !== 'influxdb' && draft.kind !== 'snowflake' ? (
+                {draft.kind !== 'influxdb' ? (
                   <label className={styles.field}>
                     <span>{t('settings.dataSources.port')}</span>
                     <input
@@ -670,9 +669,7 @@ export function DataSourceEditorModal({
                     <span>
                       {draft.kind === 'dynamodb'
                         ? t('settings.dataSources.awsSecretKey')
-                        : draft.kind === 'influxdb'
-                          ? t('settings.dataSources.influxToken')
-                          : t('settings.dataSources.password')}
+                        : t('settings.dataSources.password')}
                     </span>
                     <input
                       type="password"
