@@ -176,6 +176,20 @@ import {
   openLibreOfficeDownload,
   pickLibreOfficeBinary,
 } from '../modules/tools/DocLibreOffice'
+import {
+  applyLocalLlmToWorkbench,
+  cancelLocalLlmPull,
+  deleteLocalLlmModel,
+  getLocalLlmSnapshot,
+  listLocalLlmRemoteTags,
+  openLocalLlmFamilyInstall,
+  openLocalLlmLibrary,
+  openLocalLlmRuntimeInstall,
+  pullLocalLlmModel,
+  showLocalLlmModel,
+  startLocalLlmRuntime,
+  unloadLocalLlmModel,
+} from '../modules/localLlm/LocalLlmService'
 import { readSystemLaunchAtLogin, syncLaunchAtLogin } from '../modules/system/LaunchService'
 import {
   applyCalendarMode,
@@ -1209,6 +1223,30 @@ export function registerAllIpc(): void {
     removeCustomVisionEngine(id),
   )
   ipcMain.handle(IpcChannels.imageTools.pickCustomOnnx, () => pickCustomOnnxFile())
+
+  ipcMain.handle(IpcChannels.localLlm.getSnapshot, () => getLocalLlmSnapshot())
+  ipcMain.handle(
+    IpcChannels.localLlm.openRuntimeInstall,
+    (_e, runtime?: 'ollama' | 'lmstudio') => openLocalLlmRuntimeInstall(runtime ?? 'ollama'),
+  )
+  ipcMain.handle(IpcChannels.localLlm.openLibrary, (_e, model?: string) =>
+    openLocalLlmLibrary(model),
+  )
+  ipcMain.handle(IpcChannels.localLlm.openFamilyInstall, (_e, familyId: string) =>
+    openLocalLlmFamilyInstall(familyId),
+  )
+  ipcMain.handle(IpcChannels.localLlm.startRuntime, () => startLocalLlmRuntime())
+  ipcMain.handle(IpcChannels.localLlm.listRemoteTags, (_e, ollamaModel: string) =>
+    listLocalLlmRemoteTags(ollamaModel),
+  )
+  ipcMain.handle(IpcChannels.localLlm.pullModel, (_e, model: string) => pullLocalLlmModel(model))
+  ipcMain.handle(IpcChannels.localLlm.cancelPull, () => cancelLocalLlmPull())
+  ipcMain.handle(IpcChannels.localLlm.deleteModel, (_e, model: string) => deleteLocalLlmModel(model))
+  ipcMain.handle(IpcChannels.localLlm.showModel, (_e, model: string) => showLocalLlmModel(model))
+  ipcMain.handle(IpcChannels.localLlm.unloadModel, (_e, model: string) => unloadLocalLlmModel(model))
+  ipcMain.handle(IpcChannels.localLlm.applyToWorkbench, (_e, preferredModel?: string) =>
+    applyLocalLlmToWorkbench(preferredModel),
+  )
 
   ipcMain.handle(
     IpcChannels.debug.getActivity,

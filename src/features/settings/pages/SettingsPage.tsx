@@ -54,6 +54,7 @@ import { DataSourcesPanel } from '../components/DataSourcesPanel'
 import { AgentsPanel } from '../components/AgentsPanel'
 import { McpServersPanel } from '../components/McpServersPanel'
 import { ModelsApiPanel } from '../components/ModelsApiPanel'
+import { LocalModelsPanel } from '../components/LocalModelsPanel'
 import { ImageEnginesPanel } from '../components/ImageEnginesPanel'
 import { LibreOfficePanel } from '../components/LibreOfficePanel'
 import { DebugPanel } from '../components/DebugPanel'
@@ -113,6 +114,7 @@ export function SettingsPage(): React.JSX.Element {
     | 'general'
     | 'display'
     | 'models'
+    | 'localLlm'
     | 'image'
     | 'fortune'
     | 'stocks'
@@ -129,6 +131,7 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'general', labelKey: 'settings.nav.general', icon: <IconSettings /> },
     { id: 'display', labelKey: 'settings.nav.display', icon: <IconMonitor /> },
     { id: 'models', labelKey: 'settings.nav.models', icon: <IconKey /> },
+    { id: 'localLlm', labelKey: 'settings.nav.localLlm', icon: <IconDownload /> },
     { id: 'image', labelKey: 'settings.nav.image', icon: <IconImage /> },
     { id: 'fortune', labelKey: 'settings.nav.fortune', icon: <IconSparkles /> },
     { id: 'stocks', labelKey: 'settings.nav.stocks', icon: <IconStocks /> },
@@ -230,6 +233,7 @@ export function SettingsPage(): React.JSX.Element {
       'general',
       'display',
       'models',
+      'localLlm',
       'image',
       'fortune',
       'stocks',
@@ -663,7 +667,17 @@ export function SettingsPage(): React.JSX.Element {
       </div>
 
       <div className={styles.group} hidden={section !== 'models'}>
-        <ModelsApiPanel refreshKey={modelsRefreshKey} />
+        <ModelsApiPanel
+          refreshKey={modelsRefreshKey}
+          onOpenLocalLlm={() => setSection('localLlm')}
+        />
+      </div>
+
+      <div className={styles.group} hidden={section !== 'localLlm'}>
+        <LocalModelsPanel
+          onApplied={() => setModelsRefreshKey((k) => k + 1)}
+          onOpenModelsApi={() => setSection('models')}
+        />
       </div>
 
       <div className={styles.group} hidden={section !== 'image'}>

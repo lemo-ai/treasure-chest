@@ -349,3 +349,15 @@
     grid-template-columns: 1fr;
   }
 }
+
+.linkBtn {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-brand-strong);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}

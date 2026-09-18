@@ -20,9 +20,13 @@ import styles from './ModelsApiPanel.module.css'
 
 interface ModelsApiPanelProps {
   refreshKey?: number
+  onOpenLocalLlm?: () => void
 }
 
-export function ModelsApiPanel({ refreshKey = 0 }: ModelsApiPanelProps): React.JSX.Element {
+export function ModelsApiPanel({
+  refreshKey = 0,
+  onOpenLocalLlm,
+}: ModelsApiPanelProps): React.JSX.Element {
   const { t } = useTranslation()
   const [aiProviders, setAiProviders] = useState<FortuneAiProviderConfig[]>(
     DEFAULT_FORTUNE_SETTINGS.aiProviders,
@@ -269,6 +273,14 @@ export function ModelsApiPanel({ refreshKey = 0 }: ModelsApiPanelProps): React.J
       <div className={styles.head}>
         <h2 className={styles.title}>{t('settings.modelsTitle')}</h2>
         <p className={styles.desc}>{t('settings.modelsHint')}</p>
+        {onOpenLocalLlm ? (
+          <p className={styles.hint}>
+            {t('settings.modelsLocalLlmEntry')}{' '}
+            <button type="button" className={styles.linkBtn} onClick={onOpenLocalLlm}>
+              {t('settings.nav.localLlm')}
+            </button>
+          </p>
+        ) : null}
       </div>
 
       <div className={styles.section}>

@@ -395,6 +395,50 @@ const api = {
       ipcRenderer.removeListener(IpcChannels.imageTools.installProgress, handler)
     }
   },
+  getLocalLlmSnapshot: (): Promise<import('@shared').LocalLlmSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.getSnapshot),
+  openLocalLlmRuntimeInstall: (runtime?: 'ollama' | 'lmstudio'): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.openRuntimeInstall, runtime),
+  openLocalLlmLibrary: (model?: string): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.openLibrary, model),
+  openLocalLlmFamilyInstall: (
+    familyId: string,
+  ): Promise<{ ok: boolean; url?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.openFamilyInstall, familyId),
+  startLocalLlmRuntime: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.startRuntime),
+  listLocalLlmRemoteTags: (
+    ollamaModel: string,
+  ): Promise<{ ok: boolean; tags: import('@shared').LocalLlmRemoteTag[]; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.listRemoteTags, ollamaModel),
+  pullLocalLlmModel: (model: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.pullModel, model),
+  cancelLocalLlmPull: (): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.cancelPull),
+  deleteLocalLlmModel: (model: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.deleteModel, model),
+  showLocalLlmModel: (model: string): Promise<import('@shared').LocalLlmModelDetails | null> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.showModel, model),
+  unloadLocalLlmModel: (model: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.unloadModel, model),
+  applyLocalLlmToWorkbench: (
+    preferredModel?: string,
+  ): Promise<{ ok: boolean; providerId: string; model: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.localLlm.applyToWorkbench, preferredModel),
+  onLocalLlmPullProgress: (
+    callback: (payload: import('@shared').LocalLlmPullProgress) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: import('@shared').LocalLlmPullProgress,
+    ) => {
+      callback(payload)
+    }
+    ipcRenderer.on(IpcChannels.localLlm.pullProgress, handler)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.localLlm.pullProgress, handler)
+    }
+  },
   runImageSmart: (
     payload: import('@shared').ImageSmartRunRequest,
   ): Promise<import('@shared').ImageSmartRunResult> =>

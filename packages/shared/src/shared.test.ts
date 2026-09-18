@@ -5,6 +5,10 @@ import {
   hydrateLegacyMediaModels,
   isChatAiModel,
   isDirectChatAgentId,
+  localLlmFamilyById,
+  localLlmPullName,
+  localLlmTierForVersion,
+  localLlmValidateModelRef,
   parseAiModelList,
 } from '../src/index'
 
@@ -38,5 +42,24 @@ describe('ai model configs', () => {
     const dalle = hydrated.find((m) => m.id === 'dall-e-3')
     expect(dalle?.outputModalities).toContain('image')
     expect(isChatAiModel(dalle!)).toBe(false)
+  })
+})
+
+describe('local llm catalog', () => {
+  it('builds pull names and validates refs', () => {
+    const family = localLlmFamilyById('qwen25')
+    expect(family).toBeTruthy()
+    expect(localLlmPullName(family!, '7b')).toBe('qwen2.5:7b')
+    expect(localLlmPullName(family!, 'latest')).toBe('qwen2.5')
+    expect(localLlmValidateModelRef('qwen2.5:7b-instruct-q5_K_M').ok).toBe(true)
+    expect(localLlmValidateModelRef('../evil').ok).toBe(false)
+  })
+
+  it('tiers large models as avoid on 24GB hosts', () => {
+    const family = localLlmFamilyById('qwen25')!
+    const big = family.versions.find((v) => v.tag === '72b')!
+    expect(localLlmTierForVersion(big, 24)).toBe('avoid')
+    const mid = family.versions.find((v) => v.tag === '14b')!
+    expect(['recommended', 'optional', 'tight']).toContain(localLlmTierForVersion(mid, 24))
   })
 })

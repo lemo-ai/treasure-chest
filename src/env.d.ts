@@ -233,6 +233,27 @@ interface TreasureChestApi {
   onImageVisionInstallProgress: (
     callback: (payload: import('@shared').VisionInstallProgress) => void,
   ) => () => void
+  getLocalLlmSnapshot: () => Promise<import('@shared').LocalLlmSnapshot>
+  openLocalLlmRuntimeInstall: (runtime?: 'ollama' | 'lmstudio') => Promise<string>
+  openLocalLlmLibrary: (model?: string) => Promise<string>
+  openLocalLlmFamilyInstall: (
+    familyId: string,
+  ) => Promise<{ ok: boolean; url?: string; error?: string }>
+  startLocalLlmRuntime: () => Promise<{ ok: boolean; error?: string }>
+  listLocalLlmRemoteTags: (
+    ollamaModel: string,
+  ) => Promise<{ ok: boolean; tags: import('@shared').LocalLlmRemoteTag[]; error?: string }>
+  pullLocalLlmModel: (model: string) => Promise<{ ok: boolean; error?: string }>
+  cancelLocalLlmPull: () => Promise<{ ok: boolean }>
+  deleteLocalLlmModel: (model: string) => Promise<{ ok: boolean; error?: string }>
+  showLocalLlmModel: (model: string) => Promise<import('@shared').LocalLlmModelDetails | null>
+  unloadLocalLlmModel: (model: string) => Promise<{ ok: boolean; error?: string }>
+  applyLocalLlmToWorkbench: (
+    preferredModel?: string,
+  ) => Promise<{ ok: boolean; providerId: string; model: string; error?: string }>
+  onLocalLlmPullProgress: (
+    callback: (payload: import('@shared').LocalLlmPullProgress) => void,
+  ) => () => void
   runImageSmart: (
     payload: import('@shared').ImageSmartRunRequest,
   ) => Promise<import('@shared').ImageSmartRunResult>
