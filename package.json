@@ -2,7 +2,11 @@
   "name": "treasure-chest",
   "version": "0.4.0",
   "description": "袖里乾坤：本机智能体工作台（运势、股票、知识库）",
-  "homepage": "https://github.com/lemo/treasure-chest",
+  "homepage": "https://github.com/lemo-ai/treasure-chest",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lemo-ai/treasure-chest.git"
+  },
   "main": "./out/main/index.js",
   "author": "edy <edy@local>",
   "license": "UNLICENSED",

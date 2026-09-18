@@ -1,0 +1,189 @@
+# 打 tag（v*）或手动触发后，在 GitHub Actions 上多平台打包并上传到 Releases。
+# 本机无需再慢传数百 MB 安装包。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的已有 tag（如 v0.4.0）；留空则用当前默认分支 HEAD 仅作调试构建'
+        required: false
+        default: 'v0.4.0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}-${{ inputs.tag || '' }}
+  cancel-in-progress: true
+
+env:
+  # 跳过 macOS 代码签名 / 公证（无私有证书时）
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+  # electron-builder / softprops 发 Release
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.tag }}" ]]; then
+            TAG="${{ inputs.tag }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            echo "需要 push tag 或 workflow_dispatch 指定 tag" >&2
+            exit 1
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "tag 格式应为 vX.Y.Z，收到: $TAG" >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
+            || git rev-parse -q --verify "refs/tags/$TAG^{}" >/dev/null \
+            || { echo "仓库中不存在 tag $TAG" >&2; exit 1; }
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.meta.outputs.tag }}
+
+      - name: Build release notes from changelog.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          const data = JSON.parse(fs.readFileSync('config/changelog.json', 'utf8'));
+          const rel = (data.releases || []).find((r) => r.version === version);
+          const lines = [];
+          if (rel) {
+            lines.push(`## ${rel.title?.['zh-CN'] || rel.version}`, '');
+            for (const i of rel.items?.['zh-CN'] || []) lines.push(`- ${i}`);
+            lines.push('', `## ${rel.title?.['en-US'] || rel.version}`, '');
+            for (const i of rel.items?.['en-US'] || []) lines.push(`- ${i}`);
+          } else {
+            lines.push(`## ${version}`, '', '_No changelog entry found in config/changelog.json._');
+          }
+          lines.push(
+            '',
+            '### Downloads',
+            '',
+            '安装包由 GitHub Actions 自动构建并上传到本 Release 的 Assets。',
+            '',
+            '> AI 与领域分析仅供参考，不构成投资、购彩或法律建议。',
+            '',
+          );
+          fs.writeFileSync('release-notes.md', lines.join('\n'), 'utf8');
+          NODE
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+
+      - name: Ensure GitHub Release exists
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # 清理本机卡住留下的 draft，改为可下载的正式 Release
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "袖里乾坤 ${TAG}" \
+              --notes-file release-notes.md \
+              --draft=false \
+              --latest
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "袖里乾坤 ${TAG}" \
+              --notes-file release-notes.md \
+              --latest
+          fi
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: mac
+          - os: windows-latest
+            name: win
+          - os: ubuntu-22.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fakeroot dpkg rpm libopenjp2-tools
+
+      - name: Install
+        run: npm ci
+
+      - name: Build + package (macOS arm64 + x64)
+        if: matrix.name == 'mac'
+        run: |
+          npm run build
+          npx electron-builder --mac --arm64 --x64 --publish never
+
+      - name: Build + package (Windows)
+        if: matrix.name == 'win'
+        shell: bash
+        run: |
+          npm run build
+          npx electron-builder --win --x64 --publish never
+
+      - name: Build + package (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          npm run build
+          npx electron-builder --linux --x64 --publish never
+
+      - name: Upload assets to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          draft: false
+          files: |
+            release/*.dmg
+            release/*.exe
+            release/*-setup.exe
+            release/*.AppImage
+            release/*.deb
+            release/*.blockmap
+            release/latest*.yml
+            release/latest*.yaml
+          fail_on_unmatched_files: false
