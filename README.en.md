@@ -123,17 +123,19 @@ electron/           Main process: windows, IPC, modules (LLM, schedules, knowled
 src/features/       Renderer features (workbench, knowledge, schedules, tools, …)
 packages/shared/    Shared types & IPC channels
 config/             Runtime config (e.g. changelog.json)
-docs/               Design docs (mostly Chinese)
+docs/               Current design docs (legacy drafts in docs/archive)
 resources/          Icons & pack assets
 ```
 
 Theme tokens live **only** in `src/shared/styles/tokens.css`.
 
-Design docs:
+Design docs (Chinese): see [`docs/`](docs/README.md)
 
-- [Technical design](docs/技术方案.md) (Chinese)
-- [Workbench plan](docs/产品规划-2.0-智能体工作台.md) (Chinese)
-- [Knowledge design](docs/知识库技术方案.md) (Chinese)
+- [Product overview](docs/产品概述.md)
+- [Architecture](docs/架构说明.md)
+- [Agents & capabilities](docs/智能体与能力.md)
+- [Knowledge base](docs/知识库.md)
+- [Schedules & notifications](docs/调度与通知.md)
 
 ---
 

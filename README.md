@@ -123,17 +123,19 @@ electron/           主进程：窗口、IPC、业务 modules（LLM、调度、�
 src/features/       渲染层：按功能分目录（workbench、knowledge、schedules、tools…）
 packages/shared/    跨进程类型与 IPC channel
 config/             运行时配置（如 changelog.json）
-docs/               技术方案与产品规划
+docs/               现行设计文档（历史草案在 docs/archive）
 resources/          图标与打包资源
 ```
 
 主题色板**只**维护在 `src/shared/styles/tokens.css`。
 
-更完整的设计说明见：
+设计与工程文档见 [`docs/`](docs/README.md)：
 
-- [技术方案](docs/技术方案.md)
-- [智能体工作台规划](docs/产品规划-2.0-智能体工作台.md)
-- [知识库技术方案](docs/知识库技术方案.md)
+- [产品概述](docs/产品概述.md)
+- [架构说明](docs/架构说明.md)
+- [智能体与能力](docs/智能体与能力.md)
+- [知识库](docs/知识库.md)
+- [调度与通知](docs/调度与通知.md)
 
 ---
 
