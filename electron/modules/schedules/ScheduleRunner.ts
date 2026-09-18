@@ -92,6 +92,8 @@ function coverOf(task: ScheduleTask): 'fortune' | 'stocks' | 'lottery' | 'agent'
   if (task.coverPreset) return task.coverPreset
   if (task.action.type === 'fortune_notify') return 'fortune'
   if (task.action.type === 'stocks_report') return 'stocks'
+  if (task.id === 'builtin:lottery') return 'lottery'
+  if (task.action.type === 'agent_turn' && task.action.agentIds?.includes('lottery')) return 'lottery'
   return 'agent'
 }
 

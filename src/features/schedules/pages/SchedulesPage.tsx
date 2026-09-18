@@ -186,6 +186,7 @@ function actionLabel(
   if (action.type === 'fortune_notify') return t('schedules.action.fortune')
   if (action.type === 'stocks_report') return t('schedules.action.stocks')
   if (action.type === 'agent_turn') {
+    if (action.agentIds?.includes('lottery')) return t('schedules.action.lottery')
     return t('schedules.action.agent', {
       agent: resolveScheduleAgentLabel(action) || t('schedules.context.agentDirect'),
       message: action.message,
@@ -314,7 +315,10 @@ export function SchedulesPage(): React.JSX.Element {
     try {
       const editing = draft.id ? tasks.find((x) => x.id === draft.id) : null
       let action: ScheduleAction
-      if (editing?.kind === 'builtin') {
+      const lockedBuiltinAction =
+        editing?.kind === 'builtin' &&
+        (editing.action.type === 'fortune_notify' || editing.action.type === 'stocks_report')
+      if (lockedBuiltinAction) {
         action = editing.action
       } else {
         if (!draft.message.trim()) {
@@ -416,7 +420,10 @@ export function SchedulesPage(): React.JSX.Element {
     }
   }
 
-  const editingBuiltin = Boolean(draft.id && tasks.find((x) => x.id === draft.id)?.kind === 'builtin')
+  const editingTask = draft.id ? tasks.find((x) => x.id === draft.id) ?? null : null
+  const editingBuiltin = editingTask?.kind === 'builtin'
+  const showAgentFields =
+    !editingBuiltin || editingTask?.action.type === 'agent_turn'
   const draftCoverUrl =
     draft.coverImage ||
     resolveScheduleCoverUrl({
@@ -746,8 +753,11 @@ export function SchedulesPage(): React.JSX.Element {
               </section>
 
               <section className={styles.formSection}>
-                {editingBuiltin ? (
+                {editingBuiltin && !showAgentFields ? (
                   <p className={styles.hint}>{t('schedules.builtinEditHint')}</p>
+                ) : null}
+                {editingBuiltin && showAgentFields ? (
+                  <p className={styles.hint}>{t('schedules.builtinAgentEditHint')}</p>
                 ) : null}
                 <label className={styles.field}>
                   <span>{t('schedules.reportFormat')}</span>
@@ -767,7 +777,7 @@ export function SchedulesPage(): React.JSX.Element {
                 <p className={styles.hint}>{t('schedules.reportFormatHint')}</p>
               </section>
 
-              {editingBuiltin ? null : (
+              {showAgentFields ? (
                 <>
                   <section className={styles.formSection}>
                     <h3 className={styles.sectionTitle}>{t('schedules.form.prompt')}</h3>
@@ -929,7 +939,7 @@ export function SchedulesPage(): React.JSX.Element {
                     </div>
                   </section>
                 </>
-              )}
+              ) : null}
             </div>
 
             <div className={styles.dialogActions}>

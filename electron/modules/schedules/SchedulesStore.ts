@@ -1,5 +1,7 @@
 import {
   BUILTIN_FORTUNE_TASK_ID,
+  BUILTIN_LOTTERY_DATA_SOURCE_ID,
+  BUILTIN_LOTTERY_TASK_ID,
   BUILTIN_STOCKS_TASK_ID,
   hourMinuteFromRecurrence,
   normalizeScheduleRecurrence,
@@ -19,9 +21,10 @@ const RUN_STATE_KEY = 'schedules.runState'
 const REMOVED_BUILTINS_KEY = 'schedules.removedBuiltins'
 const MIGRATED_KEY = 'schedules.migrated.v1'
 const RECURRENCE_MIGRATED_KEY = 'schedules.migrated.recurrence.v2'
-/** One-time strip of removed lottery_sync / builtin:lottery schedule tasks. */
-const LOTTERY_REMOVED_KEY = 'schedules.migrated.lotteryRemoved.v1'
-const LEGACY_LOTTERY_TASK_ID = 'builtin:lottery'
+/** Strip obsolete lottery_sync action rows (specialized module removed). */
+const LOTTERY_SYNC_STRIPPED_KEY = 'schedules.migrated.lotterySyncStripped.v1'
+/** Seed/reseed builtin:lottery as agent_turn after lottery_sync removal. */
+const LOTTERY_AGENT_TASK_SEED_KEY = 'schedules.migrated.lotteryAgentTask.v1'
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -138,6 +141,49 @@ function writeRunState(state: Record<string, ScheduleRunState>): void {
   setSetting(RUN_STATE_KEY, state)
 }
 
+function defaultLotteryBuiltinTask(stamp: string, en: boolean): ScheduleTask {
+  const hour = 12
+  const message = en
+    ? [
+        'Run today’s sports-lottery data maintenance and brief:',
+        '1) Use crawl_url on public JCZQ/BJDC pages (e.g. okooo) and upsert into data source builtin:lottery-sqlite table matches (columns: date, product, home, away, score, odds_json, source_url, synced_at).',
+        '2) query_data_source to summarize today’s / recent matches and odds moves.',
+        '3) Write a short research brief only — not betting advice.',
+      ].join('\n')
+    : [
+        '请执行今日体彩数据维护与简报：',
+        '1) 用 crawl_url 抓取公开竞彩/北单页（如澳客），按技能写入数据源 builtin:lottery-sqlite 的 matches 表（列：date, product, home, away, score, odds_json, source_url, synced_at）；',
+        '2) 用 query_data_source 汇总今日/近几日赛事与赔率变化；',
+        '3) 输出简短研究简报（非购彩建议）。',
+      ].join('\n')
+  return {
+    id: BUILTIN_LOTTERY_TASK_ID,
+    kind: 'builtin',
+    enabled: true,
+    title: en ? 'Sports lottery daily brief' : '体彩每日同步与简报',
+    hour,
+    minute: 0,
+    recurrence: { type: 'daily', hour, minute: 0 },
+    action: {
+      type: 'agent_turn',
+      agentIds: ['lottery'],
+      agentNames: [en ? 'Sports Lottery Analyst' : '体彩参谋'],
+      message,
+      notifyOnComplete: true,
+      runContext: {
+        skillIds: ['sports_lottery_ds'],
+        dataSourceIds: [BUILTIN_LOTTERY_DATA_SOURCE_ID],
+        enableWebSearch: true,
+        notify: { workbench: true, desktop: true },
+      },
+    },
+    coverPreset: 'lottery',
+    reportFormat: 'markdown',
+    createdAt: stamp,
+    updatedAt: stamp,
+  }
+}
+
 function defaultBuiltinTasks(): ScheduleTask[] {
   const notifications = settingsStore.getNotifications()
   const stocks = settingsStore.getStocksSettings()
@@ -175,12 +221,14 @@ function defaultBuiltinTasks(): ScheduleTask[] {
       createdAt: stamp,
       updatedAt: stamp,
     },
+    defaultLotteryBuiltinTask(stamp, en),
   ]
 }
 
 function defaultCoverPreset(action: ScheduleTask['action']): ScheduleTask['coverPreset'] {
   if (action.type === 'fortune_notify') return 'fortune'
   if (action.type === 'stocks_report') return 'stocks'
+  if (action.type === 'agent_turn' && action.agentIds?.includes('lottery')) return 'lottery'
   return 'agent'
 }
 
@@ -236,11 +284,11 @@ export function migrateSchedulesFromSettings(): void {
     setSetting(RECURRENCE_MIGRATED_KEY, true)
     logger.info('schedules: migrated recurrence shapes')
   }
-  if (!getSetting<boolean>(LOTTERY_REMOVED_KEY, false)) {
+  if (!getSetting<boolean>(LOTTERY_SYNC_STRIPPED_KEY, false)) {
     const before = readTasks()
     const next = before.filter((t) => {
       const actionType = (t.action as { type?: string } | undefined)?.type
-      return actionType !== 'lottery_sync' && t.id !== LEGACY_LOTTERY_TASK_ID
+      return actionType !== 'lottery_sync'
     })
     if (next.length !== before.length) {
       writeTasks(next)
@@ -254,9 +302,21 @@ export function migrateSchedulesFromSettings(): void {
         }
       }
       if (stateChanged) writeRunState(state)
-      logger.info('schedules: removed legacy lottery_sync / builtin:lottery tasks')
+      logger.info('schedules: stripped legacy lottery_sync action tasks')
     }
-    setSetting(LOTTERY_REMOVED_KEY, true)
+    setSetting(LOTTERY_SYNC_STRIPPED_KEY, true)
+  }
+  if (!getSetting<boolean>(LOTTERY_AGENT_TASK_SEED_KEY, false)) {
+    const removed = new Set(readRemovedBuiltins())
+    const tasks = readTasks()
+    const hasLottery = tasks.some((t) => t.id === BUILTIN_LOTTERY_TASK_ID)
+    if (!hasLottery && !removed.has(BUILTIN_LOTTERY_TASK_ID)) {
+      const locale = settingsStore.getLocale()
+      const en = locale.toLowerCase().startsWith('en')
+      writeTasks([...tasks, defaultLotteryBuiltinTask(nowIso(), en)])
+      logger.info('schedules: seeded builtin lottery agent_turn task')
+    }
+    setSetting(LOTTERY_AGENT_TASK_SEED_KEY, true)
   }
 }
 
@@ -394,10 +454,15 @@ export function upsertScheduleTask(input: UpsertScheduleTaskInput): ScheduleTask
       hour: hm.hour,
       minute: hm.minute,
       recurrence,
-      action: prev.kind === 'builtin' ? prev.action : action,
       updatedAt: stamp,
+      action: prev.action,
     }
-    if (prev.kind === 'custom') next.action = action
+    // Fortune/stocks builtins keep a fixed action; agent_turn builtins (e.g. lottery) can edit prompt/tools.
+    if (prev.kind === 'custom') {
+      next.action = action
+    } else if (prev.action.type === 'agent_turn' && action.type === 'agent_turn') {
+      next.action = action
+    }
     if (input.coverImage !== undefined) {
       next.coverImage = coverImage
       next.coverPreset = coverImage ? 'custom' : input.coverPreset || defaultCoverPreset(next.action)

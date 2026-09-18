@@ -123,6 +123,8 @@ export interface UpsertScheduleTaskInput {
 
 export const BUILTIN_FORTUNE_TASK_ID = 'builtin:fortune'
 export const BUILTIN_STOCKS_TASK_ID = 'builtin:stocks'
+/** Preset sports-lottery agent_turn (crawl + builtin SQLite), not a dedicated sync action. */
+export const BUILTIN_LOTTERY_TASK_ID = 'builtin:lottery'
 
 export function normalizeScheduleRecurrence(
   recurrence: ScheduleRecurrence | 'daily' | undefined,

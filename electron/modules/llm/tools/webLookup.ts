@@ -2,6 +2,7 @@ import { logger } from '../../../utils/logger'
 
 const FETCH_HEADERS = {
   Accept: 'application/json, text/xml, text/html;q=0.8, */*',
+  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.5',
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
 }
@@ -233,16 +234,179 @@ function decodeXml(s: string): string {
     .replace(/&#39;/g, "'")
 }
 
+type WebHit = { title: string; url: string; source: string; snippet?: string }
+
+function stripHtml(s: string): string {
+  return decodeXml(s)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function absolutizeUrl(href: string, base: string): string | null {
+  const raw = decodeXml(href).trim()
+  if (!raw || raw.startsWith('javascript:') || raw.startsWith('#')) return null
+  try {
+    const u = new URL(raw, base)
+    if (!/^https?:$/i.test(u.protocol)) return null
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+/** Generic SERP link scrape — prefers h2/h3>a, falls back to titled anchors. */
+function parseSerpLinks(html: string, base: string, source: string, limit = 10): WebHit[] {
+  const out: WebHit[] = []
+  const seen = new Set<string>()
+  const patterns = [
+    /<h[23][^>]*>\s*<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    /<a[^>]+href=["']([^"']+)["'][^>]*>\s*<h[23][^>]*>([\s\S]*?)<\/h[23]>\s*<\/a>/gi,
+    /<a[^>]+href=["']([^"']+)["'][^>]*(?:data-click|data-module|target=["']_blank["'])[^>]*>([\s\S]*?)<\/a>/gi,
+  ]
+  for (const re of patterns) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html)) && out.length < limit) {
+      const url = absolutizeUrl(m[1] || '', base)
+      const title = stripHtml(m[2] || '')
+      if (!url || !title || title.length < 2) continue
+      // Skip engine chrome / search-page self links (keep redirect wrappers).
+      try {
+        const host = new URL(url).hostname
+        if (
+          (/baidu\.com$/i.test(host) && /\/s\?/i.test(url)) ||
+          (/sogou\.com$/i.test(host) && /\/web\?/i.test(url)) ||
+          (/so\.com$/i.test(host) && /\/s\?/i.test(url)) ||
+          (/bing\.com$/i.test(host) && /\/(search|news\/search)\?/i.test(url))
+        ) {
+          continue
+        }
+      } catch {
+        continue
+      }
+      if (seen.has(title) || seen.has(url)) continue
+      seen.add(title)
+      seen.add(url)
+      out.push({ title, url, source })
+    }
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/** Baidu often exposes the real destination in `mu="https://..."`. */
+function parseBaiduMuLinks(html: string, source: string, limit = 10): WebHit[] {
+  const out: WebHit[] = []
+  const seen = new Set<string>()
+  const re =
+    /mu=["'](https?:\/\/[^"']+)["'][\s\S]{0,800}?<(?:h3|h2)[^>]*>\s*<a[^>]*>([\s\S]*?)<\/a>/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) && out.length < limit) {
+    const url = decodeXml(m[1] || '').trim()
+    const title = stripHtml(m[2] || '')
+    if (!url || !title || title.length < 2) continue
+    if (seen.has(title) || seen.has(url)) continue
+    seen.add(title)
+    seen.add(url)
+    out.push({ title, url, source })
+  }
+  return out
+}
+
+function parseDdgHtml(html: string): WebHit[] {
+  const out: WebHit[] = []
+  const re = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) && out.length < 10) {
+    const href = decodeXml(m[1] || '').trim()
+    const title = stripHtml(m[2] || '')
+    if (!title || !href) continue
+    let url = href
+    const uddg = href.match(/[?&]uddg=([^&]+)/)
+    if (uddg?.[1]) {
+      try {
+        url = decodeURIComponent(uddg[1])
+      } catch {
+        /* keep */
+      }
+    }
+    if (!/^https?:\/\//i.test(url)) continue
+    out.push({ title, url, source: 'duckduckgo' })
+  }
+  return out
+}
+
+async function searchBaiduWeb(query: string): Promise<WebHit[]> {
+  const url = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`
+  const html = await fetchText(url, 16_000)
+  const mu = parseBaiduMuLinks(html, 'baidu', 10)
+  if (mu.length) return mu
+  return parseSerpLinks(html, 'https://www.baidu.com/', 'baidu', 10)
+}
+
+async function searchBaiduNews(query: string): Promise<WebHit[]> {
+  const url = `https://www.baidu.com/s?tn=news&word=${encodeURIComponent(query)}&rn=10`
+  const html = await fetchText(url, 16_000)
+  const mu = parseBaiduMuLinks(html, 'baidu-news', 10)
+  if (mu.length) return mu
+  return parseSerpLinks(html, 'https://www.baidu.com/', 'baidu-news', 10)
+}
+
+async function searchSogouWeb(query: string): Promise<WebHit[]> {
+  const url = `https://www.sogou.com/web?query=${encodeURIComponent(query)}`
+  const html = await fetchText(url, 16_000)
+  return parseSerpLinks(html, 'https://www.sogou.com/', 'sogou', 10)
+}
+
+async function searchSo360Web(query: string): Promise<WebHit[]> {
+  const url = `https://www.so.com/s?q=${encodeURIComponent(query)}`
+  const html = await fetchText(url, 16_000)
+  return parseSerpLinks(html, 'https://www.so.com/', 'so360', 8)
+}
+
+async function searchCnBingNews(query: string): Promise<WebHit[]> {
+  // cn.bing RSS often returns HTML interstitial nowadays — scrape HTML instead.
+  const url = `https://cn.bing.com/news/search?q=${encodeURIComponent(query)}`
+  const html = await fetchText(url, 16_000)
+  const fromHtml = parseSerpLinks(html, 'https://cn.bing.com/', 'cn-bing-news', 8)
+  if (fromHtml.length) return fromHtml
+  try {
+    const xml = await fetchText(
+      `https://cn.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`,
+      12_000,
+    )
+    if (xml.includes('<item>')) {
+      return parseRssItems(xml, 8).map((x) => ({ ...x, source: 'cn-bing-news' }))
+    }
+  } catch {
+    /* ignore */
+  }
+  return []
+}
+
+async function searchCnBingWeb(query: string): Promise<WebHit[]> {
+  const url = `https://cn.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-CN`
+  const html = await fetchText(url, 16_000)
+  return parseSerpLinks(html, 'https://cn.bing.com/', 'cn-bing', 8)
+}
+
+async function searchToutiao(query: string): Promise<WebHit[]> {
+  const url = `https://so.toutiao.com/search?keyword=${encodeURIComponent(query)}`
+  const html = await fetchText(url, 16_000)
+  return parseSerpLinks(html, 'https://so.toutiao.com/', 'toutiao', 8)
+}
+
 export async function searchWeb(query: string): Promise<string> {
   const q = query.trim()
   if (!q) return JSON.stringify({ error: 'query required' })
 
-  const wikiLangs = /[\u4e00-\u9fff]/.test(q) ? (['zh', 'en'] as const) : (['en', 'zh'] as const)
-  const newsHl = wikiLangs[0] === 'zh' ? 'zh-CN' : 'en-US'
-  const newsGl = wikiLangs[0] === 'zh' ? 'CN' : 'US'
-  const newsCeid = wikiLangs[0] === 'zh' ? 'CN:zh-Hans' : 'US:en'
+  const isZh = /[\u4e00-\u9fff]/.test(q)
+  const wikiLangs = isZh ? (['zh', 'en'] as const) : (['en', 'zh'] as const)
+  const newsHl = isZh ? 'zh-CN' : 'en-US'
+  const newsGl = isZh ? 'CN' : 'US'
+  const newsCeid = isZh ? 'CN:zh-Hans' : 'US:en'
   const newsQueries = [q]
-  if (/[\u4e00-\u9fff]/.test(q) && !/上市|股票|IPO|竞彩|北单|足球/i.test(q)) {
+  if (isZh && !/上市|股票|IPO|竞彩|北单|足球/i.test(q)) {
     newsQueries.push(`${q} 上市 股票代码`)
   }
   if (/竞彩|北单|足球|让球|赔率/i.test(q)) {
@@ -250,34 +414,16 @@ export async function searchWeb(query: string): Promise<string> {
   }
 
   const wikiHits: Array<{ title: string; url: string; snippet: string; source: string }> = []
-  const newsHits: Array<{ title: string; url: string; source: string; snippet?: string }> = []
+  const newsHits: WebHit[] = []
   const errors: string[] = []
 
-  const parseDdgHtml = (html: string): Array<{ title: string; url: string; source: string; snippet?: string }> => {
-    const out: Array<{ title: string; url: string; source: string; snippet?: string }> = []
-    const re =
-      /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
-    let m: RegExpExecArray | null
-    while ((m = re.exec(html)) && out.length < 10) {
-      const href = decodeXml(m[1] || '').trim()
-      const title = decodeXml(m[2] || '')
-        .replace(/<[^>]+>/g, '')
-        .trim()
-      if (!title || !href) continue
-      // DuckDuckGo redirect links
-      let url = href
-      const uddg = href.match(/[?&]uddg=([^&]+)/)
-      if (uddg?.[1]) {
-        try {
-          url = decodeURIComponent(uddg[1])
-        } catch {
-          /* keep */
-        }
-      }
-      if (!/^https?:\/\//i.test(url)) continue
-      out.push({ title, url, source: 'duckduckgo' })
+  const run = async (label: string, fn: () => Promise<WebHit[]>): Promise<void> => {
+    try {
+      newsHits.push(...(await fn()))
+    } catch (err) {
+      errors.push(`${label}:${err instanceof Error ? err.message : String(err)}`)
+      logger.warn(`${label} search failed`, err)
     }
-    return out
   }
 
   await Promise.all([
@@ -306,60 +452,75 @@ export async function searchWeb(query: string): Promise<string> {
         }
       }
     })(),
+    // Domestic-first sources (much more reliable in CN networks).
+    run('baidu', () => searchBaiduWeb(q)),
+    run('baidu-news', () => searchBaiduNews(q)),
+    run('sogou', () => searchSogouWeb(q)),
+    run('so360', () => searchSo360Web(q)),
+    run('toutiao', () => searchToutiao(q)),
+    run('cn-bing', () => searchCnBingWeb(q)),
+    ...newsQueries.map((nq) => run(`cn-bing-news:${nq}`, () => searchCnBingNews(nq))),
+    // International fallbacks.
     ...newsQueries.flatMap((nq) => [
-      (async () => {
-        try {
-          const url = `https://www.bing.com/news/search?q=${encodeURIComponent(nq)}&format=rss`
-          const xml = await fetchText(url, 18_000)
-          newsHits.push(...parseRssItems(xml, 8).map((x) => ({ ...x, source: 'bing-news' })))
-        } catch (err) {
-          errors.push(`bing:${err instanceof Error ? err.message : String(err)}`)
-          logger.warn('bing news search failed', err)
-        }
-      })(),
-      (async () => {
-        try {
-          const url = `https://news.google.com/rss/search?q=${encodeURIComponent(nq)}&hl=${newsHl}&gl=${newsGl}&ceid=${newsCeid}`
-          const xml = await fetchText(url, 18_000)
-          newsHits.push(...parseRssItems(xml, 8).map((x) => ({ ...x, source: 'google-news' })))
-        } catch (err) {
-          errors.push(`google-news:${err instanceof Error ? err.message : String(err)}`)
-          logger.warn('google news search failed', err)
-        }
-      })(),
-    ]),
-    (async () => {
-      try {
-        const html = await fetchText(
-          `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
-          20_000,
+      run(`bing:${nq}`, async () => {
+        const xml = await fetchText(
+          `https://www.bing.com/news/search?q=${encodeURIComponent(nq)}&format=rss`,
+          14_000,
         )
-        newsHits.push(...parseDdgHtml(html))
-      } catch (err) {
-        errors.push(`duckduckgo:${err instanceof Error ? err.message : String(err)}`)
-        logger.warn('duckduckgo search failed', err)
-      }
-    })(),
+        if (!xml.includes('<item>')) return []
+        return parseRssItems(xml, 6).map((x) => ({ ...x, source: 'bing-news' }))
+      }),
+      run(`google-news:${nq}`, async () => {
+        const xml = await fetchText(
+          `https://news.google.com/rss/search?q=${encodeURIComponent(nq)}&hl=${newsHl}&gl=${newsGl}&ceid=${newsCeid}`,
+          14_000,
+        )
+        if (!xml.includes('<item>')) return []
+        return parseRssItems(xml, 6).map((x) => ({ ...x, source: 'google-news' }))
+      }),
+    ]),
+    run('duckduckgo', async () => {
+      const html = await fetchText(
+        `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
+        16_000,
+      )
+      return parseDdgHtml(html)
+    }),
   ])
 
+  const cnSources = new Set([
+    'baidu',
+    'baidu-news',
+    'sogou',
+    'so360',
+    'toutiao',
+    'cn-bing',
+    'cn-bing-news',
+  ])
   const seenNews = new Set<string>()
-  const dedupNews = newsHits.filter((n) => {
-    const key = n.title.trim()
-    if (!key || seenNews.has(key)) return false
-    seenNews.add(key)
-    return true
-  })
+  const dedupNews = newsHits
+    .sort((a, b) => {
+      const aCn = cnSources.has(a.source) || a.source.startsWith('cn-bing') ? 0 : 1
+      const bCn = cnSources.has(b.source) || b.source.startsWith('cn-bing') ? 0 : 1
+      return aCn - bCn
+    })
+    .filter((n) => {
+      const key = n.title.trim()
+      if (!key || seenNews.has(key)) return false
+      seenNews.add(key)
+      return true
+    })
 
   return JSON.stringify({
     query: q,
     retrievedAt: new Date().toISOString(),
-    news: dedupNews.slice(0, 18),
+    news: dedupNews.slice(0, 20),
     wikipedia: wikiHits.slice(0, 4),
-    lookupErrors: errors.length ? errors.slice(0, 6) : undefined,
+    lookupErrors: errors.length ? errors.slice(0, 8) : undefined,
     note:
       dedupNews.length === 0
         ? 'Search returned few/no headlines. Retry search_web with different keywords, then crawl_url / fetch_url on concrete article URLs. Empty search ≠ no data online.'
-        : 'Prefer crawl_url/fetch_url on the most relevant URLs before analyzing. Cite titles. Do not invent article content.',
+        : 'Results prefer CN sources (Baidu / Sogou / 360 / Toutiao / cn.bing) when available. Prefer crawl_url/fetch_url on the most relevant URLs before analyzing. Cite titles. Do not invent article content.',
   })
 }
 

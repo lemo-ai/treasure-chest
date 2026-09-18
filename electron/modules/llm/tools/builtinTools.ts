@@ -122,7 +122,7 @@ const webSearchTool: LlmToolSpec = {
   function: {
     name: 'search_web',
     description:
-      'Live web search (Bing News + Google News + Wikipedia). MUST call for current events, IPO/listing status, prices, company news, or anything after your training cutoff. You may call it in parallel with search_stock. Do not answer listing/price questions from memory.',
+      'Live web search. Prefers China-reachable sources (Baidu / Sogou / 360 / Toutiao / cn.bing), with Bing/Google/DuckDuckGo as fallback, plus Wikipedia. MUST call for current events, IPO/listing status, prices, company news, or anything after your training cutoff. You may call it in parallel with search_stock. Do not answer listing/price questions from memory.',
     parameters: {
       type: 'object',
       properties: {
