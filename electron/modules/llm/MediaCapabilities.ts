@@ -140,8 +140,13 @@ export function assessMediaCapabilities(settings: FortuneSettings): MediaCapabil
     switch (musicProvider.id) {
       case 'minimax':
         return make('music', 'yes', 'minimax_music')
-      case 'dashscope':
+      case 'dashscope': {
+        const musicModel = (endpoint.musicModel || '').trim()
+        if (/fun-music/i.test(musicModel)) {
+          return make('music', 'yes', 'dashscope_fun_music')
+        }
         return make('music', 'maybe', 'dashscope_audio')
+      }
       case 'none':
         return make('music', 'no', 'media_disabled')
       default:

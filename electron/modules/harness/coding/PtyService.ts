@@ -1,5 +1,5 @@
 import { logger } from '../../../utils/logger'
-import { getSandboxRoot } from './Sandbox'
+import { getConfiguredSandboxRoot } from './Sandbox'
 import { getActiveSshSandboxConfig } from './RemoteSandbox'
 import { getActiveContainerSandboxConfig } from './ContainerSandbox'
 
@@ -140,7 +140,10 @@ export function createPtySession(
     return { id, cwd: remotePath, pid: proc.pid, remote: true, backend: 'ssh' }
   }
 
-  const workdir = cwd?.trim() || getSandboxRoot()
+  const workdir = cwd?.trim() || getConfiguredSandboxRoot()
+  if (!workdir) {
+    throw new Error('No coding project selected. Open a project folder first.')
+  }
   const shell = shellCommand()
   const proc = spawnPty(shell, [], { cols, rows, cwd: workdir })
   proc.onData((data) => onData(id, data))

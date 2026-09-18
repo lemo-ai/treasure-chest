@@ -22,33 +22,34 @@ export function resolveAgentToolPolicy(
   overrides: AgentToolPolicyOverrides = {},
 ): AgentToolPolicy {
   const id = (agentId || 'direct').trim()
+
+  let policy: AgentToolPolicy
   if (isDirectChatAgentId(id)) {
-    return {
+    // Workbench direct chat = Cursor-style coding agent by default.
+    policy = {
+      enableCodingTools: true,
+      enableHarnessTools: true,
+      enablePluginTools: true,
+      enableSpawnSubagent: true,
+      enableMcpTools: true,
+    }
+  } else if (id === 'fortune' || id === 'stocks') {
+    policy = {
       enableCodingTools: false,
       enableHarnessTools: false,
       enablePluginTools: false,
       enableSpawnSubagent: false,
       enableMcpTools: false,
     }
-  }
-
-  const isDomainBuiltin = id === 'fortune' || id === 'stocks'
-  const isCustom = id.startsWith('custom_')
-
-  const policy: AgentToolPolicy = {
-    enableCodingTools: isCustom,
-    enableHarnessTools: isCustom,
-    enablePluginTools: isCustom,
-    enableSpawnSubagent: isCustom,
-    enableMcpTools: isCustom,
-  }
-
-  if (isDomainBuiltin) {
-    policy.enableCodingTools = false
-    policy.enableHarnessTools = false
-    policy.enablePluginTools = false
-    policy.enableSpawnSubagent = false
-    policy.enableMcpTools = false
+  } else {
+    const isCustom = id.startsWith('custom_')
+    policy = {
+      enableCodingTools: isCustom,
+      enableHarnessTools: isCustom,
+      enablePluginTools: isCustom,
+      enableSpawnSubagent: isCustom,
+      enableMcpTools: isCustom,
+    }
   }
 
   if (overrides.enableCodingTools !== undefined) policy.enableCodingTools = overrides.enableCodingTools

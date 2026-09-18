@@ -120,6 +120,7 @@ interface TreasureChestApi {
   harnessGetSandboxRoot: () => Promise<string>
   harnessSetSandboxRoot: (path: string) => Promise<string>
   harnessPickSandboxRoot: () => Promise<string | null>
+  harnessClearSandboxRoot: () => Promise<string>
   harnessGetPluginsDir: () => Promise<string>
   harnessGetDiagnostics: (path?: string) => Promise<import('@shared').SandboxDiagnostic[]>
   harnessListPluginCatalog: () => Promise<import('@shared').HarnessPluginCatalogEntry[]>

@@ -265,6 +265,8 @@ const api = {
     ipcRenderer.invoke(IpcChannels.harness.setSandboxRoot, path),
   harnessPickSandboxRoot: (): Promise<string | null> =>
     ipcRenderer.invoke(IpcChannels.harness.pickSandboxRoot),
+  harnessClearSandboxRoot: (): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.harness.clearSandboxRoot),
   harnessGetPluginsDir: (): Promise<string> => ipcRenderer.invoke(IpcChannels.harness.getPluginsDir),
   harnessGetDiagnostics: (path?: string): Promise<import('@shared').SandboxDiagnostic[]> =>
     ipcRenderer.invoke(IpcChannels.harness.getDiagnostics, path),

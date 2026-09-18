@@ -36,6 +36,19 @@ import {
 
 const activeChunkPending = new Map<string, { text: string }>()
 
+/** If the model forgot to paste media markdown from tools, append it. */
+function withEnsuredMediaMarkdown(text: string, snippets: string[]): string {
+  if (!snippets.length) return text
+  const missing = snippets.filter((md) => {
+    const url =
+      md.match(/\((https?:\/\/[^)\s]+|data:[^)\s]+)\)/)?.[1] || md.match(/src="([^"]+)"/)?.[1]
+    if (url) return !text.includes(url)
+    return !text.includes(md.slice(0, Math.min(48, md.length)))
+  })
+  if (!missing.length) return text
+  return [text.trim(), ...missing].filter(Boolean).join('\n\n')
+}
+
 type ApprovalHandler = (request: ToolApprovalRequest) => Promise<boolean>
 
 export interface AgentLoopCallbacks {
@@ -179,7 +192,8 @@ async function runAgentTurnInner(
   const citations: KnowledgeCitation[] = []
 
   const toolPolicy = resolveAgentToolPolicy(req.agentId || 'direct', {
-    enableCodingTools: config.enableCodingTools ? req.enableCodingTools : false,
+    // Global harness kill-switch; undefined request flag keeps agent policy default.
+    enableCodingTools: config.enableCodingTools === false ? false : req.enableCodingTools,
     enableHarnessTools: req.enableHarnessTools,
     enablePluginTools: req.enablePluginTools ?? getCordisStack().enablePluginTools,
     enableSpawnSubagent: req.enableSpawnSubagent,
@@ -278,6 +292,7 @@ async function runAgentTurnInner(
   let lastModel = model
   let lastProvider = endpoint.providerName
   const maxSteps = effectiveMaxSteps(config)
+  const mediaMarkdownSnippets: string[] = []
   const chunkPending = { text: '' }
   if (sessionId) activeChunkPending.set(sessionId, chunkPending)
   const streamDelta = (delta: string): void => {
@@ -337,7 +352,11 @@ async function runAgentTurnInner(
 
     const calls = result.toolCalls ?? []
     if (!calls.length) {
-      finalText = result.text?.trim() ?? ''
+      const rawText = result.text?.trim() ?? ''
+      finalText = withEnsuredMediaMarkdown(rawText, mediaMarkdownSnippets)
+      if (finalText.length > rawText.length) {
+        streamDelta(finalText.slice(rawText.length))
+      }
       if (sessionId) flushAssistantChunk(sessionId, chunkPending, callbacks)
       if (sessionId && finalText) {
         if (!directChat) {
@@ -566,6 +585,18 @@ async function runAgentTurnInner(
           })
           output = exec.output
           failed = exec.failed
+          if (
+            !failed &&
+            (name === 'generate_image' || name === 'generate_video' || name === 'generate_music')
+          ) {
+            try {
+              const parsed = JSON.parse(output) as { markdown?: string }
+              const md = parsed.markdown?.trim()
+              if (md) mediaMarkdownSnippets.push(md)
+            } catch {
+              /* ignore */
+            }
+          }
           if (sessionId) {
             const post = await runToolPostExecuteHooks({
               sessionId,
@@ -660,8 +691,12 @@ async function runAgentTurnInner(
   if (!streamed.ok && isTurnCancelled(abortSignal)) throw new TurnCancelledError()
   if (sessionId) flushAssistantChunk(sessionId, chunkPending, callbacks)
 
-  if (streamed.ok && streamed.text?.trim()) {
-    finalText = streamed.text.trim()
+  if (streamed.ok && (streamed.text?.trim() || mediaMarkdownSnippets.length)) {
+    const rawText = streamed.text?.trim() ?? ''
+    finalText = withEnsuredMediaMarkdown(rawText, mediaMarkdownSnippets)
+    if (finalText.length > rawText.length) {
+      streamDelta(finalText.slice(rawText.length))
+    }
     if (sessionId) {
       if (!directChat) {
         const stop = await runTurnStoppingHooks({

@@ -8,18 +8,31 @@ export function agentChatToolFlags(
   directMode: boolean,
 ): Pick<
   LlmChatRequest,
-  'enableCodingTools' | 'enablePluginTools' | 'enableSpawnSubagent' | 'enableMcpTools' | 'enabledMcpServerIds'
+  | 'enableCodingTools'
+  | 'enableHarnessTools'
+  | 'enablePluginTools'
+  | 'enableSpawnSubagent'
+  | 'enableMcpTools'
+  | 'enabledMcpServerIds'
 > {
   if (directMode || isDirectChatId(String(agentDef.id))) {
-    return {}
+    return {
+      enableCodingTools: true,
+      enableHarnessTools: true,
+      enablePluginTools: true,
+      enableSpawnSubagent: true,
+      enableMcpTools: true,
+    }
   }
   if (agentDef.builtin) {
-    return { enableMcpTools: false }
+    return { enableMcpTools: false, enableCodingTools: false }
   }
   return {
     enabledMcpServerIds: agentDef.enabledMcpServerIds,
     enableCodingTools: agentDef.enableCodingTools !== false,
+    enableHarnessTools: true,
     enablePluginTools: agentDef.enablePluginTools !== false,
     enableSpawnSubagent: agentDef.enableSpawnSubagent !== false,
+    enableMcpTools: true,
   }
 }

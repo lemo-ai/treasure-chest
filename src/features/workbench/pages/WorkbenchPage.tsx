@@ -7,6 +7,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClose,
+  IconFolder,
   IconGrid,
   IconGlobe,
   IconImage,
@@ -264,6 +265,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const [aiBaseUrl, setAiBaseUrl] = useState('')
   const [hasApiKey, setHasApiKey] = useState(false)
   const [mediaCaps, setMediaCaps] = useState<MediaCapabilitiesSnapshot | null>(null)
+  const [projectRoot, setProjectRoot] = useState('')
   const [capOptions, setCapOptions] = useState<CapOptionValues>({ ...DEFAULT_CAP_OPTIONS })
   const [streamingSessions, setStreamingSessions] = useState<Record<string, true>>({})
   const streamingSessionsRef = useRef<Record<string, true>>({})
@@ -501,6 +503,7 @@ export function WorkbenchPage(): React.JSX.Element {
         applyAiSettings(snap.fortune)
       })
       void window.treasureChest.getMediaCapabilities().then(setMediaCaps)
+      void window.treasureChest.harnessGetSandboxRoot().then(setProjectRoot).catch(() => setProjectRoot(''))
     }
 
     loadAi()
@@ -508,6 +511,40 @@ export function WorkbenchPage(): React.JSX.Element {
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [])
+
+  const projectName = useMemo(() => {
+    const raw = projectRoot.trim()
+    if (!raw) return ''
+    const parts = raw.replace(/\\/g, '/').split('/').filter(Boolean)
+    return parts[parts.length - 1] || raw
+  }, [projectRoot])
+
+  const onPickProject = (): void => {
+    void window.treasureChest.harnessPickSandboxRoot().then((path) => {
+      if (!path) return
+      setProjectRoot(path)
+      void (async () => {
+        const sessionId = await ensureSession(activeAgent)
+        appendMessage(
+          sessionId,
+          'system',
+          t('workbench.projectSwitched', { name: path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || path, path }),
+        )
+        refreshForSession(sessionId)
+      })()
+    })
+  }
+
+  const onClearProject = (): void => {
+    void window.treasureChest.harnessClearSandboxRoot().then(() => {
+      setProjectRoot('')
+      void (async () => {
+        const sessionId = await ensureSession(activeAgent)
+        appendMessage(sessionId, 'system', t('workbench.projectCleared'))
+        refreshForSession(sessionId)
+      })()
+    })
+  }
 
   useEffect(() => {
     void hydrateSessionStore().then(() => {
@@ -973,19 +1010,9 @@ export function WorkbenchPage(): React.JSX.Element {
     }
     let mediaModel = selectedModel
     let effectiveCap = activeCap
-    // If user asks to generate an image in plain chat, route like ChatGPT (don't require chip).
-    if (
-      !effectiveCap &&
-      /(?:生成|画|绘制|做一?[张幅]|generate|draw|paint).{0,20}(?:图|图片|插画|image|photo|狗|猫|人像)/i.test(
-        content,
-      )
-    ) {
-      const routed = await resolveMediaModelOrExplain('image')
-      if (routed) {
-        effectiveCap = 'image'
-        mediaModel = routed
-      }
-    } else if (effectiveCap === 'image' || effectiveCap === 'video' || effectiveCap === 'music') {
+    // Explicit capability chips still short-circuit to dedicated media APIs.
+    // Plain chat relies on agent tools (generate_image / generate_video / generate_music).
+    if (effectiveCap === 'image' || effectiveCap === 'video' || effectiveCap === 'music') {
       const routed = await resolveMediaModelOrExplain(effectiveCap)
       if (!routed) return
       mediaModel = routed
@@ -1276,9 +1303,6 @@ export function WorkbenchPage(): React.JSX.Element {
       if (mediaLevelOf('transcribe') === 'no') {
         explainMediaCap('transcribe')
         return
-      }
-      if (mediaLevelOf('transcribe') === 'maybe') {
-        explainMediaCap('transcribe')
       }
       const sessionId = await ensureSession(activeAgent)
       appendMessage(sessionId, 'system', t('workbench.transcribePickHint'))
@@ -1613,7 +1637,6 @@ export function WorkbenchPage(): React.JSX.Element {
   const renderCapButton = (cap: WorkbenchCapability, compact = false): ReactNode => {
     const mediaLevel = mediaLevelOf(cap.id)
     const unavailable = mediaLevel === 'no'
-    const uncertain = mediaLevel === 'maybe'
     const webActive = cap.id === 'websearch' ? enableWebSearch : activeCap === cap.id
     const title =
       cap.id === 'websearch'
@@ -1622,18 +1645,16 @@ export function WorkbenchPage(): React.JSX.Element {
           : t('workbench.webSearchHintOff')
         : unavailable
           ? t('workbench.media.unsupportedTitle', { name: t(cap.labelKey) })
-          : uncertain
-            ? t('workbench.media.maybeTitle', { name: t(cap.labelKey) })
-            : cap.status === 'soon'
-              ? t('workbench.capSoonHint', { name: t(cap.labelKey) })
-              : t(cap.labelKey)
+          : cap.status === 'soon'
+            ? t('workbench.capSoonHint', { name: t(cap.labelKey) })
+            : t(cap.labelKey)
     return (
       <button
         key={cap.id}
         type="button"
         className={`${styles.capItem} ${compact ? styles.capItemMenu : ''} ${
           webActive ? styles.capItemActive : ''
-        } ${unavailable ? styles.capItemUnavailable : ''} ${uncertain ? styles.capItemMaybe : ''}`.trim()}
+        } ${unavailable ? styles.capItemUnavailable : ''}`.trim()}
         onClick={() => onCapability(cap.id)}
         title={title}
         aria-disabled={unavailable || undefined}
@@ -1641,7 +1662,6 @@ export function WorkbenchPage(): React.JSX.Element {
         <span className={styles.capIcon}>{capabilityIcon(cap.id)}</span>
         <span>{t(cap.labelKey)}</span>
         {unavailable ? <span className={styles.capBadge}>{t('workbench.media.badge.no')}</span> : null}
-        {uncertain ? <span className={styles.capBadgeMaybe}>{t('workbench.media.badge.maybe')}</span> : null}
       </button>
     )
   }
@@ -1997,6 +2017,44 @@ export function WorkbenchPage(): React.JSX.Element {
         </div>
 
         <div className={styles.composerWrap}>
+          <div className={styles.projectBar}>
+            {projectRoot ? (
+              <div className={styles.projectChip} title={projectRoot}>
+                <span className={styles.projectIcon} aria-hidden>
+                  <IconFolder />
+                </span>
+                <span className={styles.projectName}>{projectName}</span>
+                <button
+                  type="button"
+                  className={styles.projectLinkBtn}
+                  onClick={onPickProject}
+                >
+                  {t('workbench.projectChange')}
+                </button>
+                <button
+                  type="button"
+                  className={styles.projectClear}
+                  onClick={onClearProject}
+                  title={t('workbench.projectClear')}
+                  aria-label={t('workbench.projectClear')}
+                >
+                  <IconClose />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.projectEmpty}
+                onClick={onPickProject}
+                title={t('workbench.projectPickHint')}
+              >
+                <span className={styles.projectIcon} aria-hidden>
+                  <IconFolder />
+                </span>
+                <span>{t('workbench.projectOpenFolder')}</span>
+              </button>
+            )}
+          </div>
           <div className={styles.composer}>
           {skillPickerOpen ? (
             <div className={styles.skillPicker}>
@@ -2146,8 +2204,8 @@ export function WorkbenchPage(): React.JSX.Element {
                   </div>
                 ))}
               </div>
-            ) : null}
-            <textarea
+          ) : null}
+          <textarea
               ref={inputRef}
               className={styles.composerInput}
               value={draft}

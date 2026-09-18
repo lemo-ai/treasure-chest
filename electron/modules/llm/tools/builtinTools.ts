@@ -131,6 +131,87 @@ const fetchUrlTool: LlmToolSpec = {
   },
 }
 
+const generateImageTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'generate_image',
+    description:
+      'Generate an image from a text prompt using the user’s configured image model (e.g. Wan / Seedream / DALL·E). Call when the user asks to draw, paint, or create a picture/illustration/poster. Do NOT claim you created an image without calling this tool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Detailed visual description of the image to generate',
+        },
+        size: {
+          type: 'string',
+          description: 'Optional size, e.g. 1024x1024 or 1280x720',
+        },
+        style: { type: 'string', description: 'Optional style hint' },
+      },
+      required: ['prompt'],
+    },
+  },
+}
+
+const generateVideoTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'generate_video',
+    description:
+      'Generate a short video from a text prompt using the user’s configured video model (e.g. Wan t2v). Call when the user asks to make/create a video or clip. Do NOT invent a video URL without calling this tool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Detailed description of the video scene and motion',
+        },
+        durationSec: {
+          type: 'number',
+          description: 'Optional duration in seconds (provider-dependent, often 2–15)',
+        },
+        aspectRatio: {
+          type: 'string',
+          description: 'Optional aspect ratio, e.g. 16:9 / 9:16 / 1:1',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
+}
+
+const generateMusicTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'generate_music',
+    description:
+      'Generate music or song audio using the user’s configured music/audio model (e.g. Fun-Music). Call when the user asks to compose music, a song, BGM, or soundtrack. Do NOT invent an audio URL without calling this tool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Mood, genre, instruments, and scene for the music',
+        },
+        style: { type: 'string', description: 'Optional genre/style, e.g. pop / lo-fi' },
+        instrumental: {
+          type: 'boolean',
+          description: 'If true, generate instrumental only (no vocals)',
+        },
+        durationSec: {
+          type: 'number',
+          description: 'Optional target duration in seconds when supported',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
+}
+
+const MEDIA_TOOLS: LlmToolSpec[] = [generateImageTool, generateVideoTool, generateMusicTool]
+
 export function builtinToolsForAgent(
   agentId: string,
   opts?: { useKnowledge?: boolean; useWebSearch?: boolean },
@@ -147,6 +228,7 @@ export function builtinToolsForAgent(
   if (isDirectChatAgentId(id)) {
     const tools: LlmToolSpec[] = useWeb ? [...web] : []
     if (opts?.useKnowledge) tools.push(knowledgeTool)
+    tools.push(...MEDIA_TOOLS)
     return tools
   }
 
@@ -160,6 +242,7 @@ export function builtinToolsForAgent(
     if (useWeb) tools.push(...web)
     if (opts?.useKnowledge || id.startsWith('custom_')) tools.push(knowledgeTool)
   }
+  tools.push(...MEDIA_TOOLS)
 
   // Deduplicate by name
   const seen = new Set<string>()
@@ -189,6 +272,12 @@ export function toolStatusLabel(name: string, locale: string): string {
       return en ? 'Looking up ticker…' : '正在查找股票代码…'
     case 'fetch_url':
       return en ? 'Opening page…' : '正在打开网页…'
+    case 'generate_image':
+      return en ? 'Generating image…' : '正在生成图片…'
+    case 'generate_video':
+      return en ? 'Generating video…' : '正在生成视频…'
+    case 'generate_music':
+      return en ? 'Generating music…' : '正在生成音乐…'
     case 'read_file':
       return en ? 'Reading file…' : '正在读取文件…'
     case 'list_dir':
@@ -261,6 +350,12 @@ export function toolDisplayName(name: string, locale: string): string {
       return en ? 'Ticker lookup' : '股票代码查找'
     case 'fetch_url':
       return en ? 'Open page' : '打开网页'
+    case 'generate_image':
+      return en ? 'Image generation' : '图片生成'
+    case 'generate_video':
+      return en ? 'Video generation' : '视频生成'
+    case 'generate_music':
+      return en ? 'Music generation' : '音乐生成'
     case 'read_file':
       return en ? 'Read file' : '读文件'
     case 'list_dir':

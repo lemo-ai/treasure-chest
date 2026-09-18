@@ -15,7 +15,7 @@ import { runAgentTurn } from './AgentLoop'
 import * as SessionRepo from './SessionRepo'
 import * as GoalsStore from './GoalsStore'
 import { ensurePluginsDir, listHarnessPlugins, reloadHarnessPlugins, listPluginCatalog, installHarnessPlugin, openHarnessPluginsDir } from './plugins/PluginLoader'
-import { getSandboxRoot, setSandboxRoot, ensureSandboxRoot } from './coding/Sandbox'
+import { setSandboxRoot, getConfiguredSandboxRoot, clearSandboxRoot } from './coding/Sandbox'
 import { getDiagnosticsForPath } from './coding/DiagnosticsService'
 import {
   createPtySession,
@@ -36,6 +36,7 @@ import { describeSandboxBackend } from './coding/RemoteSandbox'
 import { lspGetDefinition, lspGetCompletion } from './coding/LspService'
 import { getDshWebUrl, setDshWebUrl, ensureEmbeddedDshWebServer, isEmbeddedDshWebPreferred, setEmbeddedDshWebPreferred } from './coding/DshWebService'
 import { shell } from 'electron'
+import { logger } from '../../utils/logger'
 
 export function getHarnessPluginsDir(): string {
   return ensurePluginsDir()
@@ -120,12 +121,28 @@ export async function getHarnessPlugins() {
 }
 
 export function getHarnessSandboxRoot() {
-  ensureSandboxRoot()
-  return getSandboxRoot()
+  return getConfiguredSandboxRoot() ?? ''
 }
 
 export function setHarnessSandboxRoot(path: string) {
-  return setSandboxRoot(path)
+  const root = setSandboxRoot(path)
+  try {
+    // Keep Cordis local sandbox root in sync with the active coding project.
+    saveCordisSettings({ sandboxRoot: root, sandboxMode: 'local' })
+  } catch (err) {
+    logger.warn('cordis sandbox sync failed', err)
+  }
+  return root
+}
+
+export function clearHarnessSandboxRoot() {
+  clearSandboxRoot()
+  try {
+    saveCordisSettings({ sandboxRoot: null, sandboxMode: 'local' })
+  } catch (err) {
+    logger.warn('cordis sandbox clear failed', err)
+  }
+  return ''
 }
 
 export function getHarnessDiagnostics(path?: string) {

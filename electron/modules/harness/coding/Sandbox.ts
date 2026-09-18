@@ -9,24 +9,41 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
+/** Legacy default path — no longer auto-selected; kept for migration references only. */
 export function defaultSandboxRoot(): string {
   return join(app.getPath('userData'), 'harness-workspace')
 }
 
-export function getSandboxRoot(): string {
+/** User-picked project folder, or null if none selected. */
+export function getConfiguredSandboxRoot(): string | null {
   const row = getDb()
     .prepare(`SELECT value FROM app_settings WHERE key = ?`)
     .get(SANDBOX_KEY) as { value: string } | undefined
-  if (row?.value) {
-    try {
-      const parsed = JSON.parse(row.value) as string
-      if (typeof parsed === 'string' && parsed.trim()) return parsed.trim()
-    } catch {
-      /* fall through */
+  if (!row?.value) return null
+  try {
+    const parsed = JSON.parse(row.value) as string
+    if (typeof parsed === 'string' && parsed.trim()) {
+      const path = parsed.trim()
+      // Never treat the old auto-created workspace as a selected project.
+      if (path === defaultSandboxRoot()) {
+        clearSandboxRoot()
+        return null
+      }
+      return path
     }
+  } catch {
+    /* ignore */
   }
-  const root = defaultSandboxRoot()
-  ensureSandboxRoot(root)
+  return null
+}
+
+const NO_PROJECT =
+  'No coding project selected. Open a project folder in the workbench first.'
+
+/** Active coding project root. Throws if the user has not chosen a folder. */
+export function getSandboxRoot(): string {
+  const root = getConfiguredSandboxRoot()
+  if (!root) throw new Error(NO_PROJECT)
   return root
 }
 
@@ -43,8 +60,13 @@ export function setSandboxRoot(path: string): string {
   return trimmed
 }
 
+export function clearSandboxRoot(): void {
+  getDb().prepare(`DELETE FROM app_settings WHERE key = ?`).run(SANDBOX_KEY)
+}
+
 export function ensureSandboxRoot(root?: string): string {
-  const dir = root ?? getSandboxRoot()
+  const dir = root?.trim() || getConfiguredSandboxRoot()
+  if (!dir) throw new Error(NO_PROJECT)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   return dir
 }

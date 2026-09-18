@@ -135,6 +135,14 @@ export function IconHome(props: IconProps): React.JSX.Element {
   )
 }
 
+export function IconFolder(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3.5 8.5V7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-9z" />
+    </svg>
+  )
+}
+
 export function IconCalendar(props: IconProps): React.JSX.Element {
   return (
     <svg {...base} {...props}>

@@ -105,6 +105,7 @@ export interface MediaCapabilityInfo {
     | 'kling'
     | 'minimax_music'
     | 'dashscope_audio'
+    | 'dashscope_fun_music'
     | 'media_disabled'
     | 'media_profile'
 }

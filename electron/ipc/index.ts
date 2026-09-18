@@ -60,6 +60,7 @@ import {
   renameHarnessSession,
   setHarnessActiveSessionId,
   setHarnessSandboxRoot,
+  clearHarnessSandboxRoot,
   getHarnessPluginsDir,
   getHarnessDiagnostics,
   getHarnessPluginCatalog,
@@ -471,6 +472,7 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.harness.listPlugins, async () => getHarnessPlugins())
   ipcMain.handle(IpcChannels.harness.getSandboxRoot, () => getHarnessSandboxRoot())
   ipcMain.handle(IpcChannels.harness.setSandboxRoot, (_e, path: string) => setHarnessSandboxRoot(path))
+  ipcMain.handle(IpcChannels.harness.clearSandboxRoot, () => clearHarnessSandboxRoot())
   ipcMain.handle(IpcChannels.harness.getPluginsDir, () => getHarnessPluginsDir())
   ipcMain.handle(IpcChannels.harness.getDiagnostics, async (_e, path?: string) => getHarnessDiagnostics(path))
   ipcMain.handle(IpcChannels.harness.listPluginCatalog, () => getHarnessPluginCatalog())
@@ -559,11 +561,11 @@ export function registerAllIpc(): void {
     const win = BrowserWindow.getFocusedWindow()
     const { canceled, filePaths } = win
       ? await dialog.showOpenDialog(win, {
-          title: 'Select coding sandbox folder',
+          title: 'Select project folder for coding',
           properties: ['openDirectory', 'createDirectory'],
         })
       : await dialog.showOpenDialog({
-          title: 'Select coding sandbox folder',
+          title: 'Select project folder for coding',
           properties: ['openDirectory', 'createDirectory'],
         })
     if (canceled || !filePaths[0]) return null

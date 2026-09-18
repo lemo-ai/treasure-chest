@@ -3,6 +3,7 @@ import { isDirectChatAgentId } from '@shared'
 import { wantsKnowledge } from './ToolRegistry'
 import { goalsPromptSection } from './GoalsStore'
 import { runInjectHooks } from './plugins/PluginHooks'
+import { getConfiguredSandboxRoot } from './coding/Sandbox'
 
 const BUILTIN_SYSTEM: Record<string, { zh: string; en: string }> = {
   fortune: {
@@ -41,6 +42,28 @@ function todayLocalYmd(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+function codingPolicy(isEn: boolean, workspaceRoot: string | null): string {
+  const root = workspaceRoot?.trim()
+  if (!root) {
+    return isEn
+      ? 'Coding tools are available, but no project folder is open. Ask the user to click Project → Open and choose a folder before reading or editing files.'
+      : '已启用编码工具，但尚未打开项目目录。请先让用户点击「项目 → 打开」选择文件夹，再读写文件。'
+  }
+  return isEn
+    ? [
+        `Active coding project: ${root}`,
+        'Coding tools are available (read_file, write_file, str_replace_file, list_dir, search_files, grep_content, apply_patch, git_*, run_shell, diagnostics).',
+        'All paths are relative to this project root. Prefer read/search before edit; use str_replace_file for surgical edits; run_shell for builds/tests.',
+        'Do not invent file contents — read first. After edits, briefly summarize what changed.',
+      ].join('\n')
+    : [
+        `当前编码项目：${root}`,
+        '已启用编码工具（read_file、write_file、str_replace_file、list_dir、search_files、grep_content、apply_patch、git_*、run_shell、diagnostics）。',
+        '路径均相对于该项目根目录。先读/搜再改；小改用 str_replace_file；构建/测试用 run_shell。',
+        '不要臆造文件内容——先 read。改完简要说明变更。',
+      ].join('\n')
+}
+
 function liveDataPolicy(isEn: boolean): string {
   const today = todayLocalYmd()
   return isEn
@@ -49,12 +72,14 @@ function liveDataPolicy(isEn: boolean): string {
         'For news, listing/IPO status, stock prices, weather, or any fact that can change: call tools FIRST (search_web, search_stock, get_stock_quote, fetch_url). You may call several in parallel.',
         'If tools conflict with memory, trust tools. Empty search ≠ unlisted/does-not-exist — retry or fetch_url a result link.',
         'Cite source titles. Do not invent tickers or prices. No guaranteed return forecasts.',
+        'When the user wants an image, video, or music/song: call generate_image / generate_video / generate_music. Paste the tool’s markdown field verbatim so media renders. Never invent media URLs.',
       ].join('\n')
     : [
         `今天本地日期是 ${today}。你的训练截止日期不等于今天。`,
         '新闻、是否上市、股价、天气等会变的事实：必须先调工具（search_web、search_stock、get_stock_quote、fetch_url），可并行调用。',
         '工具结果与记忆冲突时以工具为准。检索为空只表示本次失败，不是「未上市/不存在」。',
         '回答时点出来源标题。禁止编造代码或价格。禁止保证收益的趋势预测。',
+        '用户要生成图片、视频或音乐/歌曲时：调用 generate_image / generate_video / generate_music，并把工具返回的 markdown 原样贴进回复以便播放/展示。禁止编造媒体链接。',
       ].join('\n')
 }
 
@@ -135,8 +160,8 @@ export async function assembleSystemPrompt(
   if (isDirect) {
     parts.push(
       isEn
-        ? 'Answer the user directly. You are not a domain specialist unless asked.'
-        : '直接回答用户。除非用户要求，否则不要扮演垂直领域助手。',
+        ? 'Answer the user directly. You are a workbench assistant that can chat, use tools, and edit code in the coding sandbox when asked.'
+        : '直接回答用户。你是工作台助手：可对话、调用工具，并在用户需要时在编码沙箱中读写与修改代码。',
     )
   } else {
     const custom = req.systemPrompt?.trim()
@@ -164,6 +189,9 @@ export async function assembleSystemPrompt(
   }
 
   if (toolNames.length) parts.push(liveDataPolicy(isEn))
+  if (toolNames.includes('read_file') || toolNames.includes('run_shell')) {
+    parts.push(codingPolicy(isEn, getConfiguredSandboxRoot()))
+  }
   parts.push(modeHint, knowledgeHint, memoryHint(req, isEn), toolHint)
   if (sessionId && !isDirect) {
     const goals = goalsPromptSection(sessionId)

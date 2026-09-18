@@ -812,6 +812,117 @@
   z-index: 3;
 }
 
+.projectBar {
+  display: flex;
+  align-items: center;
+  max-width: min(92%, 72rem);
+  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  /* Match .composer padding so text aligns with the input */
+  padding: 0 var(--space-3);
+  box-sizing: border-box;
+}
+
+.projectEmpty {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  border: 1px dashed color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-brand) 10%, transparent);
+  color: var(--color-brand);
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+  line-height: 1.3;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.projectEmpty:hover {
+  background: color-mix(in srgb, var(--color-brand) 16%, transparent);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.projectEmpty .projectIcon {
+  opacity: 1;
+  color: var(--color-brand);
+}
+
+.projectChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.35rem 0.3rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-elevated);
+  color: var(--color-ink-secondary);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-ink) 4%, transparent);
+}
+
+.projectIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  opacity: 0.75;
+}
+
+.projectName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink);
+  font-weight: 650;
+}
+
+.projectLinkBtn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-ink-tertiary);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.projectLinkBtn:hover {
+  color: var(--color-ink-secondary);
+  text-decoration: underline;
+}
+
+.projectClear {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-tertiary);
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.projectClear:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-ink-secondary);
+}
+
 .capMeasure {
   position: absolute;
   left: -9999px;
