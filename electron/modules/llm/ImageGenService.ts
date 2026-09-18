@@ -9,6 +9,8 @@ export interface ImageGenResult {
   url?: string
   error?: string
   revisedPrompt?: string
+  providerId?: string
+  model?: string
 }
 
 export async function generateImage(
@@ -23,6 +25,10 @@ export async function generateImage(
   if (endpoint.apiFormat === 'anthropic') {
     return { ok: false, error: 'Image generation requires an OpenAI-compatible endpoint.' }
   }
+
+  logger.info(
+    `image generate provider=${endpoint.providerName} chatModel=${endpoint.model} imageModel=${endpoint.imageModel || '-'} reqModel=${opts?.model || '-'} base=${endpoint.baseUrl} profile=${endpoint.mediaProfile}`,
+  )
 
   const result = await generateImageWithAdapters(
     text,
@@ -39,10 +45,14 @@ export async function generateImage(
     opts ?? {},
   )
 
-  if (!result.ok || !result.url) return result
+  if (!result.ok || !result.url) {
+    logger.warn(`image generate failed: ${result.error || 'no url'} providerId=${result.providerId || '-'}`)
+    return result
+  }
 
   try {
     const dataUrl = await materializeImageUrl(result.url)
+    logger.info(`image generate ok model=${result.model || '-'} url=${dataUrl.slice(0, 80)}`)
     return { ...result, url: dataUrl }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

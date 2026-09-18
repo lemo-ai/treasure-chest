@@ -355,7 +355,14 @@ const api = {
     model?: string
     style?: string
     quality?: string
-  }): Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }> =>
+  }): Promise<{
+    ok: boolean
+    url?: string
+    error?: string
+    revisedPrompt?: string
+    providerId?: string
+    model?: string
+  }> =>
     ipcRenderer.invoke(IpcChannels.image.generate, payload),
   getImageToolsSettings: (): Promise<import('@shared').ImageToolsSettings> =>
     ipcRenderer.invoke(IpcChannels.imageTools.getSettings),

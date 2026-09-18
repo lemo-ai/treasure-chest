@@ -12,17 +12,21 @@ import {
 
 /**
  * Map chat-compatible DashScope URL to native AIGC API root.
- * e.g. https://dashscope.aliyuncs.com/compatible-mode/v1 → https://dashscope.aliyuncs.com/api/v1
+ * Custom MaaS compatible-mode hosts are remapped to public DashScope AIGC.
  */
 export function dashscopeApiRoot(baseUrl: string): string {
   const raw = stripTrailingSlash(baseUrl.trim())
-  if (/\/api\/v1$/i.test(raw)) return raw
-  // compatible-mode/v1 or /v1 → api/v1
-  const origin = raw.replace(/\/compatible-mode\/v1.*$/i, '').replace(/\/v1$/i, '')
-  if (hostOf(origin).includes('dashscope') || hostOf(origin).includes('aliyuncs.com')) {
+  const host = hostOf(raw)
+  if (host.includes('dashscope.aliyuncs.com') || host.includes('dashscope-intl.aliyuncs.com')) {
+    if (/\/api\/v1$/i.test(raw)) return raw
+    const origin = raw.replace(/\/compatible-mode\/v1.*$/i, '').replace(/\/v1$/i, '')
     return `${origin}/api/v1`
   }
-  return `${raw}/api/v1`
+  if (host.includes('maas.aliyuncs.com') || host.includes('aliyuncs.com')) {
+    return 'https://dashscope.aliyuncs.com/api/v1'
+  }
+  if (/\/api\/v1$/i.test(raw)) return raw
+  return `${raw.replace(/\/compatible-mode\/v1.*$/i, '').replace(/\/v1$/i, '')}/api/v1`
 }
 
 function sizeFromOpts(opts: { aspectRatio?: string; resolution?: string }): string | undefined {

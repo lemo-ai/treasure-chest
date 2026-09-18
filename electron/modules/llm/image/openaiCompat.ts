@@ -71,7 +71,13 @@ export const openaiCompatImageProvider: ImageProvider = {
     if (opts.quality === 'hd' || opts.quality === 'standard') body.quality = opts.quality
     const res = await postImagesGenerations(ctx.baseUrl, ctx.apiKey, body, this.label)
     if (!res.ok) return res
-    return { ok: true, url: res.url, revisedPrompt: res.revisedPrompt, providerId: this.id }
+    return {
+      ok: true,
+      url: res.url,
+      revisedPrompt: res.revisedPrompt,
+      providerId: this.id,
+      model,
+    }
   },
 }
 

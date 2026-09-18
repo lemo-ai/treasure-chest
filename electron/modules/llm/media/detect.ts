@@ -106,12 +106,20 @@ export function arkApiRoot(baseUrl: string): string {
 /** Map chat-compatible DashScope URL to native AIGC API root. */
 export function dashscopeApiRoot(baseUrl: string): string {
   const raw = stripTrailingSlash(baseUrl.trim())
-  if (/\/api\/v1$/i.test(raw)) return raw
-  const origin = raw.replace(/\/compatible-mode\/v1.*$/i, '').replace(/\/v1$/i, '')
-  if (hostOf(origin).includes('dashscope') || hostOf(origin).includes('aliyuncs.com')) {
+  const host = hostOf(raw)
+  // Official DashScope hosts keep their own /api/v1.
+  if (host.includes('dashscope.aliyuncs.com') || host.includes('dashscope-intl.aliyuncs.com')) {
+    if (/\/api\/v1$/i.test(raw)) return raw
+    const origin = raw.replace(/\/compatible-mode\/v1.*$/i, '').replace(/\/v1$/i, '')
     return `${origin}/api/v1`
   }
-  return `${raw}/api/v1`
+  // Custom MaaS / Model Studio compatible-mode gateways do not expose Wan AIGC APIs.
+  // Reuse the same API key against the public DashScope AIGC endpoint.
+  if (host.includes('maas.aliyuncs.com') || host.includes('aliyuncs.com')) {
+    return 'https://dashscope.aliyuncs.com/api/v1'
+  }
+  if (/\/api\/v1$/i.test(raw)) return raw
+  return `${raw.replace(/\/compatible-mode\/v1.*$/i, '').replace(/\/v1$/i, '')}/api/v1`
 }
 
 export function resolveModel(
@@ -121,8 +129,8 @@ export function resolveModel(
   hint: RegExp,
 ): string {
   const fromOpts = optsModel?.trim()
-  // Only accept an explicit id when it looks like an image model — chat ids
-  // (e.g. qwen-plus) must fall through to the vendor T2I fallback.
+  // Explicit id only wins when it looks like a media model — chat ids (qwen-plus)
+  // must not override the provider's dedicated T2I / T2V model.
   if (fromOpts && hint.test(fromOpts)) return fromOpts
   const fromSettings = settingsModel.trim()
   if (fromSettings && hint.test(fromSettings)) return fromSettings

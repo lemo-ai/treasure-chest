@@ -5,6 +5,25 @@
   word-break: break-word;
 }
 
+.root .image {
+  display: block;
+  max-width: min(100%, 420px);
+  width: auto;
+  height: auto;
+  margin: 0.35em 0 0.75em;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+}
+
+.root .media {
+  display: block;
+  max-width: min(100%, 420px);
+  width: 100%;
+  margin: 0.35em 0 0.75em;
+  border-radius: 12px;
+}
+
 .root :where(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4) {
   margin: 0 0 0.85em;
 }

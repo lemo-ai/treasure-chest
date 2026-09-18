@@ -59,6 +59,7 @@ import {
   decodeChatModelRef,
   encodeChatModelRef,
   groupedChatModels,
+  resolveMediaRouteModel,
 } from '../lib/chatModelOptions'
 import type {
   FortuneAiProviderConfig,
@@ -257,6 +258,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const [inlinePrimaryCount, setInlinePrimaryCount] = useState(WORKBENCH_PRIMARY_CAP_IDS.length)
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [modelGroups, setModelGroups] = useState<Array<{ id: string; name: string; models: string[] }>>([])
+  const [aiProviders, setAiProviders] = useState<FortuneAiProviderConfig[]>([])
   const [activeProviderId, setActiveProviderId] = useState('')
   const [selectedModel, setSelectedModel] = useState('')
   const [aiBaseUrl, setAiBaseUrl] = useState('')
@@ -474,6 +476,7 @@ export function WorkbenchPage(): React.JSX.Element {
     aiProviders?: FortuneAiProviderConfig[]
   } | undefined): void => {
     const groups = groupedChatModels(fortune?.aiProviders)
+    setAiProviders(fortune?.aiProviders ?? [])
     setModelGroups(groups)
     const models = groups.flatMap((g) => g.models)
     setModelOptions(models.length ? models : (fortune?.aiModels ?? []).map((m) => m.trim()).filter(Boolean))
@@ -968,6 +971,25 @@ export function WorkbenchPage(): React.JSX.Element {
       refreshForSession(sessionId)
       return
     }
+    let mediaModel = selectedModel
+    let effectiveCap = activeCap
+    // If user asks to generate an image in plain chat, route like ChatGPT (don't require chip).
+    if (
+      !effectiveCap &&
+      /(?:生成|画|绘制|做一?[张幅]|generate|draw|paint).{0,20}(?:图|图片|插画|image|photo|狗|猫|人像)/i.test(
+        content,
+      )
+    ) {
+      const routed = await resolveMediaModelOrExplain('image')
+      if (routed) {
+        effectiveCap = 'image'
+        mediaModel = routed
+      }
+    } else if (effectiveCap === 'image' || effectiveCap === 'video' || effectiveCap === 'music') {
+      const routed = await resolveMediaModelOrExplain(effectiveCap)
+      if (!routed) return
+      mediaModel = routed
+    }
 
     const sessionId = await ensureSession(activeAgent)
     if (isSessionStreaming(sessionId)) return
@@ -1025,10 +1047,11 @@ export function WorkbenchPage(): React.JSX.Element {
     const mergedSkillPrompt = [skillPrompt, optionPrompt].filter(Boolean).join('\n')
 
     try {
-      if (activeCap === 'image') {
+      if (effectiveCap === 'image') {
         patchLiveStream(sessionId, { status: t('workbench.imageGenerating') })
         const img = await window.treasureChest.generateImage({
           prompt: content,
+          model: mediaModel,
           size: imageSizeFromOptions(capOptions),
           style: capOptions.imageStyle,
           quality: capOptions.imageQuality,
@@ -1041,9 +1064,12 @@ export function WorkbenchPage(): React.JSX.Element {
           ]
             .filter(Boolean)
             .join(' · ')
-          const md = `![${content.slice(0, 40)}](${img.url})\n\n${t('workbench.imageDone')}${
-            meta ? ` (${meta})` : ''
-          }`
+          const usedModel = img.model?.trim() || mediaModel
+          const doneLine = usedModel
+            ? t('workbench.imageDoneModel', { model: usedModel })
+            : t('workbench.imageDone')
+          const alt = content.replace(/[\[\]]/g, '').slice(0, 40) || 'image'
+          const md = `![${alt}](${img.url})\n\n${doneLine}${meta ? ` (${meta})` : ''}`
           appendAssistant(sessionId, md)
         } else {
           appendMessage(
@@ -1052,10 +1078,11 @@ export function WorkbenchPage(): React.JSX.Element {
             t('workbench.chatFailed', { error: img.error || t('workbench.chatUnknownError') }),
           )
         }
-      } else if (activeCap === 'video') {
+      } else if (effectiveCap === 'video') {
         patchLiveStream(sessionId, { status: t('workbench.videoGenerating') })
         const vid = await window.treasureChest.generateVideo({
           prompt: content,
+          model: mediaModel,
           durationSec: Number(capOptions.videoDuration || 5),
           aspectRatio: capOptions.videoAspect,
           resolution: capOptions.videoResolution,
@@ -1069,10 +1096,11 @@ export function WorkbenchPage(): React.JSX.Element {
             t('workbench.chatFailed', { error: vid.error || t('workbench.chatUnknownError') }),
           )
         }
-      } else if (activeCap === 'music') {
+      } else if (effectiveCap === 'music') {
         patchLiveStream(sessionId, { status: t('workbench.musicGenerating') })
         const music = await window.treasureChest.generateMusic({
           prompt: content,
+          model: mediaModel,
           durationSec: Number(capOptions.musicDuration || 60),
           style: capOptions.musicStyle,
           instrumental: capOptions.musicInstrumental !== 'no',
@@ -1217,17 +1245,22 @@ export function WorkbenchPage(): React.JSX.Element {
       return
     }
     if (id === 'image' || id === 'write' || id === 'translate' || id === 'research' || id === 'video' || id === 'music' || id === 'create_agent') {
+      if (activeCap === id) {
+        setActiveCap(null)
+        inputRef.current?.focus()
+        return
+      }
       if (id === 'image' || id === 'video' || id === 'music') {
         const level = mediaLevelOf(id)
         if (level === 'no') {
           explainMediaCap(id)
           return
         }
-        if (level === 'maybe') {
-          explainMediaCap(id)
-        }
+        // Arm first; model routing is checked at send time (don't block arming on stale state).
+        const routed = await resolveMediaModelOrExplain(id)
+        if (!routed) return
       }
-      setActiveCap((prev) => (prev === id ? null : id))
+      setActiveCap(id)
       inputRef.current?.focus()
       const sessionId = await ensureSession(activeAgent)
       if (id === 'create_agent') {
@@ -1235,10 +1268,8 @@ export function WorkbenchPage(): React.JSX.Element {
         refreshForSession(sessionId)
         return
       }
-      if (mediaLevelOf(id) !== 'maybe') {
-        appendMessage(sessionId, 'system', t('workbench.capArmed', { name: capName }))
-        refreshForSession(sessionId)
-      }
+      appendMessage(sessionId, 'system', t('workbench.capArmed', { name: capName }))
+      refreshForSession(sessionId)
       return
     }
     if (id === 'transcribe') {
@@ -1363,6 +1394,53 @@ export function WorkbenchPage(): React.JSX.Element {
   const mediaLevelOf = (id: WorkbenchCapabilityId): MediaSupportLevel | null => {
     if (id !== 'image' && id !== 'video' && id !== 'music' && id !== 'transcribe') return null
     return mediaCaps?.capabilities[id as MediaCapabilityKind]?.level ?? 'maybe'
+  }
+
+  /**
+   * Industry-style media routing: keep the chat model in the picker; resolve a
+   * dedicated image/video/music model for the API call. Returns null + explains
+   * when nothing is configured.
+   */
+  const resolveMediaModelOrExplain = async (
+    kind: 'image' | 'video' | 'music',
+  ): Promise<string | null> => {
+    const modality = kind === 'music' ? 'audio' : kind
+    const name = t(`workbench.cap.${kind}` as 'workbench.cap.image')
+
+    // Always read latest settings — React state can lag after Settings edits.
+    let providers = aiProviders
+    let providerId = activeProviderId
+    let chatModel = selectedModel
+    try {
+      const snap = await window.treasureChest.getSettingsSnapshot()
+      const fortune = snap.fortune
+      if (fortune?.aiProviders?.length) {
+        providers = fortune.aiProviders
+        setAiProviders(fortune.aiProviders)
+      }
+      if (fortune?.aiActiveProviderId) {
+        providerId = fortune.aiActiveProviderId
+        setActiveProviderId(fortune.aiActiveProviderId)
+      }
+      if (fortune?.aiModel) chatModel = fortune.aiModel
+    } catch {
+      /* fall back to in-memory state */
+    }
+
+    const routed = resolveMediaRouteModel(providers, providerId, chatModel, modality)
+    if (routed) return routed
+
+    const sessionId = await ensureSession(activeAgent)
+    appendMessage(
+      sessionId,
+      'system',
+      t('workbench.media.routeUnsupported', {
+        name,
+        model: chatModel || selectedModel || '—',
+      }),
+    )
+    refreshForSession(sessionId)
+    return null
   }
 
   const explainMediaCap = async (id: MediaCapabilityKind): Promise<void> => {
@@ -2074,8 +2152,9 @@ export function WorkbenchPage(): React.JSX.Element {
               className={styles.composerInput}
               value={draft}
               onChange={(e) => {
-                setDraft(e.target.value)
-                draftByAgentRef.current[String(activeAgent)] = e.target.value
+                const value = e.target.value
+                setDraft(value)
+                draftByAgentRef.current[String(activeAgent)] = value
               }}
               onKeyDown={onKeyDown}
               placeholder={

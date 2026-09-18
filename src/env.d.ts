@@ -211,7 +211,14 @@ interface TreasureChestApi {
     model?: string
     style?: string
     quality?: string
-  }) => Promise<{ ok: boolean; url?: string; error?: string; revisedPrompt?: string }>
+  }) => Promise<{
+    ok: boolean
+    url?: string
+    error?: string
+    revisedPrompt?: string
+    providerId?: string
+    model?: string
+  }>
   getImageToolsSettings: () => Promise<import('@shared').ImageToolsSettings>
   setImageToolsSettings: (
     partial: Partial<import('@shared').ImageToolsSettings>,

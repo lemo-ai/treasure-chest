@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import type { FortuneSettings } from '@shared'
 import { settingsToLlmEndpoint } from './LlmClient'
 import { classifyMediaHttpFailure } from './media/detect'
+import { materializeMediaUrl } from './media/materializeUrl'
 import { generateMusicWithAdapters } from './music'
 import { generateVideoWithAdapters } from './video'
 import { logger } from '../../utils/logger'
@@ -28,6 +29,68 @@ function authHeaders(apiKey: string): Record<string, string> {
   const headers: Record<string, string> = {}
   if (apiKey.trim()) headers.Authorization = `Bearer ${apiKey.trim()}`
   return headers
+}
+
+async function shortenMediaResult(result: MediaGenResult, kind: 'video' | 'music'): Promise<MediaGenResult> {
+  if (!result.ok) return result
+  let url = result.url
+  let text = result.text
+
+  const rewrite = async (raw: string): Promise<string> => {
+    if (!raw.startsWith('data:') && !/^https?:\/\//i.test(raw)) return raw
+    if (/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(raw)) return raw
+    try {
+      return await materializeMediaUrl(raw)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      logger.warn(`${kind} materialize failed: ${msg}`)
+      throw err
+    }
+  }
+
+  try {
+    if (url) url = await rewrite(url)
+    if (text) {
+      // Replace embedded data:/https media links inside markdown bodies.
+      text = await replaceAsync(
+        text,
+        /(!?\[[^\]]*\]\()((?:data:[^)]+|https?:\/\/[^)\s]+))(\))/g,
+        async (_full, left: string, href: string, right: string) => {
+          if (href.startsWith('data:') || /^https?:\/\//i.test(href)) {
+            try {
+              return `${left}${await rewrite(href)}${right}`
+            } catch {
+              return `${left}${href}${right}`
+            }
+          }
+          return `${left}${href}${right}`
+        },
+      )
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+
+  return { ...result, url, text }
+}
+
+async function replaceAsync(
+  input: string,
+  regex: RegExp,
+  replacer: (match: string, ...args: string[]) => Promise<string>,
+): Promise<string> {
+  const parts: string[] = []
+  let last = 0
+  const matches = [...input.matchAll(regex)]
+  for (const m of matches) {
+    const idx = m.index ?? 0
+    parts.push(input.slice(last, idx))
+    parts.push(await replacer(m[0]!, ...(m.slice(1) as string[])))
+    last = idx + m[0]!.length
+  }
+  parts.push(input.slice(last))
+  return parts.join('')
 }
 
 /**
@@ -129,7 +192,7 @@ export async function generateVideo(
     opts ?? {},
   )
   const { providerId: _providerId, ...media } = result
-  return media
+  return shortenMediaResult(media, 'video')
 }
 
 /** Provider-adaptive music / audio generation. */
@@ -154,18 +217,21 @@ export async function generateMusic(
     }
   }
 
-  return generateMusicWithAdapters(
-    text,
-    {
-      baseUrl: endpoint.baseUrl,
-      apiKey: endpoint.apiKey,
-      providerName: endpoint.providerName,
-      settingsModel: endpoint.model,
-      mediaProfile: endpoint.mediaProfile,
-      imageModel: endpoint.imageModel,
-      videoModel: endpoint.videoModel,
-      musicModel: endpoint.musicModel,
-    },
-    opts ?? {},
+  return shortenMediaResult(
+    await generateMusicWithAdapters(
+      text,
+      {
+        baseUrl: endpoint.baseUrl,
+        apiKey: endpoint.apiKey,
+        providerName: endpoint.providerName,
+        settingsModel: endpoint.model,
+        mediaProfile: endpoint.mediaProfile,
+        imageModel: endpoint.imageModel,
+        videoModel: endpoint.videoModel,
+        musicModel: endpoint.musicModel,
+      },
+      opts ?? {},
+    ),
+    'music',
   )
 }

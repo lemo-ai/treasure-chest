@@ -49,8 +49,20 @@ export const volcengineArkImageProvider: ImageProvider = {
         this.label,
       )
       if (!retry.ok) return res
-      return { ok: true, url: retry.url, revisedPrompt: retry.revisedPrompt, providerId: this.id }
+      return {
+        ok: true,
+        url: retry.url,
+        revisedPrompt: retry.revisedPrompt,
+        providerId: this.id,
+        model,
+      }
     }
-    return { ok: true, url: res.url, revisedPrompt: res.revisedPrompt, providerId: this.id }
+    return {
+      ok: true,
+      url: res.url,
+      revisedPrompt: res.revisedPrompt,
+      providerId: this.id,
+      model,
+    }
   },
 }

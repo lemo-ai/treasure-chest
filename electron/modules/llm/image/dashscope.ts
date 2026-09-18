@@ -23,8 +23,13 @@ export const dashscopeImageProvider: ImageProvider = {
   match: (ctx) => detectMediaVendor(ctx.baseUrl, ctx.settingsModel) === 'dashscope',
   async generate(prompt, ctx, opts) {
     const root = dashscopeApiRoot(ctx.baseUrl)
-    const model = resolveModel(opts.model, ctx.settingsModel, 'wanx2.1-t2i-turbo', /wanx|wan2|t2i/i)
-    logger.info(`dashscope image model=${model}`)
+    const model = resolveModel(
+      opts.model,
+      ctx.imageModel || ctx.settingsModel,
+      'wanx2.1-t2i-turbo',
+      /wanx|wan2|t2i/i,
+    )
+    logger.info(`dashscope image model=${model} apiRoot=${root}`)
     const headers = {
       'Content-Type': 'application/json',
       'X-DashScope-Async': 'enable',
@@ -107,6 +112,6 @@ export const dashscopeImageProvider: ImageProvider = {
     })
 
     if (!polled.ok) return polled
-    return { ok: true, url: polled.url, providerId: this.id }
+    return { ok: true, url: polled.url, providerId: this.id, model }
   },
 }

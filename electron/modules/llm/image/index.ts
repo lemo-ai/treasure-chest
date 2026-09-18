@@ -35,9 +35,12 @@ export async function generateImageWithAdapters(
   const text = prompt.trim()
   if (!text) return { ok: false, error: 'empty prompt' }
   const provider = resolveImageProvider(ctx)
+  // Prefer dedicated image model over a chat model id passed from the picker.
+  const requested = opts.model?.trim()
+  const looksImage = requested ? /wanx|wan2|t2i|dall-e|gpt-image|flux|seedream|image/i.test(requested) : false
   const merged: ImageGenOptions = {
     ...opts,
-    model: opts.model || ctx.imageModel,
+    model: (looksImage ? requested : undefined) || ctx.imageModel || requested,
   }
   return provider.generate(text, ctx, merged)
 }

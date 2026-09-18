@@ -13,6 +13,8 @@ export interface ImageGenResult {
   error?: string
   revisedPrompt?: string
   providerId?: string
+  /** Actual T2I model id used (may differ from the chat model in the picker). */
+  model?: string
 }
 
 export interface ImageProvider {

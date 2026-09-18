@@ -16,6 +16,7 @@ import {
   registerVisionAssetScheme,
   startVisionAssetHttpServer,
 } from '../modules/imageTools/ImageToolsStore'
+import { startGeneratedMediaHttpServer } from '../modules/llm/media/GeneratedMediaStore'
 
 app.setName('袖里乾坤')
 registerVisionAssetScheme()
@@ -29,6 +30,9 @@ if (isHarnessHeadless) {
   app.whenReady().then(() => {
   void startVisionAssetHttpServer().catch((error) => {
     logger.error('vision http start failed', error)
+  })
+  void startGeneratedMediaHttpServer().catch((error) => {
+    logger.error('generated-media http start failed', error)
   })
   attachVisionAssetProtocol()
   logger.info('app ready')

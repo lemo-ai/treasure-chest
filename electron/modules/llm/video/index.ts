@@ -50,9 +50,13 @@ export async function generateVideoWithAdapters(
   if (!text) return { ok: false, error: 'empty prompt', providerId: 'openai_compat' }
 
   const provider = resolveVideoProvider(ctx)
+  const requested = opts.model?.trim()
+  const looksVideo = requested
+    ? /wanx|wan2|t2v|seedance|kling|video|sora/i.test(requested)
+    : false
   const result = await provider.generate(text, ctx, {
     ...opts,
-    model: opts.model || ctx.videoModel,
+    model: (looksVideo ? requested : undefined) || ctx.videoModel || requested,
   })
   return { ...result, providerId: provider.id }
 }
