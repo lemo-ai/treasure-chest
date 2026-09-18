@@ -23,6 +23,7 @@ function formatTime(iso: string, locale: string): string {
 function toneClass(item: InboxItem, stylesMap: typeof styles): string {
   if (item.coverPreset === 'fortune') return stylesMap.toneFortune
   if (item.coverPreset === 'stocks') return stylesMap.toneStocks
+  if (item.coverPreset === 'lottery') return stylesMap.toneLottery
   if (item.coverPreset === 'agent') return stylesMap.toneAgent
   if (item.status === 'error') return stylesMap.toneError
   if (item.status === 'ok') return stylesMap.toneOk
@@ -97,6 +98,7 @@ export function NotificationsPage(): React.JSX.Element {
   const coverLabel = (preset: NonNullable<InboxItem['coverPreset']>): string => {
     if (preset === 'fortune') return t('inbox.cover.fortune')
     if (preset === 'stocks') return t('inbox.cover.stocks')
+    if (preset === 'lottery') return t('inbox.cover.lottery')
     if (preset === 'agent') return t('inbox.cover.agent')
     return t('inbox.cover.custom')
   }

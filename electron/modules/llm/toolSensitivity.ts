@@ -9,6 +9,7 @@ const BUILTIN_AUTO = new Set([
   'search_web',
   'search_stock',
   'fetch_url',
+  'crawl_url',
   'generate_image',
   'generate_video',
   'generate_music',

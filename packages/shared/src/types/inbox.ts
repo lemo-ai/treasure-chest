@@ -17,7 +17,7 @@ export interface InboxItem {
   detailFormat?: 'markdown' | 'html' | 'plain'
   taskId?: string
   sessionId?: string
-  coverPreset?: 'fortune' | 'stocks' | 'agent' | 'custom'
+  coverPreset?: 'fortune' | 'stocks' | 'lottery' | 'agent' | 'custom'
   createdAt: string
   read: boolean
 }

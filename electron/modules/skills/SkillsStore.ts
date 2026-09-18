@@ -53,6 +53,40 @@ const BUILTIN: InstalledSkill[] = [
     installedAt: 'builtin',
     updatedAt: 'builtin',
   },
+  {
+    id: 'data_pipeline',
+    name: 'data-pipeline',
+    description: '用数据源落库/查询：crawl → SQL → 分析',
+    source: 'builtin',
+    prompt: [
+      '你是数据工作流助手。优先用工具，不要空口编造库内容。',
+      '1) list_data_sources 查看本智能体已绑定数据源；',
+      '2) 需要网页原文时用 crawl_url / fetch_url；',
+      '3) 持久化或分析时用 query_data_source：SQL 类传 sql（可 CREATE/INSERT/SELECT，覆盖配置默认语句）；',
+      '4) 先确保表结构，再批量写入，再 SELECT 做汇总；',
+      '5) 说明用了哪个数据源 id 与关键 SQL。仅供研究，不构成投资/购彩建议。',
+    ].join('\n'),
+    installedAt: 'builtin',
+    updatedAt: 'builtin',
+  },
+  {
+    id: 'sports_lottery_ds',
+    name: 'sports-lottery-datasource',
+    description: '体彩：澳客爬取 + 预置 SQLite（builtin:lottery-sqlite）落库分析',
+    source: 'builtin',
+    prompt: [
+      '目标：用 crawl_url + 预置数据源 builtin:lottery-sqlite（体彩本地库）做竞彩/北单研究。',
+      '表 matches 列名（禁止旧名 match_date/home_team）：date, product, home, away, score, odds_json, source_url, synced_at。',
+      '流程：',
+      '1) list_data_sources 看 schemaHint；',
+      '2) query_data_source 例：SELECT product, COUNT(*) n FROM matches GROUP BY product；',
+      '3) 网页：search_web 后对 URL 再 crawl_url/fetch_url，勿只凭标题编内容；',
+      '4) 澳客：crawl_url https://www.okooo.com/livecenter/?date=YYYY-MM-DD 后 INSERT。',
+      '声明：仅供研究，不构成购彩建议。',
+    ].join('\n'),
+    installedAt: 'builtin',
+    updatedAt: 'builtin',
+  },
 ]
 
 /** Curated open catalogs (Agent Skills / SKILL.md). */

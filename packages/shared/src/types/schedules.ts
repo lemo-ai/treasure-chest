@@ -5,7 +5,7 @@ export type ScheduleTaskKind = 'builtin' | 'custom'
 export type ScheduleActionType = 'fortune_notify' | 'stocks_report' | 'agent_turn'
 
 /** Visual cover for schedule cards */
-export type ScheduleCoverPreset = 'fortune' | 'stocks' | 'agent' | 'custom'
+export type ScheduleCoverPreset = 'fortune' | 'stocks' | 'lottery' | 'agent' | 'custom'
 
 /** Output format for schedule inbox reports (builtins use this; agent_turn defaults to markdown). */
 export type ScheduleReportFormat = 'markdown' | 'html'

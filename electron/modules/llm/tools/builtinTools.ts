@@ -83,6 +83,40 @@ const knowledgeTool: LlmToolSpec = {
   },
 }
 
+const listDataSourcesTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'list_data_sources',
+    description:
+      'List Settings → Data sources available to this agent (id / name / kind / allowed). Call before query_data_source.',
+    parameters: { type: 'object', properties: {} },
+  },
+}
+
+const queryDataSourceTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'query_data_source',
+    description:
+      'Read or write via a bound data source. For SQL kinds (sqlite/postgres/…), pass sql to override the saved default (SELECT to analyze; INSERT/UPDATE/CREATE to persist). For HTTP/file kinds, returns the resolved payload. Only ids allowed for this agent.',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Data source id from list_data_sources' },
+        sql: {
+          type: 'string',
+          description: 'Optional SQL override for SQL/DB kinds (read or write)',
+        },
+        query: {
+          type: 'string',
+          description: 'Optional query override for vector/search-style kinds',
+        },
+      },
+      required: ['id'],
+    },
+  },
+}
+
 const webSearchTool: LlmToolSpec = {
   type: 'function',
   function: {
@@ -120,11 +154,36 @@ const fetchUrlTool: LlmToolSpec = {
   function: {
     name: 'fetch_url',
     description:
-      'Open a public HTTP(S) page and return extracted text. Use after search_web when a headline is relevant and you need the article body (like ChatGPT browsing).',
+      'Open a public HTTP(S) page and return extracted text. Use after search_web when a headline is relevant and you need the article body (like ChatGPT browsing). For tables / structured scrape prefer crawl_url.',
     parameters: {
       type: 'object',
       properties: {
         url: { type: 'string', description: 'Full http(s) URL from search results' },
+      },
+      required: ['url'],
+    },
+  },
+}
+
+const crawlUrlTool: LlmToolSpec = {
+  type: 'function',
+  function: {
+    name: 'crawl_url',
+    description:
+      'Universal page crawler: fetch a public HTTP(S) URL (handles gb18030 etc.) and extract text, HTML tables, and links. Use for odds boards, result tables, docs, or any page where you need structured data beyond plain article text.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Full http(s) URL to crawl' },
+        mode: {
+          type: 'string',
+          enum: ['auto', 'text', 'tables', 'links'],
+          description: 'auto=text+tables+links (default); tables for odds/result grids',
+        },
+        maxChars: {
+          type: 'number',
+          description: 'Max text characters (default 24000)',
+        },
       },
       required: ['url'],
     },
@@ -214,7 +273,12 @@ const MEDIA_TOOLS: LlmToolSpec[] = [generateImageTool, generateVideoTool, genera
 
 export function builtinToolsForAgent(
   agentId: string,
-  opts?: { useKnowledge?: boolean; useWebSearch?: boolean },
+  opts?: {
+    useKnowledge?: boolean
+    useWebSearch?: boolean
+    /** Expose list_data_sources / query_data_source (agent-bound Settings data sources). */
+    enableDataSourceTools?: boolean
+  },
 ): LlmToolSpec[] {
   const id = (agentId || 'direct').trim()
   const web = [
@@ -222,12 +286,16 @@ export function builtinToolsForAgent(
     stockSearchTool,
     quoteTool,
     fetchUrlTool,
+    crawlUrlTool,
   ]
   const useWeb = opts?.useWebSearch !== false
+  const dsTools = [listDataSourcesTool, queryDataSourceTool]
+  const dsOn = opts?.enableDataSourceTools === true
 
   if (isDirectChatAgentId(id)) {
     const tools: LlmToolSpec[] = useWeb ? [...web] : []
     if (opts?.useKnowledge) tools.push(knowledgeTool)
+    if (dsOn) tools.push(...dsTools)
     tools.push(...MEDIA_TOOLS)
     return tools
   }
@@ -238,9 +306,12 @@ export function builtinToolsForAgent(
   } else if (id === 'stocks') {
     tools.push(...web, reportTool)
   } else {
+    if (dsOn) tools.push(...dsTools)
     tools.push(weatherTool)
     if (useWeb) tools.push(...web)
-    if (opts?.useKnowledge || id.startsWith('custom_')) tools.push(knowledgeTool)
+    if (opts?.useKnowledge || id.startsWith('custom_') || id === 'lottery') {
+      tools.push(knowledgeTool)
+    }
   }
   tools.push(...MEDIA_TOOLS)
 
@@ -264,6 +335,10 @@ export function toolStatusLabel(name: string, locale: string): string {
       return en ? 'Fetching stock quote…' : '正在获取行情…'
     case 'get_latest_stocks_report':
       return en ? 'Loading stocks report…' : '正在读取荐股报告…'
+    case 'list_data_sources':
+      return en ? 'Listing data sources…' : '正在列出数据源…'
+    case 'query_data_source':
+      return en ? 'Querying data source…' : '正在查询数据源…'
     case 'search_knowledge':
       return en ? 'Searching knowledge base…' : '正在检索知识库…'
     case 'search_web':
@@ -272,6 +347,8 @@ export function toolStatusLabel(name: string, locale: string): string {
       return en ? 'Looking up ticker…' : '正在查找股票代码…'
     case 'fetch_url':
       return en ? 'Opening page…' : '正在打开网页…'
+    case 'crawl_url':
+      return en ? 'Crawling page…' : '正在爬取网页…'
     case 'generate_image':
       return en ? 'Generating image…' : '正在生成图片…'
     case 'generate_video':
@@ -342,6 +419,10 @@ export function toolDisplayName(name: string, locale: string): string {
       return en ? 'Stock quote' : '股票行情'
     case 'get_latest_stocks_report':
       return en ? 'Stocks report' : '荐股报告'
+    case 'list_data_sources':
+      return en ? 'Data sources' : '数据源列表'
+    case 'query_data_source':
+      return en ? 'Query data source' : '查询数据源'
     case 'search_knowledge':
       return en ? 'Knowledge search' : '知识库检索'
     case 'search_web':
@@ -350,6 +431,8 @@ export function toolDisplayName(name: string, locale: string): string {
       return en ? 'Ticker lookup' : '股票代码查找'
     case 'fetch_url':
       return en ? 'Open page' : '打开网页'
+    case 'crawl_url':
+      return en ? 'Web crawl' : '网页爬取'
     case 'generate_image':
       return en ? 'Image generation' : '图片生成'
     case 'generate_video':

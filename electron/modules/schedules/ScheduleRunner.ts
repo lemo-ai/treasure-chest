@@ -88,7 +88,7 @@ function isDue(task: ScheduleTask): boolean {
   return false
 }
 
-function coverOf(task: ScheduleTask): 'fortune' | 'stocks' | 'agent' | 'custom' {
+function coverOf(task: ScheduleTask): 'fortune' | 'stocks' | 'lottery' | 'agent' | 'custom' {
   if (task.coverPreset) return task.coverPreset
   if (task.action.type === 'fortune_notify') return 'fortune'
   if (task.action.type === 'stocks_report') return 'stocks'

@@ -188,6 +188,7 @@ export const IpcChannels = {
     pickLibreOffice: 'tools:pickLibreOffice',
     clearLibreOffice: 'tools:clearLibreOffice',
     openLibreOfficeDownload: 'tools:openLibreOfficeDownload',
+    crawlUrl: 'tools:crawlUrl',
   },
   videoTools: {
     checkFfmpeg: 'videoTools:checkFfmpeg',

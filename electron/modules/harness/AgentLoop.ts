@@ -202,7 +202,14 @@ async function runAgentTurnInner(
 
   const parentReq: Pick<
     LlmChatRequest,
-    'enableCodingTools' | 'enablePluginTools' | 'enableHarnessTools' | 'enableSpawnSubagent' | 'enableMcpTools' | 'enabledMcpServerIds'
+    | 'enableCodingTools'
+    | 'enablePluginTools'
+    | 'enableHarnessTools'
+    | 'enableSpawnSubagent'
+    | 'enableMcpTools'
+    | 'enabledMcpServerIds'
+    | 'enableDataSourceTools'
+    | 'enabledDataSourceIds'
   > = {
     enableCodingTools: req.enableCodingTools,
     enablePluginTools: req.enablePluginTools ?? getCordisStack().enablePluginTools,
@@ -210,6 +217,8 @@ async function runAgentTurnInner(
     enableSpawnSubagent: req.enableSpawnSubagent,
     enableMcpTools: req.enableMcpTools,
     enabledMcpServerIds: req.enabledMcpServerIds,
+    enableDataSourceTools: req.enableDataSourceTools,
+    enabledDataSourceIds: req.enabledDataSourceIds,
   }
 
   const registry = new ToolRegistry()
@@ -227,6 +236,8 @@ async function runAgentTurnInner(
     enablePluginTools: toolPolicy.enablePluginTools,
     enableSpawnSubagent: toolPolicy.enableSpawnSubagent,
     enableMcpTools: toolPolicy.enableMcpTools,
+    enableDataSourceTools: req.enableDataSourceTools,
+    enabledDataSourceIds: req.enabledDataSourceIds,
     maxSubagentDepth: config.maxSubagentDepth,
     parentReq,
   })

@@ -523,6 +523,27 @@ interface TreasureChestApi {
     source?: 'custom' | 'auto' | 'none'
   }>
   openLibreOfficeDownload: () => Promise<void>
+  crawlUrl: (payload: {
+    url: string
+    mode?: 'auto' | 'text' | 'tables' | 'links'
+    maxChars?: number
+    encoding?: string
+    referer?: string
+  }) => Promise<{
+    ok: boolean
+    url: string
+    finalUrl?: string
+    status?: number
+    contentType?: string | null
+    encoding?: string
+    title?: string
+    text?: string
+    tables?: Array<{ headers: string[]; rows: string[][]; caption?: string }>
+    links?: Array<{ href: string; text: string }>
+    truncated?: boolean
+    retrievedAt: string
+    error?: string
+  }>
   onVideoProcessProgress: (
     callback: (payload: { ratio: number; label: string }) => void,
   ) => () => void

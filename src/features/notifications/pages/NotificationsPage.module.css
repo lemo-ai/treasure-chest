@@ -236,6 +236,11 @@
   background: linear-gradient(180deg, #36d6c3, #1f8f7a);
 }
 
+.toneLottery .itemAccent,
+.toneLottery .detailBanner {
+  background: linear-gradient(180deg, #e0505a, #8b2a35);
+}
+
 .toneAgent .itemAccent,
 .toneAgent .detailBanner {
   background: linear-gradient(180deg, #7c5cff, var(--color-brand));

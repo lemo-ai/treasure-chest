@@ -5,6 +5,7 @@ import {
   createAgent,
   deleteAgent,
   updateAgent,
+  isConfigPresetAgent,
   type AgentTone,
   type CreateAgentInput,
   type AgentDef,
@@ -39,7 +40,8 @@ export function CreateAgentModal({
 }: CreateAgentModalProps): React.JSX.Element {
   const { t } = useTranslation()
   const isEdit = Boolean(editing)
-  const isBuiltinEdit = Boolean(editing?.builtin)
+  const isConfigPreset = Boolean(editing && isConfigPresetAgent(editing))
+  const isLockedBuiltinEdit = Boolean(editing?.builtin && !isConfigPreset)
   const [name, setName] = useState(editing?.name ?? '')
   const [description, setDescription] = useState(editing?.description ?? '')
   const [systemPrompt, setSystemPrompt] = useState(editing?.systemPrompt ?? '')
@@ -59,13 +61,26 @@ export function CreateAgentModal({
   const [alwaysUseKnowledge, setAlwaysUseKnowledge] = useState(
     Boolean(editing?.alwaysUseKnowledge),
   )
-  const [enableCodingTools, setEnableCodingTools] = useState(editing?.enableCodingTools !== false)
-  const [enablePluginTools, setEnablePluginTools] = useState(editing?.enablePluginTools !== false)
-  const [enableSpawnSubagent, setEnableSpawnSubagent] = useState(editing?.enableSpawnSubagent !== false)
+  const [enableCodingTools, setEnableCodingTools] = useState(() =>
+    editing && isConfigPresetAgent(editing)
+      ? editing.enableCodingTools === true
+      : editing?.enableCodingTools !== false,
+  )
+  const [enablePluginTools, setEnablePluginTools] = useState(() =>
+    editing && isConfigPresetAgent(editing)
+      ? editing.enablePluginTools === true
+      : editing?.enablePluginTools !== false,
+  )
+  const [enableSpawnSubagent, setEnableSpawnSubagent] = useState(() =>
+    editing && isConfigPresetAgent(editing)
+      ? editing.enableSpawnSubagent === true
+      : editing?.enableSpawnSubagent !== false,
+  )
   const [mcpServerIds, setMcpServerIds] = useState<string[]>(editing?.enabledMcpServerIds ?? [])
   const [collectionIds, setCollectionIds] = useState<string[]>(
     editing?.knowledgeCollectionIds ?? [],
   )
+  const [dataSourceIds, setDataSourceIds] = useState<string[]>(editing?.dataSourceIds ?? [])
   const [modelGroups, setModelGroups] = useState<Array<{ id: string; name: string; models: string[] }>>(
     [],
   )
@@ -73,6 +88,9 @@ export function CreateAgentModal({
     [],
   )
   const [collections, setCollections] = useState<Array<{ id: string; name: string }>>([])
+  const [dataSources, setDataSources] = useState<Array<{ id: string; name: string; enabled: boolean }>>(
+    [],
+  )
   const [error, setError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
 
@@ -95,8 +113,17 @@ export function CreateAgentModal({
         const fortune = snap.fortune as { aiProviders?: FortuneAiProviderConfig[] } | undefined
         const groups = groupedChatModels(fortune?.aiProviders)
         setModelGroups(groups)
+        const sources = snap.dataSources?.sources ?? []
+        setDataSources(
+          sources.map((s) => ({
+            id: s.id,
+            name: s.name,
+            enabled: s.enabled,
+          })),
+        )
       } catch {
         setModelGroups([])
+        setDataSources([])
       }
       try {
         const status = await window.treasureChest.refreshMcpStatus()
@@ -139,8 +166,30 @@ export function CreateAgentModal({
   const onSubmit = (e: FormEvent): void => {
     e.preventDefault()
     setError(null)
-    if (isBuiltinEdit && editing) {
-      const agent = updateAgent(String(editing.id), { logoUrl })
+    if (isLockedBuiltinEdit && editing) {
+      const agent = updateAgent(String(editing.id), {
+        logoUrl,
+        preferredModel,
+        quickPrompts,
+      })
+      if (!agent) {
+        setError(t('agents.create.failed'))
+        return
+      }
+      onUpdated?.(agent)
+      return
+    }
+    if (isConfigPreset && editing) {
+      const agent = updateAgent(String(editing.id), {
+        logoUrl,
+        preferredModel,
+        quickPrompts,
+        systemPrompt,
+        enableCodingTools,
+        enablePluginTools,
+        enableSpawnSubagent,
+        dataSourceIds,
+      })
       if (!agent) {
         setError(t('agents.create.failed'))
         return
@@ -156,6 +205,7 @@ export function CreateAgentModal({
       preferredModel,
       enabledMcpServerIds: mcpServerIds,
       knowledgeCollectionIds: collectionIds,
+      dataSourceIds,
       alwaysUseKnowledge,
       enableCodingTools,
       enablePluginTools,
@@ -196,18 +246,22 @@ export function CreateAgentModal({
         <header className={styles.head}>
           <div>
             <h2 id="create-agent-title" className={styles.title}>
-              {isBuiltinEdit
-                ? t('agents.edit.logoTitle')
-                : isEdit
-                  ? t('agents.edit.title')
-                  : t('agents.create.title')}
+              {isLockedBuiltinEdit
+                ? t('agents.edit.builtinTitle')
+                : isConfigPreset
+                  ? t('agents.edit.presetTitle')
+                  : isEdit
+                    ? t('agents.edit.title')
+                    : t('agents.create.title')}
             </h2>
             <p className={styles.sub}>
-              {isBuiltinEdit
-                ? t('agents.edit.logoSubtitle')
-                : isEdit
-                  ? t('agents.edit.subtitle')
-                  : t('agents.create.subtitle')}
+              {isLockedBuiltinEdit
+                ? t('agents.edit.builtinSubtitle')
+                : isConfigPreset
+                  ? t('agents.edit.presetSubtitle')
+                  : isEdit
+                    ? t('agents.edit.subtitle')
+                    : t('agents.create.subtitle')}
             </p>
           </div>
           <button
@@ -249,7 +303,7 @@ export function CreateAgentModal({
                     disabled={logoBusy}
                     onClick={() => setLogoUrl('')}
                   >
-                    {isBuiltinEdit ? t('agents.create.logoRestore') : t('agents.create.logoClear')}
+                    {isLockedBuiltinEdit ? t('agents.create.logoRestore') : t('agents.create.logoClear')}
                   </button>
                 ) : null}
                 <p className={styles.hint}>{t('agents.create.logoHint')}</p>
@@ -265,28 +319,141 @@ export function CreateAgentModal({
             </label>
           </div>
 
-          {!isBuiltinEdit ? (
+          {isLockedBuiltinEdit && editing ? (
             <>
-              <label className={styles.field}>
+              <div className={styles.field}>
                 <span>{t('agents.create.name')}</span>
                 <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t('agents.create.namePlaceholder')}
-                  maxLength={40}
-                  autoFocus
+                  value={t(editing.name)}
+                  readOnly
+                  disabled
+                  aria-readonly="true"
                 />
-              </label>
-
-              <label className={styles.field}>
+              </div>
+              <div className={styles.field}>
                 <span>{t('agents.create.description')}</span>
                 <input
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={t('agents.create.descPlaceholder')}
-                  maxLength={80}
+                  value={t(editing.description)}
+                  readOnly
+                  disabled
+                  aria-readonly="true"
                 />
+              </div>
+              <p className={styles.hint}>{t('agents.edit.builtinLockedHint')}</p>
+              <p className={styles.hint}>
+                {t(`agents.edit.builtinCaps.${String(editing.id)}`, {
+                  defaultValue: t('agents.edit.builtinCaps.generic'),
+                })}
+              </p>
+
+              <label className={styles.field}>
+                <span>{t('agents.create.model')}</span>
+                <select
+                  value={(() => {
+                    if (!preferredModel) return ''
+                    if (decodeChatModelRef(preferredModel)) return preferredModel
+                    const group = modelGroups.find((g) => g.models.includes(preferredModel))
+                    return group ? encodeChatModelRef(group.id, preferredModel) : ''
+                  })()}
+                  onChange={(e) => setPreferredModel(e.target.value)}
+                >
+                  <option value="">{t('agents.create.modelDefault')}</option>
+                  {modelGroups.map((group) => (
+                    <optgroup key={group.id} label={group.name}>
+                      {group.models.map((m) => (
+                        <option key={`${group.id}::${m}`} value={encodeChatModelRef(group.id, m)}>
+                          {m}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <span className={styles.hint}>{t('agents.create.modelHint')}</span>
               </label>
+
+              <fieldset className={styles.bindField}>
+                <legend>{t('agents.create.quickPrompts')}</legend>
+                <p className={styles.hint}>{t('agents.create.quickPromptsHint')}</p>
+                <div className={styles.promptList}>
+                  {quickPrompts.map((prompt, index) => (
+                    <div key={`qp-b-${index}`} className={styles.promptRow}>
+                      <input
+                        value={prompt}
+                        maxLength={40}
+                        placeholder={t('agents.create.quickPromptPlaceholder', { n: index + 1 })}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setQuickPrompts((prev) => prev.map((p, i) => (i === index ? value : p)))
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className={styles.promptRemove}
+                        disabled={quickPrompts.length <= 1 && !prompt.trim()}
+                        aria-label={t('agents.create.quickPromptRemove')}
+                        onClick={() => {
+                          setQuickPrompts((prev) => {
+                            if (prev.length <= 1) return ['']
+                            return prev.filter((_, i) => i !== index)
+                          })
+                        }}
+                      >
+                        <IconClose />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {quickPrompts.length < 6 ? (
+                  <button
+                    type="button"
+                    className={styles.promptAdd}
+                    onClick={() => setQuickPrompts((prev) => [...prev, ''])}
+                  >
+                    {t('agents.create.quickPromptAdd')}
+                  </button>
+                ) : null}
+              </fieldset>
+            </>
+          ) : null}
+
+          {!isLockedBuiltinEdit ? (
+            <>
+              {isConfigPreset && editing ? (
+                <>
+                  <div className={styles.field}>
+                    <span>{t('agents.create.name')}</span>
+                    <input value={t(editing.name)} readOnly disabled aria-readonly="true" />
+                  </div>
+                  <div className={styles.field}>
+                    <span>{t('agents.create.description')}</span>
+                    <input value={t(editing.description)} readOnly disabled aria-readonly="true" />
+                  </div>
+                  <p className={styles.hint}>{t('agents.edit.presetHint')}</p>
+                </>
+              ) : (
+                <>
+                  <label className={styles.field}>
+                    <span>{t('agents.create.name')}</span>
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder={t('agents.create.namePlaceholder')}
+                      maxLength={40}
+                      autoFocus
+                    />
+                  </label>
+
+                  <label className={styles.field}>
+                    <span>{t('agents.create.description')}</span>
+                    <input
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder={t('agents.create.descPlaceholder')}
+                      maxLength={80}
+                    />
+                  </label>
+                </>
+              )}
 
               <label className={styles.field}>
                 <span>{t('agents.create.prompt')}</span>
@@ -294,7 +461,7 @@ export function CreateAgentModal({
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
                   placeholder={t('agents.create.promptPlaceholder')}
-                  rows={5}
+                  rows={isConfigPreset ? 8 : 5}
                 />
               </label>
 
@@ -424,6 +591,35 @@ export function CreateAgentModal({
               </fieldset>
 
               <fieldset className={styles.bindField}>
+                <legend>{t('agents.create.dataSources')}</legend>
+                <p className={styles.hint}>{t('agents.create.dataSourcesHint')}</p>
+                {dataSources.length === 0 ? (
+                  <p className={styles.emptyBind}>{t('agents.create.dataSourcesEmpty')}</p>
+                ) : (
+                  <div className={styles.chipRow}>
+                    {dataSources.map((src) => {
+                      const on = dataSourceIds.includes(src.id)
+                      return (
+                        <button
+                          key={src.id}
+                          type="button"
+                          className={`${styles.bindChip} ${on ? styles.bindChipOn : ''}`}
+                          aria-pressed={on}
+                          title={src.enabled ? undefined : t('agents.create.dataSourceDisabled')}
+                          onClick={() => setDataSourceIds((prev) => toggleId(prev, src.id))}
+                        >
+                          {src.name}
+                          {!src.enabled ? ' · off' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </fieldset>
+
+              {!isConfigPreset ? (
+                <>
+              <fieldset className={styles.bindField}>
                 <legend>{t('agents.create.knowledge')}</legend>
                 <p className={styles.hint}>{t('agents.create.knowledgeHint')}</p>
                 {collections.length === 0 ? (
@@ -474,13 +670,15 @@ export function CreateAgentModal({
                   </div>
                 )}
               </fieldset>
+                </>
+              ) : null}
             </>
           ) : null}
 
           {error ? <p className={styles.error}>{error}</p> : null}
 
           <div className={styles.actions}>
-            {isEdit && !isBuiltinEdit && editing ? (
+            {isEdit && !isLockedBuiltinEdit && !isConfigPreset && editing ? (
               <button
                 type="button"
                 className={styles.danger}

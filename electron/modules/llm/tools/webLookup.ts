@@ -15,7 +15,7 @@ export interface StockQuoteHit {
   source: string
 }
 
-async function fetchText(url: string, timeoutMs = 14_000): Promise<string> {
+async function fetchText(url: string, timeoutMs = 20_000): Promise<string> {
   const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(timeoutMs) })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.text()
@@ -242,12 +242,43 @@ export async function searchWeb(query: string): Promise<string> {
   const newsGl = wikiLangs[0] === 'zh' ? 'CN' : 'US'
   const newsCeid = wikiLangs[0] === 'zh' ? 'CN:zh-Hans' : 'US:en'
   const newsQueries = [q]
-  if (/[\u4e00-\u9fff]/.test(q) && !/上市|股票|IPO/i.test(q)) {
+  if (/[\u4e00-\u9fff]/.test(q) && !/上市|股票|IPO|竞彩|北单|足球/i.test(q)) {
     newsQueries.push(`${q} 上市 股票代码`)
+  }
+  if (/竞彩|北单|足球|让球|赔率/i.test(q)) {
+    newsQueries.push(`${q} 分析`, `${q} 前瞻`)
   }
 
   const wikiHits: Array<{ title: string; url: string; snippet: string; source: string }> = []
-  const newsHits: Array<{ title: string; url: string; source: string }> = []
+  const newsHits: Array<{ title: string; url: string; source: string; snippet?: string }> = []
+  const errors: string[] = []
+
+  const parseDdgHtml = (html: string): Array<{ title: string; url: string; source: string; snippet?: string }> => {
+    const out: Array<{ title: string; url: string; source: string; snippet?: string }> = []
+    const re =
+      /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html)) && out.length < 10) {
+      const href = decodeXml(m[1] || '').trim()
+      const title = decodeXml(m[2] || '')
+        .replace(/<[^>]+>/g, '')
+        .trim()
+      if (!title || !href) continue
+      // DuckDuckGo redirect links
+      let url = href
+      const uddg = href.match(/[?&]uddg=([^&]+)/)
+      if (uddg?.[1]) {
+        try {
+          url = decodeURIComponent(uddg[1])
+        } catch {
+          /* keep */
+        }
+      }
+      if (!/^https?:\/\//i.test(url)) continue
+      out.push({ title, url, source: 'duckduckgo' })
+    }
+    return out
+  }
 
   await Promise.all([
     (async () => {
@@ -256,7 +287,7 @@ export async function searchWeb(query: string): Promise<string> {
           const url =
             `https://${lang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}` +
             `&limit=3&namespace=0&format=json`
-          const data = (await fetchJson(url)) as [string, string[], string[], string[]]
+          const data = (await fetchJson(url, 12_000)) as [string, string[], string[], string[]]
           const titles = data[1] ?? []
           const descs = data[2] ?? []
           const links = data[3] ?? []
@@ -270,6 +301,7 @@ export async function searchWeb(query: string): Promise<string> {
           }
           if (wikiHits.length) break
         } catch (err) {
+          errors.push(`wikipedia-${lang}:${err instanceof Error ? err.message : String(err)}`)
           logger.warn(`wikipedia ${lang} search failed`, err)
         }
       }
@@ -278,67 +310,76 @@ export async function searchWeb(query: string): Promise<string> {
       (async () => {
         try {
           const url = `https://www.bing.com/news/search?q=${encodeURIComponent(nq)}&format=rss`
-          const xml = await fetchText(url)
+          const xml = await fetchText(url, 18_000)
           newsHits.push(...parseRssItems(xml, 8).map((x) => ({ ...x, source: 'bing-news' })))
         } catch (err) {
+          errors.push(`bing:${err instanceof Error ? err.message : String(err)}`)
           logger.warn('bing news search failed', err)
         }
       })(),
       (async () => {
         try {
           const url = `https://news.google.com/rss/search?q=${encodeURIComponent(nq)}&hl=${newsHl}&gl=${newsGl}&ceid=${newsCeid}`
-          const xml = await fetchText(url)
-          newsHits.push(...parseRssItems(xml, 6).map((x) => ({ ...x, source: 'google-news' })))
+          const xml = await fetchText(url, 18_000)
+          newsHits.push(...parseRssItems(xml, 8).map((x) => ({ ...x, source: 'google-news' })))
         } catch (err) {
+          errors.push(`google-news:${err instanceof Error ? err.message : String(err)}`)
           logger.warn('google news search failed', err)
         }
       })(),
     ]),
+    (async () => {
+      try {
+        const html = await fetchText(
+          `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
+          20_000,
+        )
+        newsHits.push(...parseDdgHtml(html))
+      } catch (err) {
+        errors.push(`duckduckgo:${err instanceof Error ? err.message : String(err)}`)
+        logger.warn('duckduckgo search failed', err)
+      }
+    })(),
   ])
 
   const seenNews = new Set<string>()
   const dedupNews = newsHits.filter((n) => {
-    if (seenNews.has(n.title)) return false
-    seenNews.add(n.title)
+    const key = n.title.trim()
+    if (!key || seenNews.has(key)) return false
+    seenNews.add(key)
     return true
   })
 
   return JSON.stringify({
     query: q,
     retrievedAt: new Date().toISOString(),
-    news: dedupNews.slice(0, 12),
+    news: dedupNews.slice(0, 18),
     wikipedia: wikiHits.slice(0, 4),
+    lookupErrors: errors.length ? errors.slice(0, 6) : undefined,
     note:
-      'News is more current than Wikipedia or model memory. Cite titles. For tickers call search_stock then get_stock_quote. Do not treat empty news as “company does not exist”.',
+      dedupNews.length === 0
+        ? 'Search returned few/no headlines. Retry search_web with different keywords, then crawl_url / fetch_url on concrete article URLs. Empty search ≠ no data online.'
+        : 'Prefer crawl_url/fetch_url on the most relevant URLs before analyzing. Cite titles. Do not invent article content.',
   })
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 export async function fetchWebPage(urlRaw: string): Promise<string> {
+  const { crawlUrl } = await import('../../crawl/webCrawl')
   const url = urlRaw.trim()
   if (!/^https?:\/\//i.test(url)) {
     return JSON.stringify({ error: 'url must start with http:// or https://' })
   }
   try {
-    const html = await fetchText(url, 18_000)
-    const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/\s+/g, ' ').trim() || ''
-    const text = stripHtml(html).slice(0, 8000)
+    const result = await crawlUrl({ url, mode: 'text', maxChars: 8000, timeoutMs: 18_000 })
+    if (!result.ok) {
+      return JSON.stringify({ error: result.error || 'fetch failed', url })
+    }
     return JSON.stringify({
-      url,
-      title,
-      text,
-      retrievedAt: new Date().toISOString(),
-      truncated: stripHtml(html).length > 8000,
+      url: result.finalUrl || url,
+      title: result.title || '',
+      text: result.text || '',
+      retrievedAt: result.retrievedAt,
+      truncated: Boolean(result.truncated),
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

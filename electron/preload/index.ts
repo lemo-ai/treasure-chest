@@ -760,6 +760,27 @@ const api = {
   }> => ipcRenderer.invoke(IpcChannels.tools.clearLibreOffice),
   openLibreOfficeDownload: (): Promise<void> =>
     ipcRenderer.invoke(IpcChannels.tools.openLibreOfficeDownload),
+  crawlUrl: (payload: {
+    url: string
+    mode?: 'auto' | 'text' | 'tables' | 'links'
+    maxChars?: number
+    encoding?: string
+    referer?: string
+  }): Promise<{
+    ok: boolean
+    url: string
+    finalUrl?: string
+    status?: number
+    contentType?: string | null
+    encoding?: string
+    title?: string
+    text?: string
+    tables?: Array<{ headers: string[]; rows: string[][]; caption?: string }>
+    links?: Array<{ href: string; text: string }>
+    truncated?: boolean
+    retrievedAt: string
+    error?: string
+  }> => ipcRenderer.invoke(IpcChannels.tools.crawlUrl, payload),
   onVideoProcessProgress: (
     callback: (payload: { ratio: number; label: string }) => void,
   ): (() => void) => {

@@ -192,6 +192,12 @@
     linear-gradient(120deg, rgba(56, 210, 170, 0.16), transparent 55%);
 }
 
+.toneLottery .cardScrim {
+  background:
+    linear-gradient(180deg, rgba(32, 12, 18, 0.14) 0%, rgba(28, 8, 14, 0.9) 100%),
+    linear-gradient(120deg, rgba(230, 80, 90, 0.18), transparent 55%);
+}
+
 .toneAgent .cardMedia,
 .toneAgent.card {
   background:

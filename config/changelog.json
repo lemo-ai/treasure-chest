@@ -1,6 +1,34 @@
 {
   "releases": [
     {
+      "version": "0.4.0",
+      "date": "2026-09-18",
+      "title": {
+        "zh-CN": "体彩智能体 · 爬虫工具 · 会话排队",
+        "en-US": "Lottery agent · crawl tool · message queue"
+      },
+      "items": {
+        "zh-CN": [
+          "新增体彩分析智能体：预置本地 SQLite 数据源与 Skill，不依赖专用代码模块",
+          "打包安装后自动内置 lottery.db；若本机已有历史爬取数据会自动迁移",
+          "数据源能力增强：列表/查询工具、表结构提示、旧列名自动兼容",
+          "联网检索更稳：Bing/Google 超时回退 DuckDuckGo，超时与抓取提示优化",
+          "工具箱新增网页爬虫页：导出与调度联动",
+          "工作台会话支持发送队列：回复进行中可继续提问排队，支持单条移除与清空",
+          "创建智能体时可绑定数据源；内置 Skill 覆盖数据流水线与体彩数据源用法"
+        ],
+        "en-US": [
+          "New sports-lottery agent: preset local SQLite data source + Skill, no lottery-specific code modules",
+          "Packaged installs ship lottery.db; existing local crawl data migrates automatically",
+          "Stronger data-source tools: list/query, schema hints, legacy column-name rewrite",
+          "More reliable web lookup: Bing/Google fall back to DuckDuckGo with longer timeouts",
+          "New crawl tool page with export helpers and schedule hooks",
+          "Workbench send queue: queue follow-ups while a reply streams; remove one item or clear all",
+          "Create-agent flow can bind data sources; built-in Skills for data pipeline and lottery DB usage"
+        ]
+      }
+    },
+    {
       "version": "0.3.0",
       "date": "2026-09-17",
       "title": {

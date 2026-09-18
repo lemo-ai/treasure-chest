@@ -81,6 +81,9 @@ export const DEFAULT_DATA_SOURCES_SETTINGS: DataSourcesSettings = {
   sources: [],
 }
 
+/** Preinstalled SQLite for the lottery preset agent (path filled at runtime under userData). */
+export const BUILTIN_LOTTERY_DATA_SOURCE_ID = 'builtin:lottery-sqlite'
+
 export const DATA_SOURCE_KINDS: DataSourceKind[] = [
   'http_json',
   'http_text',

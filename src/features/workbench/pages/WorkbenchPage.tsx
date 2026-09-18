@@ -31,6 +31,7 @@ import {
   DIRECT_CHAT_DEF,
   DIRECT_CHAT_ID,
   agentDisplayName,
+  agentUsesLocalPersona,
   getAgent,
   isDirectChatId,
   type AgentDef,
@@ -274,6 +275,18 @@ export function WorkbenchPage(): React.JSX.Element {
   const [streamSessionId, setStreamSessionId] = useState<string | null>(null)
   const streamSessionRef = useRef<string | null>(null)
   const streamIdsBySessionRef = useRef<Map<string, string>>(new Map())
+  /** Outgoing user turns waiting while a session reply is in flight. */
+  type QueuedSend = {
+    id: string
+    content: string
+    effectiveCap: WorkbenchCapabilityId | null
+    mediaModel: string
+    capOptions: CapOptionValues
+    activeSkillId: string | null
+  }
+  const sendQueueBySessionRef = useRef<Map<string, QueuedSend[]>>(new Map())
+  const sendBusyBySessionRef = useRef<Set<string>>(new Set())
+  const [queueTick, setQueueTick] = useState(0)
   const activeAgentRef = useRef<AgentId>(activeAgent)
   const activeIdRef = useRef<string | null>(null)
   activeAgentRef.current = activeAgent
@@ -301,6 +314,41 @@ export function WorkbenchPage(): React.JSX.Element {
     sessionId != null && sessionId in streamingSessionsRef.current
 
   const activeStreaming = activeId != null && activeId in streamingSessions
+
+  const bumpQueueUi = (): void => {
+    setQueueTick((n) => n + 1)
+  }
+
+  const isSessionBusy = (sessionId: string | null | undefined): boolean =>
+    sessionId != null &&
+    (sessionId in streamingSessionsRef.current || sendBusyBySessionRef.current.has(sessionId))
+
+  const activeQueue =
+    activeId != null ? (sendQueueBySessionRef.current.get(activeId) ?? []) : []
+  const activeQueueLen = activeQueue.length
+  void queueTick
+
+  const clearSendQueue = (sessionId: string): void => {
+    if (!sendQueueBySessionRef.current.has(sessionId)) return
+    sendQueueBySessionRef.current.delete(sessionId)
+    bumpQueueUi()
+  }
+
+  const removeQueuedSend = (sessionId: string, queueId: string): void => {
+    const prev = sendQueueBySessionRef.current.get(sessionId)
+    if (!prev?.length) return
+    const next = prev.filter((item) => item.id !== queueId)
+    if (next.length === prev.length) return
+    if (next.length === 0) sendQueueBySessionRef.current.delete(sessionId)
+    else sendQueueBySessionRef.current.set(sessionId, next)
+    bumpQueueUi()
+  }
+
+  const enqueueSend = (sessionId: string, item: QueuedSend): void => {
+    const prev = sendQueueBySessionRef.current.get(sessionId) ?? []
+    sendQueueBySessionRef.current.set(sessionId, [...prev, item])
+    bumpQueueUi()
+  }
 
   const markSessionStreaming = (sessionId: string, streaming: boolean): void => {
     const prev = streamingSessionsRef.current
@@ -715,6 +763,8 @@ export function WorkbenchPage(): React.JSX.Element {
 
   const onStopGeneration = (): void => {
     if (!activeId) return
+    // Stop aborts the current turn and drops anything still waiting.
+    clearSendQueue(activeId)
     const streamId = streamIdsBySessionRef.current.get(activeId)
     if (streamId) {
       void window.treasureChest.cancelWorkbenchStream(streamId)
@@ -771,7 +821,7 @@ export function WorkbenchPage(): React.JSX.Element {
         ? activeAgentDef.knowledgeCollectionIds?.[0]
         : undefined
     const toolFlags = agentChatToolFlags(activeAgentDef, directMode)
-    const preferredRaw = !directMode && !activeAgentDef.builtin ? activeAgentDef.preferredModel : undefined
+    const preferredRaw = !directMode ? activeAgentDef.preferredModel : undefined
     const preferredDecoded = preferredRaw ? decodeChatModelRef(preferredRaw) : null
     const preferredModelId = preferredDecoded?.modelId || preferredRaw?.trim() || ''
     const chatModel = await syncChatEndpoint(
@@ -786,7 +836,9 @@ export function WorkbenchPage(): React.JSX.Element {
           model: chatModel,
           messages: [],
           systemPrompt:
-            !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
+            !directMode && agentUsesLocalPersona(activeAgentDef)
+              ? activeAgentDef.systemPrompt
+              : undefined,
           locale: i18n.language,
           useKnowledge: Boolean(opts.useKnowledge),
           enableWebSearch,
@@ -987,48 +1039,31 @@ export function WorkbenchPage(): React.JSX.Element {
     }
   }
 
-  const sendText = async (text: string): Promise<void> => {
-    const content = text.trim()
-    if (!content && attachments.length === 0) return
-    if (armedWorkflow === 'deep_research' && content) {
-      setDraft('')
-      draftByAgentRef.current[String(activeAgent)] = ''
-      await runDeepResearchWorkflow(content)
-      return
-    }
-    if (!selectedModel) {
-      const sessionId = await ensureSession(activeAgent)
-      appendMessage(sessionId, 'system', t('workbench.needModel'))
-      refreshForSession(sessionId)
-      return
-    }
-    if (!hasApiKey && !localEndpoint) {
-      const sessionId = await ensureSession(activeAgent)
-      appendMessage(sessionId, 'system', t('workbench.needApiKey'))
-      refreshForSession(sessionId)
-      return
-    }
-    let mediaModel = selectedModel
-    let effectiveCap = activeCap
-    // Explicit capability chips still short-circuit to dedicated media APIs.
-    // Plain chat relies on agent tools (generate_image / generate_video / generate_music).
-    if (effectiveCap === 'image' || effectiveCap === 'video' || effectiveCap === 'music') {
-      const routed = await resolveMediaModelOrExplain(effectiveCap)
-      if (!routed) return
-      mediaModel = routed
-    }
+  const drainSendQueue = async (sessionId: string): Promise<void> => {
+    if (isSessionBusy(sessionId)) return
+    const q = sendQueueBySessionRef.current.get(sessionId)
+    if (!q?.length) return
+    const [next, ...rest] = q
+    if (!next) return
+    if (rest.length === 0) sendQueueBySessionRef.current.delete(sessionId)
+    else sendQueueBySessionRef.current.set(sessionId, rest)
+    bumpQueueUi()
+    sendBusyBySessionRef.current.add(sessionId)
+    await runSendTurn(sessionId, next)
+  }
 
-    const sessionId = await ensureSession(activeAgent)
-    if (isSessionStreaming(sessionId)) return
-    const fileLine =
-      attachments.length > 0
-        ? `\n${t('workbench.attachedFiles', { files: attachments.map((a) => a.name).join('、') })}`
-        : ''
-    appendMessage(sessionId, 'user', `${content}${fileLine}`.trim())
-    setDraft('')
-    draftByAgentRef.current[String(activeAgent)] = ''
-    attachmentsByAgentRef.current[String(activeAgent)] = []
-    setAttachments([])
+  const runSendTurn = async (sessionId: string, turn: QueuedSend): Promise<void> => {
+    const {
+      content,
+      effectiveCap,
+      mediaModel,
+      capOptions: turnCapOptions,
+      activeSkillId: turnSkillId,
+    } = turn
+    // Append only when this turn actually starts — never while another turn is live,
+    // or harness session events get a mid-flight user/message and the running loop breaks.
+    appendMessage(sessionId, 'user', content)
+    sendBusyBySessionRef.current.add(sessionId)
     patchLiveStream(sessionId, { text: '', status: '', citations: [], toolSteps: [] })
     markSessionStreaming(sessionId, true)
     streamSessionRef.current = sessionId
@@ -1038,7 +1073,7 @@ export function WorkbenchPage(): React.JSX.Element {
 
     const useKnowledge =
       /@知识库|@knowledge/i.test(content) ||
-      activeCap === 'knowledge' ||
+      effectiveCap === 'knowledge' ||
       Boolean(!directMode && !activeAgentDef.builtin && activeAgentDef.alwaysUseKnowledge) ||
       Boolean(
         !directMode &&
@@ -1050,15 +1085,15 @@ export function WorkbenchPage(): React.JSX.Element {
         ? activeAgentDef.knowledgeCollectionIds?.[0]
         : undefined
     const toolFlags = agentChatToolFlags(activeAgentDef, directMode)
-    const preferredRaw = !directMode && !activeAgentDef.builtin ? activeAgentDef.preferredModel : undefined
+    const preferredRaw = !directMode ? activeAgentDef.preferredModel : undefined
     const preferredDecoded = preferredRaw ? decodeChatModelRef(preferredRaw) : null
     const preferredModelId = preferredDecoded?.modelId || preferredRaw?.trim() || ''
     const chatModel = await syncChatEndpoint(
       preferredModelId && modelOptions.includes(preferredModelId) ? preferredModelId : selectedModel,
     )
     const skill =
-      installedSkills.find((s) => s.id === activeSkillId) ||
-      WORKBENCH_SKILLS.find((s) => s.id === activeSkillId)
+      installedSkills.find((s) => s.id === turnSkillId) ||
+      WORKBENCH_SKILLS.find((s) => s.id === turnSkillId)
     const skillPrompt = skill
       ? 'prompt' in skill && typeof (skill as InstalledSkillRow).prompt === 'string'
         ? (skill as InstalledSkillRow).prompt
@@ -1068,26 +1103,31 @@ export function WorkbenchPage(): React.JSX.Element {
       : undefined
 
     const optionPrompt =
-      activeCap && CAPABILITY_OPTION_GROUPS[activeCap]
-        ? buildCapabilityOptionsPrompt(activeCap, capOptions, i18n.language)
+      effectiveCap && CAPABILITY_OPTION_GROUPS[effectiveCap]
+        ? buildCapabilityOptionsPrompt(effectiveCap, turnCapOptions, i18n.language)
         : null
     const mergedSkillPrompt = [skillPrompt, optionPrompt].filter(Boolean).join('\n')
+    // Prefer the user prompt body without the attachments footer for media APIs.
+    const attachZh = content.lastIndexOf('\n附件：')
+    const attachEn = content.toLowerCase().lastIndexOf('\nattached files:')
+    const cut = Math.max(attachZh, attachEn)
+    const promptBody = (cut >= 0 ? content.slice(0, cut) : content).trim() || content
 
     try {
       if (effectiveCap === 'image') {
         patchLiveStream(sessionId, { status: t('workbench.imageGenerating') })
         const img = await window.treasureChest.generateImage({
-          prompt: content,
+          prompt: promptBody,
           model: mediaModel,
-          size: imageSizeFromOptions(capOptions),
-          style: capOptions.imageStyle,
-          quality: capOptions.imageQuality,
+          size: imageSizeFromOptions(turnCapOptions),
+          style: turnCapOptions.imageStyle,
+          quality: turnCapOptions.imageQuality,
         })
         if (img.ok && img.url) {
           const meta = [
-            capOptions.imageAspect,
-            capOptions.imageQuality,
-            capOptions.imageStyle,
+            turnCapOptions.imageAspect,
+            turnCapOptions.imageQuality,
+            turnCapOptions.imageStyle,
           ]
             .filter(Boolean)
             .join(' · ')
@@ -1095,7 +1135,7 @@ export function WorkbenchPage(): React.JSX.Element {
           const doneLine = usedModel
             ? t('workbench.imageDoneModel', { model: usedModel })
             : t('workbench.imageDone')
-          const alt = content.replace(/[\[\]]/g, '').slice(0, 40) || 'image'
+          const alt = promptBody.replace(/[\[\]]/g, '').slice(0, 40) || 'image'
           const md = `![${alt}](${img.url})\n\n${doneLine}${meta ? ` (${meta})` : ''}`
           appendAssistant(sessionId, md)
         } else {
@@ -1108,11 +1148,11 @@ export function WorkbenchPage(): React.JSX.Element {
       } else if (effectiveCap === 'video') {
         patchLiveStream(sessionId, { status: t('workbench.videoGenerating') })
         const vid = await window.treasureChest.generateVideo({
-          prompt: content,
+          prompt: promptBody,
           model: mediaModel,
-          durationSec: Number(capOptions.videoDuration || 5),
-          aspectRatio: capOptions.videoAspect,
-          resolution: capOptions.videoResolution,
+          durationSec: Number(turnCapOptions.videoDuration || 5),
+          aspectRatio: turnCapOptions.videoAspect,
+          resolution: turnCapOptions.videoResolution,
         })
         if (vid.ok && (vid.text || vid.url)) {
           appendAssistant(sessionId, vid.text || `[video](${vid.url})`)
@@ -1126,11 +1166,11 @@ export function WorkbenchPage(): React.JSX.Element {
       } else if (effectiveCap === 'music') {
         patchLiveStream(sessionId, { status: t('workbench.musicGenerating') })
         const music = await window.treasureChest.generateMusic({
-          prompt: content,
+          prompt: promptBody,
           model: mediaModel,
-          durationSec: Number(capOptions.musicDuration || 60),
-          style: capOptions.musicStyle,
-          instrumental: capOptions.musicInstrumental !== 'no',
+          durationSec: Number(turnCapOptions.musicDuration || 60),
+          style: turnCapOptions.musicStyle,
+          instrumental: turnCapOptions.musicInstrumental !== 'no',
         })
         if (music.ok && (music.text || music.url)) {
           appendAssistant(sessionId, music.text || `[audio](${music.url})`)
@@ -1144,8 +1184,9 @@ export function WorkbenchPage(): React.JSX.Element {
       } else {
         patchLiveStream(sessionId, { citations: [], toolSteps: [] })
         const capabilityMode =
-          activeCap && ['write', 'translate', 'research', 'skills', 'create_agent'].includes(activeCap)
-            ? activeCap
+          effectiveCap &&
+          ['write', 'translate', 'research', 'skills', 'create_agent'].includes(effectiveCap)
+            ? effectiveCap
             : undefined
         const res = await window.treasureChest.workbenchChatStream(
           {
@@ -1154,7 +1195,9 @@ export function WorkbenchPage(): React.JSX.Element {
             model: chatModel,
             messages: [],
             systemPrompt:
-              !directMode && !activeAgentDef.builtin ? activeAgentDef.systemPrompt : undefined,
+              !directMode && agentUsesLocalPersona(activeAgentDef)
+                ? activeAgentDef.systemPrompt
+                : undefined,
             locale: i18n.language,
             useKnowledge,
             enableWebSearch,
@@ -1194,7 +1237,9 @@ export function WorkbenchPage(): React.JSX.Element {
             streamIdsBySessionRef.current.set(sessionId, streamId)
           },
         )
-        if (res.ok && res.text?.trim()) {
+        if (res.error === 'cancelled') {
+          await finishHarnessTurn(sessionId)
+        } else if (res.ok && res.text?.trim()) {
           await finishHarnessTurn(sessionId)
         } else {
           appendMessage(
@@ -1208,6 +1253,7 @@ export function WorkbenchPage(): React.JSX.Element {
       const msg = err instanceof Error ? err.message : String(err)
       appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
     } finally {
+      sendBusyBySessionRef.current.delete(sessionId)
       if (streamSessionRef.current === sessionId) streamSessionRef.current = null
       clearLiveStream(sessionId)
       if (activeIdRef.current === sessionId) {
@@ -1215,7 +1261,68 @@ export function WorkbenchPage(): React.JSX.Element {
       } else {
         setSessions(listSessions())
       }
+      void drainSendQueue(sessionId)
     }
+  }
+
+  const sendText = async (text: string): Promise<void> => {
+    const content = text.trim()
+    if (!content && attachments.length === 0) return
+    if (armedWorkflow === 'deep_research' && content) {
+      setDraft('')
+      draftByAgentRef.current[String(activeAgent)] = ''
+      await runDeepResearchWorkflow(content)
+      return
+    }
+    if (!selectedModel) {
+      const sessionId = await ensureSession(activeAgent)
+      appendMessage(sessionId, 'system', t('workbench.needModel'))
+      refreshForSession(sessionId)
+      return
+    }
+    if (!hasApiKey && !localEndpoint) {
+      const sessionId = await ensureSession(activeAgent)
+      appendMessage(sessionId, 'system', t('workbench.needApiKey'))
+      refreshForSession(sessionId)
+      return
+    }
+    let mediaModel = selectedModel
+    let effectiveCap = activeCap
+    // Explicit capability chips still short-circuit to dedicated media APIs.
+    // Plain chat relies on agent tools (generate_image / generate_video / generate_music).
+    if (effectiveCap === 'image' || effectiveCap === 'video' || effectiveCap === 'music') {
+      const routed = await resolveMediaModelOrExplain(effectiveCap)
+      if (!routed) return
+      mediaModel = routed
+    }
+
+    const sessionId = await ensureSession(activeAgent)
+    const fileLine =
+      attachments.length > 0
+        ? `\n${t('workbench.attachedFiles', { files: attachments.map((a) => a.name).join('、') })}`
+        : ''
+    const contentFull = `${content}${fileLine}`.trim()
+    const turn: QueuedSend = {
+      id: `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      content: contentFull,
+      effectiveCap,
+      mediaModel,
+      capOptions: { ...capOptions },
+      activeSkillId,
+    }
+    setDraft('')
+    draftByAgentRef.current[String(activeAgent)] = ''
+    attachmentsByAgentRef.current[String(activeAgent)] = []
+    setAttachments([])
+
+    // While a reply is in flight, only enqueue — do not touch harness yet.
+    if (isSessionBusy(sessionId)) {
+      enqueueSend(sessionId, turn)
+      return
+    }
+    // Claim the session slot synchronously so a second Enter cannot start a parallel turn.
+    sendBusyBySessionRef.current.add(sessionId)
+    await runSendTurn(sessionId, turn)
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -2179,6 +2286,43 @@ export function WorkbenchPage(): React.JSX.Element {
               ))}
             </div>
           ) : null}
+            {activeQueueLen > 0 && activeId ? (
+              <div className={styles.queuePanel} role="status" aria-label={t('workbench.queuePending', { count: activeQueueLen })}>
+                <div className={styles.queuePanelHead}>
+                  <span className={styles.queueBarTitle}>
+                    {t('workbench.queuePending', { count: activeQueueLen })}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.queueClear}
+                    onClick={() => clearSendQueue(activeId)}
+                  >
+                    {t('workbench.queueClear')}
+                  </button>
+                </div>
+                <div className={styles.queueCards}>
+                  {activeQueue.map((item, idx) => (
+                    <div key={item.id} className={styles.queueCard}>
+                      <span className={styles.queueCardBadge} aria-hidden>
+                        {idx + 1}
+                      </span>
+                      <span className={styles.queueCardText} title={item.content}>
+                        {item.content.replace(/\s+/g, ' ').trim()}
+                      </span>
+                      <button
+                        type="button"
+                        className={styles.queueCardRemove}
+                        aria-label={t('workbench.queueRemove')}
+                        title={t('workbench.queueRemove')}
+                        onClick={() => removeQueuedSend(activeId, item.id)}
+                      >
+                        <IconClose />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {attachments.length > 0 ? (
               <div className={styles.attachRow}>
                 {attachments.map((file) => (
@@ -2337,14 +2481,26 @@ export function WorkbenchPage(): React.JSX.Element {
                     {t('workbench.localModel')}
                   </span>
                 ) : null}
+                {activeStreaming ? (
+                  <button
+                    type="button"
+                    className={styles.stopBtn}
+                    onClick={onStopGeneration}
+                    aria-label={t('workbench.stop')}
+                    title={t('workbench.stop')}
+                  >
+                    <IconClose />
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  className={activeStreaming ? styles.stopBtn : styles.sendBtn}
-                  disabled={!activeStreaming && !draft.trim() && attachments.length === 0}
-                  onClick={() => (activeStreaming ? onStopGeneration() : void sendText(draft))}
-                  aria-label={activeStreaming ? t('workbench.stop') : t('workbench.send')}
+                  className={styles.sendBtn}
+                  disabled={!draft.trim() && attachments.length === 0}
+                  onClick={() => void sendText(draft)}
+                  aria-label={activeStreaming ? t('workbench.queueSend') : t('workbench.send')}
+                  title={activeStreaming ? t('workbench.queueSend') : t('workbench.send')}
                 >
-                  {activeStreaming ? <IconClose /> : <IconSend />}
+                  <IconSend />
                 </button>
               </div>
             </div>

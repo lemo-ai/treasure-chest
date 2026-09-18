@@ -69,6 +69,10 @@ export interface LlmChatRequest {
   enableSpawnSubagent?: boolean
   /** Override MCP tools (domain agents default off). */
   enableMcpTools?: boolean
+  /** Expose list_data_sources / query_data_source for Settings → Data sources. */
+  enableDataSourceTools?: boolean
+  /** Restrict data-source tools to these ids; omit with tools on (direct) = all enabled. */
+  enabledDataSourceIds?: string[]
 }
 
 export type ToolSensitivityTier = 'auto' | 'confirm' | 'block'

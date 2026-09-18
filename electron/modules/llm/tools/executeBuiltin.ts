@@ -7,12 +7,15 @@ import { generateStocksReportFromWatchlist } from '../../stocks/StocksService'
 import { stocksStore } from '../../stocks/StocksStore'
 import { searchKnowledge } from '../../knowledge/KnowledgeStore'
 import { fetchWebPage, searchStockSymbols, searchWeb } from './webLookup'
+import { crawlUrlForTool } from '../../crawl/webCrawl'
 import { generateImage } from '../ImageGenService'
 import { generateMusic, generateVideo } from '../MediaGenService'
 import { logger } from '../../../utils/logger'
 
 export interface ToolExecContext {
   locale: string
+  /** When set, query_data_source / list_data_sources are scoped to these ids. null = all enabled. */
+  allowedDataSourceIds?: string[] | null
 }
 
 function parseDate(raw: unknown): Date {
@@ -333,6 +336,28 @@ export async function executeBuiltinTool(
         return await getStockQuote(args)
       case 'get_latest_stocks_report':
         return await getLatestReport()
+      case 'list_data_sources': {
+        const { listDataSourcesForTools } = await import('../../dataSources/DataSourceService')
+        const items = listDataSourcesForTools(ctx.allowedDataSourceIds)
+        return JSON.stringify({
+          sources: items,
+          hint:
+            ctx.allowedDataSourceIds == null
+              ? 'All enabled sources may be queried.'
+              : 'Only allowed=true sources may be queried for this agent.',
+        })
+      }
+      case 'query_data_source': {
+        const { queryDataSourceForTools } = await import('../../dataSources/DataSourceService')
+        const id = String(args.id || '').trim()
+        if (!id) return JSON.stringify({ error: 'id required' })
+        const result = await queryDataSourceForTools(id, {
+          allowedIds: ctx.allowedDataSourceIds,
+          sql: typeof args.sql === 'string' ? args.sql : undefined,
+          query: typeof args.query === 'string' ? args.query : undefined,
+        })
+        return JSON.stringify(result)
+      }
       case 'search_knowledge':
         return await searchKb(args)
       case 'search_web':
@@ -341,6 +366,12 @@ export async function executeBuiltinTool(
         return await searchStockSymbols(String(args.query || ''))
       case 'fetch_url':
         return await fetchWebPage(String(args.url || ''))
+      case 'crawl_url':
+        return await crawlUrlForTool({
+          url: String(args.url || ''),
+          mode: typeof args.mode === 'string' ? args.mode : undefined,
+          maxChars: typeof args.maxChars === 'number' ? args.maxChars : undefined,
+        })
       case 'generate_image':
         return await runGenerateImage(args, ctx.locale)
       case 'generate_video':

@@ -17,6 +17,7 @@ import { ImageToolkitPage } from '@renderer/features/tools/pages/ImageToolkitPag
 import { VideoToolkitPage } from '@renderer/features/tools/pages/VideoToolkitPage'
 import { AudioToolkitPage } from '@renderer/features/tools/pages/AudioToolkitPage'
 import { DocToolkitPage } from '@renderer/features/tools/pages/DocToolkitPage'
+import { CrawlPage } from '@renderer/features/tools/pages/CrawlPage'
 
 export const router = createHashRouter([
   {
@@ -42,6 +43,7 @@ export const router = createHashRouter([
       { path: 'tools/video', element: <VideoToolkitPage /> },
       { path: 'tools/audio', element: <AudioToolkitPage /> },
       { path: 'tools/doc', element: <DocToolkitPage /> },
+      { path: 'tools/crawl', element: <CrawlPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'changelog', element: <ChangelogPage /> },
     ],

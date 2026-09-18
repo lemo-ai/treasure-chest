@@ -24,6 +24,7 @@ const READY: ToolCard[] = [
   { id: 'timezone', to: '/tools/timezone', icon: <IconGlobe /> },
   { id: 'worldtime', to: '/tools/worldtime', icon: <IconGrid /> },
   { id: 'json', to: '/tools/json', icon: <IconLayers /> },
+  { id: 'crawl', to: '/tools/crawl', icon: <IconGlobe /> },
   { id: 'image', to: '/tools/image', icon: <IconImage /> },
   { id: 'video', to: '/tools/video', icon: <IconVideo /> },
   { id: 'audio', to: '/tools/audio', icon: <IconMusic /> },

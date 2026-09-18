@@ -50,6 +50,9 @@ if (isHarnessHeadless) {
   syncLaunchAtLogin()
   registerAllIpc()
   void import('../modules/schedules/SchedulesStore').then((m) => m.migrateSchedulesFromSettings())
+  void import('../modules/dataSources/BuiltinLotteryDataSource').then((m) =>
+    m.ensureBuiltinLotteryDataSource(),
+  )
   void import('../modules/schedules/ScheduleRunner').then((m) => m.startScheduleRunner())
   // Builtin fortune/stocks ticks are owned by ScheduleRunner now.
 

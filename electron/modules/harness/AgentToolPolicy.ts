@@ -33,7 +33,7 @@ export function resolveAgentToolPolicy(
       enableSpawnSubagent: true,
       enableMcpTools: true,
     }
-  } else if (id === 'fortune' || id === 'stocks') {
+  } else if (id === 'fortune' || id === 'stocks' || id === 'lottery') {
     policy = {
       enableCodingTools: false,
       enableHarnessTools: false,

@@ -39,7 +39,14 @@ export interface ToolExecCtx {
   maxSubagentDepth?: number
   parentReq?: Pick<
     LlmChatRequest,
-    'enableCodingTools' | 'enablePluginTools' | 'enableHarnessTools' | 'enableSpawnSubagent' | 'enableMcpTools' | 'enabledMcpServerIds'
+    | 'enableCodingTools'
+    | 'enablePluginTools'
+    | 'enableHarnessTools'
+    | 'enableSpawnSubagent'
+    | 'enableMcpTools'
+    | 'enabledMcpServerIds'
+    | 'enableDataSourceTools'
+    | 'enabledDataSourceIds'
   >
   turnIndex?: number
   stepIndex?: number
@@ -59,10 +66,20 @@ export interface ToolRegistryOptions {
   enablePluginTools?: boolean
   enableSpawnSubagent?: boolean
   enableMcpTools?: boolean
+  enableDataSourceTools?: boolean
+  /** undefined/null with tools on = all enabled sources; array = allowlist */
+  enabledDataSourceIds?: string[] | null
   maxSubagentDepth?: number
   parentReq?: Pick<
     LlmChatRequest,
-    'enableCodingTools' | 'enablePluginTools' | 'enableHarnessTools' | 'enableSpawnSubagent' | 'enableMcpTools' | 'enabledMcpServerIds'
+    | 'enableCodingTools'
+    | 'enablePluginTools'
+    | 'enableHarnessTools'
+    | 'enableSpawnSubagent'
+    | 'enableMcpTools'
+    | 'enabledMcpServerIds'
+    | 'enableDataSourceTools'
+    | 'enabledDataSourceIds'
   >
 }
 
@@ -115,7 +132,14 @@ export class ToolRegistry {
     const builtin = builtinToolsForAgent(opts.agentId, {
       useKnowledge: opts.useKnowledge,
       useWebSearch: opts.useWebSearch,
+      enableDataSourceTools: opts.enableDataSourceTools,
     })
+    const allowedDataSourceIds =
+      opts.enableDataSourceTools === true
+        ? opts.enabledDataSourceIds === undefined
+          ? null
+          : opts.enabledDataSourceIds
+        : []
     for (const spec of builtin) {
       const name = spec.function.name
       this.tools.set(name, {
@@ -134,7 +158,10 @@ export class ToolRegistry {
               /* keep */
             }
           }
-          const output = await executeBuiltinTool(name, patched, { locale: ctx.locale })
+          const output = await executeBuiltinTool(name, patched, {
+            locale: ctx.locale,
+            allowedDataSourceIds,
+          })
           let failed = false
           try {
             const parsed = JSON.parse(output) as { error?: string }

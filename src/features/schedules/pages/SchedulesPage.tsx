@@ -225,6 +225,7 @@ function recurrenceLabel(
 const TONE: Record<ScheduleCoverPreset, string> = {
   fortune: styles.toneFortune,
   stocks: styles.toneStocks,
+  lottery: styles.toneLottery,
   agent: styles.toneAgent,
   custom: styles.toneCustom,
 }

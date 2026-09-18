@@ -1,9 +1,11 @@
 import fortuneLogo from '@renderer/assets/agent-logo-fortune.png'
 import stocksLogo from '@renderer/assets/agent-logo-stocks.png'
+import lotteryLogo from '@renderer/assets/agent-logo-lottery.png'
 import type { ReactNode } from 'react'
 import {
   IconChatBubble,
   IconFortune,
+  IconLottery,
   IconSkill,
   IconSparkles,
   IconStocks,
@@ -29,12 +31,14 @@ interface AgentAvatarProps {
 const BUILTIN_DEFAULT_LOGOS: Record<string, string> = {
   fortune: fortuneLogo,
   stocks: stocksLogo,
+  lottery: lotteryLogo,
 }
 
 function defaultIcon(agent: AgentDef, fallback: 'skill' | 'sparkles'): ReactNode {
   if (isDirectChatId(String(agent.id))) return <IconChatBubble />
   if (agent.id === 'fortune') return <IconFortune />
   if (agent.id === 'stocks') return <IconStocks />
+  if (agent.id === 'lottery') return <IconLottery />
   return fallback === 'sparkles' ? <IconSparkles /> : <IconSkill />
 }
 

@@ -19,6 +19,9 @@ const RUN_STATE_KEY = 'schedules.runState'
 const REMOVED_BUILTINS_KEY = 'schedules.removedBuiltins'
 const MIGRATED_KEY = 'schedules.migrated.v1'
 const RECURRENCE_MIGRATED_KEY = 'schedules.migrated.recurrence.v2'
+/** One-time strip of removed lottery_sync / builtin:lottery schedule tasks. */
+const LOTTERY_REMOVED_KEY = 'schedules.migrated.lotteryRemoved.v1'
+const LEGACY_LOTTERY_TASK_ID = 'builtin:lottery'
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -232,6 +235,28 @@ export function migrateSchedulesFromSettings(): void {
     writeTasks(tasks)
     setSetting(RECURRENCE_MIGRATED_KEY, true)
     logger.info('schedules: migrated recurrence shapes')
+  }
+  if (!getSetting<boolean>(LOTTERY_REMOVED_KEY, false)) {
+    const before = readTasks()
+    const next = before.filter((t) => {
+      const actionType = (t.action as { type?: string } | undefined)?.type
+      return actionType !== 'lottery_sync' && t.id !== LEGACY_LOTTERY_TASK_ID
+    })
+    if (next.length !== before.length) {
+      writeTasks(next)
+      const state = readRunState()
+      let stateChanged = false
+      for (const t of before) {
+        if (next.some((n) => n.id === t.id)) continue
+        if (state[t.id]) {
+          delete state[t.id]
+          stateChanged = true
+        }
+      }
+      if (stateChanged) writeRunState(state)
+      logger.info('schedules: removed legacy lottery_sync / builtin:lottery tasks')
+    }
+    setSetting(LOTTERY_REMOVED_KEY, true)
   }
 }
 

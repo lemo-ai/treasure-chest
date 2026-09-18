@@ -265,6 +265,10 @@ function runMigrations(database: Database.Database): void {
     )
     database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(9)
   }
+  if (current < 10) {
+    // Formerly created lottery_matches / lottery_sync_log; specialized lottery module removed.
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(10)
+  }
 }
 
 function setSetting(database: Database.Database, key: string, value: unknown): void {

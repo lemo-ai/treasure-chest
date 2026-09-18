@@ -1156,6 +1156,28 @@ export function registerAllIpc(): void {
   })
   ipcMain.handle(IpcChannels.tools.openLibreOfficeDownload, () => openLibreOfficeDownload())
   ipcMain.handle(
+    IpcChannels.tools.crawlUrl,
+    async (
+      _e,
+      payload?: {
+        url?: string
+        mode?: 'auto' | 'text' | 'tables' | 'links'
+        maxChars?: number
+        encoding?: string
+        referer?: string
+      },
+    ) => {
+      const { crawlUrl } = await import('../modules/crawl/webCrawl')
+      return crawlUrl({
+        url: String(payload?.url || ''),
+        mode: payload?.mode,
+        maxChars: payload?.maxChars,
+        encoding: payload?.encoding,
+        referer: payload?.referer,
+      })
+    },
+  )
+  ipcMain.handle(
     IpcChannels.media.generateMusic,
     async (
       _e,

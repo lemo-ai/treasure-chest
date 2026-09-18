@@ -34,6 +34,17 @@ const BUILTIN_SYSTEM: Record<string, { zh: string; en: string }> = {
       'Listing status and prices come from tools only. Empty lookup is not “unlisted”. No promised return forecasts.',
     ].join('\n'),
   },
+  lottery: {
+    // Fallback only when chat omits systemPrompt; primary persona lives in agentRegistry prefs.
+    zh: [
+      '你是「袖里乾坤」工作台中的体彩分析助手（预装配置可在设置中修改）。',
+      '绑定 Settings 数据源后用 list_data_sources / query_data_source；网页用 crawl_url。可启用技能 sports-lottery-datasource。仅供研究，不构成购彩建议。',
+    ].join('\n'),
+    en: [
+      'You are Qiankun’s sports-lottery assistant (editable preset).',
+      'Bind Settings data sources, then use list_data_sources / query_data_source; crawl pages with crawl_url. Enable skill sports-lottery-datasource. Research only — not betting advice.',
+    ].join('\n'),
+  },
 }
 
 function todayLocalYmd(): string {
@@ -69,14 +80,14 @@ function liveDataPolicy(isEn: boolean): string {
   return isEn
     ? [
         `Today's local date is ${today}. Your training cutoff is NOT current time.`,
-        'For news, listing/IPO status, stock prices, weather, or any fact that can change: call tools FIRST (search_web, search_stock, get_stock_quote, fetch_url). You may call several in parallel.',
-        'If tools conflict with memory, trust tools. Empty search ≠ unlisted/does-not-exist — retry or fetch_url a result link.',
+        'For news, listing/IPO status, stock prices, weather, or any fact that can change: call tools FIRST (search_web, search_stock, get_stock_quote, fetch_url, crawl_url). You may call several in parallel.',
+        'If tools conflict with memory, trust tools. Empty search ≠ unlisted/does-not-exist — retry or fetch_url / crawl_url a result link.',
         'Cite source titles. Do not invent tickers or prices. No guaranteed return forecasts.',
         'When the user wants an image, video, or music/song: call generate_image / generate_video / generate_music. Paste the tool’s markdown field verbatim so media renders. Never invent media URLs.',
       ].join('\n')
     : [
         `今天本地日期是 ${today}。你的训练截止日期不等于今天。`,
-        '新闻、是否上市、股价、天气等会变的事实：必须先调工具（search_web、search_stock、get_stock_quote、fetch_url），可并行调用。',
+        '新闻、是否上市、股价、天气等会变的事实：必须先调工具（search_web、search_stock、get_stock_quote、fetch_url、crawl_url），可并行调用。',
         '工具结果与记忆冲突时以工具为准。检索为空只表示本次失败，不是「未上市/不存在」。',
         '回答时点出来源标题。禁止编造代码或价格。禁止保证收益的趋势预测。',
         '用户要生成图片、视频或音乐/歌曲时：调用 generate_image / generate_video / generate_music，并把工具返回的 markdown 原样贴进回复以便播放/展示。禁止编造媒体链接。',
@@ -191,6 +202,18 @@ export async function assembleSystemPrompt(
   if (toolNames.length) parts.push(liveDataPolicy(isEn))
   if (toolNames.includes('read_file') || toolNames.includes('run_shell')) {
     parts.push(codingPolicy(isEn, getConfiguredSandboxRoot()))
+  }
+  if (toolNames.includes('query_data_source') || toolNames.includes('list_data_sources')) {
+    const { buildDataSourcesCatalogHint } = await import('../dataSources/DataSourceService')
+    const dsHint = buildDataSourcesCatalogHint(req.enabledDataSourceIds, isEn)
+    if (dsHint) parts.push(dsHint)
+    else if (isDirect) {
+      parts.push(
+        isEn
+          ? 'Data source tools are available. Call list_data_sources then query_data_source (pass sql to override for SQL kinds).'
+          : '可用数据源工具：先 list_data_sources，再用 query_data_source（SQL 类可传 sql 覆盖默认语句以读写）。',
+      )
+    }
   }
   parts.push(modeHint, knowledgeHint, memoryHint(req, isEn), toolHint)
   if (sessionId && !isDirect) {
