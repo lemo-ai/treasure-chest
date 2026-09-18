@@ -1,153 +1,54 @@
-# Qiankun (袖里乾坤)
+# Qiankun
 
 [中文](README.zh-CN.md) | [English](README.en.md)
 
-**Qiankun** is a **local-first AI agent workbench** (npm / repo name: `treasure-chest`; Chinese product name: 袖里乾坤). Manage agents and sessions on the left, collaborate in chat in the center, keep a knowledge base on disk, run schedules for daily briefings, and use a built-in toolkit for everyday and media tasks — **no account required; data stays on your machine by default**.
+**A local-first AI agent workbench.** Multi-agent chat, on-device knowledge retrieval, scheduled automation, and an extensible tool layer — no account required; your data stays on the machine by default.
 
-| | |
-|--|--|
-| Version | **0.4.0** |
-| App ID | `com.lemo.treasure-chest` |
-| Former name | Treasure Chest |
-| Repository | https://github.com/lemo-ai/treasure-chest |
+Version **0.4.0** · [Docs](docs/README.md) · [Releases](https://github.com/lemo-ai/treasure-chest/releases)
+
+*(Chinese product name: 袖里乾坤. Repository: `treasure-chest`.)*
 
 ---
 
-## Positioning
+## Core capabilities
 
-Desktop AI workbench UX (chat shell, visible tool use, extensible agents) plus local calendar, fortune, stocks, and lottery research helpers.
+### Agent workbench
 
-- **Local-first**: settings, chats, knowledge, and crawl data live under the app user-data directory
-- **No account system**: requests go only to endpoints you configure
-- **Secrets**: API keys use OS secure storage, not plaintext config files
-- **Extensible**: custom agents, Skills, MCP servers, data sources, schedules
+A chat-first shell: switch built-in or custom agents, stream replies, and inspect tool calls. Queue follow-up messages while a reply is still running — built for continuous collaboration, not one-shot Q&A.
 
-> **Disclaimer**: AI replies, fortune readings, stock ideas, and lottery analysis are for learning / entertainment only. They are **not** investment, betting, medical, or legal advice. Respect site robots/ToS; do not scrape aggressively.
+Ships with **Direct model / Daily fortune / Stock advisor / Lottery advisor**. Create your own agents with persona, model, knowledge collections, data sources, and skills.
 
----
+### On-device knowledge base
 
-## Features
+Personal RAG: organize documents in a collection tree, chunk and index them, then search with full-text, vector, or hybrid retrieval. Cite knowledge in chat with traceable chunk references — keep reports and domain notes as local context.
 
-### 1. Workbench (default home)
+### Extensible tool layer
 
-Multi-agent chat shell:
+Agents can opt into:
 
-- Switch built-in / custom agents; pick model providers
-- Inspect tool calls (search, crawl, knowledge, data sources, coding sandbox, …)
-- **Send queue**: type follow-ups while a reply streams; remove one item or clear all
-- Optional: knowledge `@` mentions, web lookup, MCP, Skills, coding Harness
-- Quick prompts, streaming, session management
+- **Web search & crawl** — research, fetch pages, structured export  
+- **Data sources** — query local or remote databases from the agent (including built-in sample stores)  
+- **MCP** — plug in standard MCP servers for external tools  
+- **Skills** — reusable task playbooks (meeting notes, data pipelines, …)  
+- **Coding sandbox** — constrained file/shell workflows for engineering tasks  
 
-### 2. Agents
+### Schedules & notifications
 
-| Built-in | Role |
-|----------|------|
-| **Direct model** | No domain persona; chat + general tools + coding sandbox |
-| **Daily fortune** | Hexagram / daily fortune; weather helpers |
-| **Stock advisor** | Quotes, recommendation reports, web search / fetch |
-| **Lottery advisor** | Editable preset persona; binds local lottery SQLite by default; JC / BJDC shortcuts |
-
-**Custom agents**: persona, logo, model, MCP, knowledge collections, data sources, Skills, quick prompts. Manage and delete them under Settings.
-
-### 3. Knowledge (on-device RAG)
-
-- Collection **tree** (about 5 levels): create / rename / delete; cascade docs or move to default
-- Ingest: text, Markdown, Office, PDF, spreadsheets, common images, …
-- Chunks in SQLite; FTS + vector search with optional **hybrid** mode
-- Embeddings: off / local hash / OpenAI / Ollama / OpenAI-compatible
-- Vector store: local JSON by default; optional external backends
-- Chat `@knowledge`; agent `search_knowledge` with citation trails
-
-### 4. Schedules
-
-Card UI for:
-
-| Kind | Purpose |
-|------|---------|
-| Fortune notify | Push today’s fortune |
-| Stocks report | Auto stock-advisor report |
-| Agent turn | Fixed prompt to an agent (incl. lottery daily sync briefing) |
-
-- **Triggers**: once, daily, interval, windowed repeats
-- **Context** (custom): model, Skills, MCP, knowledge, web, data sources; Markdown / HTML reports
-- **Delivery**: in-app inbox, desktop notification, DingTalk webhook, SMTP email (per-task overrides)
-- Ships with default fortune / stocks / lottery tasks (editable / disableable)
-
-### 5. Notifications
-
-Inbox for full schedule and system results; unread badge; works with DingTalk / email channels.
-
-### 6. Calendar
-
-- Solar / lunar / gan-zhi / daily notes
-- China holiday **rest** / **work** badges
-- Optional **desktop widget** window from Settings
-
-### 7. Toolkit
-
-| Tool | Summary |
-|------|---------|
-| Timestamp | Seconds / millis ↔ wall time |
-| Timezone | Cross-zone conversion |
-| World clock | Major cities vs local time |
-| JSON | Format / minify / escape |
-| Web crawl | Public pages (body / tables / links); export CSV, XLSX, JSON, TXT; schedule-friendly |
-| Image | Classic edits + on-device ONNX (matting, upscale, watermark remove, …) + AI image gen |
-| Video | FFmpeg cut/transcode, timeline, AI video |
-| Audio | FFmpeg processing, AI music / transcription helpers |
-| Documents | Extract, Markdown, Office convert, PDF merge/split/encrypt |
-
-### 8. Settings (highlights)
-
-- **Models & APIs**: multi-provider cards; presets (OpenAI, Volcengine Ark, DashScope, Kling, MiniMax, …); OpenAI / Anthropic protocols; multimodal models
-- **Local LLM**: detect / start Ollama; install model families; sync into workbench; LM Studio-friendly checks
-- **MCP**: stdio / SSE; seeded Memory, Sequential Thinking, Filesystem, Everything demos
-- **Data sources**: 20+ DB / HTTP / file kinds; on-demand drivers; connection test; built-in lottery SQLite; agent `list` / `query`
-- **Skills**: meeting notes, email polish, SWOT, code explain, data pipeline, lottery datasource; install external `SKILL.md` catalogs
-- **Fortune / stocks**: birth profile, market toggles, scan pool, daily auto reports
-- **General**: language (`zh-CN` / `en-US`), theme accents, launch at login, tray, widget, export / backup
+Card-based jobs: daily / interval / windowed runs for fortune alerts, stock reports, or any agent turn. Results land in the in-app inbox and can fan out to desktop notifications, DingTalk, and email.
 
 ---
 
-## Stack & layout
+## Also included
 
-| Layer | Tech |
-|-------|------|
-| Desktop | Electron 43, electron-vite, electron-builder |
-| UI | React 19, TypeScript, Vite, Zustand, react-i18next |
-| Local data | better-sqlite3, FTS / vectors |
-| Media | ffmpeg-static, onnxruntime-web, … |
+Calendar (optional desktop widget) and a general toolkit ship with the app for day-to-day use; they are secondary to the agent-workbench path.
 
-```
-electron/           Main process: windows, IPC, modules (LLM, schedules, knowledge, stocks, …)
-src/features/       Renderer features (workbench, knowledge, schedules, tools, …)
-packages/shared/    Shared types & IPC channels
-config/             Runtime config (e.g. changelog.json)
-docs/               Current design docs (legacy drafts in docs/archive)
-resources/          Icons & pack assets
-```
+UI: **简体中文 / English**. Models, channels, and appearance live under Settings.
 
-Theme tokens live **only** in `src/shared/styles/tokens.css`.
-
-Design docs (Chinese): see [`docs/`](docs/README.md)
-
-- [Product overview](docs/产品概述.md)
-- [Architecture](docs/架构说明.md)
-- [Agents & capabilities](docs/智能体与能力.md)
-- [Knowledge base](docs/知识库.md)
-- [Schedules & notifications](docs/调度与通知.md)
+> AI and domain analyses are for reference only — not investment, betting, or legal advice.
 
 ---
 
-## Requirements
-
-- Node.js (current LTS recommended)
-- macOS / Windows / Linux (see pack targets)
-- Optional: Ollama for local models; cloud API keys as needed
-
----
-
-## Develop
+## Quick start
 
 ```bash
 git clone https://github.com/lemo-ai/treasure-chest.git
@@ -156,70 +57,26 @@ npm install
 npm run dev
 ```
 
-Notes:
-
-- `npm run dev` uses `scripts/dev.sh` to clear `ELECTRON_RUN_AS_NODE=1` (common in Cursor), which otherwise leaves `electron.app` undefined
-- Keep the Electron mirror in `.npmrc` if GitHub release downloads are slow
-- `postinstall` syncs ONNX wasm and patches the dev icon
-
-### Scripts
-
 | Command | Purpose |
 |---------|---------|
-| `npm run typecheck` | Typecheck main / renderer / shared |
-| `npm run test` | Vitest |
-| `npm run lint` | ESLint |
-| `npm run format` | Prettier |
-| `npm run build` | Typecheck + production build |
-| `npm run pack` | Build + unpackaged dir |
-| `npm run dist` | Build + installers under `release/` |
-| `npm run harness` | Headless Harness automation |
+| `npm run typecheck` | Typecheck |
+| `npm run test` | Tests |
+| `npm run dist` | Build installers into `release/` |
 
-### Pack targets (electron-builder)
+macOS (Intel / Apple Silicon), Windows, and Linux. See [architecture](docs/架构说明.md) (Chinese).
 
-| Platform | Format | Arch |
-|----------|--------|------|
-| macOS | DMG | x64, arm64 |
-| Windows | NSIS (choose install dir) | x64 |
-| Linux | AppImage, deb | x64 |
-
-Output: `release/` (e.g. `袖里乾坤-0.4.0-arm64.dmg`).
+If Electron fails in IDE environments (`electron.app` undefined), use `npm run dev` (clears `ELECTRON_RUN_AS_NODE`). Keep the Electron mirror in `.npmrc` when needed.
 
 ---
 
-## Changelog
+## Stack
 
-In-app changelog reads `config/changelog.json`. Update that file when shipping so zh-CN / en-US entries stay in sync.
+Electron · React · TypeScript · Vite · SQLite · Zustand · i18next
 
-Recent:
-
-- **0.4.0**: lottery agent, crawl tool, workbench send queue, data-source / web lookup improvements
-- **0.3.0**: schedules, data sources, knowledge tree, seeded MCP, fortune/stocks folded into workbench agents
-
----
-
-## Privacy
-
-- No project-operated backend for uploading your business data by default
-- Traffic only goes to AI / vector / DB endpoints you configure
-- Local DB, chats, and knowledge files live under app `userData`; export/backup from Settings
-
----
-
-## Contributing
-
-Before opening a PR:
-
-```bash
-npm run typecheck
-npm run test
-npm run lint
-```
-
-Please include platform, app version, repro steps, and expected behavior.
+The main process owns LLM orchestration, knowledge, schedules, and native capabilities; the renderer is feature-modular. Full docs: [docs](docs/README.md).
 
 ---
 
 ## License
 
-Currently private (`license: UNLICENSED` in `package.json`). Open-source terms are not chosen yet; confirm with maintainers before redistribution.
+Private / `UNLICENSED` for now. Open-source terms TBD.
