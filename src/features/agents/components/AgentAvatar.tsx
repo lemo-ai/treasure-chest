@@ -1,9 +1,9 @@
 import fortuneLogo from '@renderer/assets/agent-logo-fortune.png'
 import stocksLogo from '@renderer/assets/agent-logo-stocks.png'
 import lotteryLogo from '@renderer/assets/agent-logo-lottery.png'
+import appLogo from '@renderer/assets/app-logo.png'
 import type { ReactNode } from 'react'
 import {
-  IconChatBubble,
   IconFortune,
   IconLottery,
   IconSkill,
@@ -35,7 +35,6 @@ const BUILTIN_DEFAULT_LOGOS: Record<string, string> = {
 }
 
 function defaultIcon(agent: AgentDef, fallback: 'skill' | 'sparkles'): ReactNode {
-  if (isDirectChatId(String(agent.id))) return <IconChatBubble />
   if (agent.id === 'fortune') return <IconFortune />
   if (agent.id === 'stocks') return <IconStocks />
   if (agent.id === 'lottery') return <IconLottery />
@@ -44,6 +43,8 @@ function defaultIcon(agent: AgentDef, fallback: 'skill' | 'sparkles'): ReactNode
 
 function resolveLogoSrc(agent: AgentDef): string | null {
   if (isUsableLogoUrl(agent.logoUrl)) return agent.logoUrl.trim()
+  // Direct (non-agent) chat uses the product app icon.
+  if (isDirectChatId(String(agent.id))) return appLogo
   const builtin = BUILTIN_DEFAULT_LOGOS[String(agent.id)]
   return builtin ?? null
 }
