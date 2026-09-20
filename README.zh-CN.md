@@ -6,7 +6,7 @@
 
 当前版本 **0.4.0** · [文档](docs/README.md) · [Releases](https://github.com/lemo-ai/treasure-chest/releases)
 
-安装包由 **GitHub Actions** 在推送 `v*` 标签后自动多平台打包并上传；也可在 Actions 里手动运行 **Release** 工作流。
+安装包由 **GitHub Actions** 在推送 `v*` 标签后自动多平台打包并上传；也可在 Actions 里手动运行 **Release** 工作流。步骤见 [发版流程](docs/发版流程.md)。
 
 ---
 

@@ -6,7 +6,7 @@
 
 Version **0.4.0** · [Docs](docs/README.md) · [Releases](https://github.com/lemo-ai/treasure-chest/releases)
 
-Installers are built by **GitHub Actions** when you push a `v*` tag (or run the **Release** workflow manually) and attached to the GitHub Release.
+Installers are built by **GitHub Actions** when you push a `v*` tag (or run the **Release** workflow manually) and attached to the GitHub Release. Step-by-step: [发版流程](docs/发版流程.md) (Chinese).
 
 *(Chinese product name: 袖里乾坤. Repository: `treasure-chest`.)*
 
