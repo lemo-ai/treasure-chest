@@ -10,6 +10,8 @@ const BUILTIN_AUTO = new Set([
   'search_stock',
   'fetch_url',
   'crawl_url',
+  'list_data_sources',
+  'query_data_source',
   'generate_image',
   'generate_video',
   'generate_music',

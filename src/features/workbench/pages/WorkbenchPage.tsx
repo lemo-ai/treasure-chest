@@ -16,6 +16,8 @@ import {
   IconMic,
   IconMusic,
   IconPaperclip,
+  IconPause,
+  IconPlay,
   IconPlus,
   IconResearch,
   IconSearch,
@@ -26,6 +28,7 @@ import {
   IconVideo,
   IconWrite,
   IconTrash,
+  IconDownload,
 } from '@renderer/shared/ui/icons'
 import {
   DIRECT_CHAT_DEF,
@@ -97,6 +100,8 @@ import {
 } from '../lib/sessionStore'
 import { MarkdownMessage } from '../components/MarkdownMessage'
 import { ThinkingIndicator } from '../components/ThinkingIndicator'
+import { ToolStepsCard } from '../components/ToolStepsCard'
+import { SubagentCard } from '../components/SubagentCard'
 import { ArtifactsPanel } from '../components/ArtifactsPanel'
 import { MemoryPanel } from '../components/MemoryPanel'
 import { agentChatToolFlags } from '../lib/agentChatToolFlags'
@@ -240,6 +245,11 @@ export function WorkbenchPage(): React.JSX.Element {
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [trajectoryTick, setTrajectoryTick] = useState(0)
   const [terminalTick, setTerminalTick] = useState(0)
+  const [streamPaused, setStreamPaused] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [panelsMenuOpen, setPanelsMenuOpen] = useState(false)
+  const panelsMenuRef = useRef<HTMLDivElement>(null)
   const [liveSessionEvents, setLiveSessionEvents] = useState<SessionEvent[]>([])
   const [pendingApproval, setPendingApproval] = useState<ToolApprovalRequest | null>(null)
   const pendingApprovalBySessionRef = useRef<Map<string, ToolApprovalRequest>>(new Map())
@@ -418,6 +428,7 @@ export function WorkbenchPage(): React.JSX.Element {
     markSessionStreaming(sessionId, false)
     if (activeIdRef.current === sessionId) {
       syncLiveStreamToUi(null)
+      setStreamPaused(false)
     }
   }
   const fileRef = useRef<HTMLInputElement>(null)
@@ -704,12 +715,76 @@ export function WorkbenchPage(): React.JSX.Element {
 
   const visibleSessions = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return sessions.filter((s) => {
+    const filtered = sessions.filter((s) => {
       if (s.agentId !== activeAgent) return false
       if (!q) return true
       return s.title.toLowerCase().includes(q)
     })
+    const byId = new Map(filtered.map((s) => [s.id, s]))
+    const children = new Map<string, typeof filtered>()
+    const roots: typeof filtered = []
+    for (const s of filtered) {
+      const parent = s.forkedFrom
+      if (parent && byId.has(parent)) {
+        const arr = children.get(parent) ?? []
+        arr.push(s)
+        children.set(parent, arr)
+      } else {
+        roots.push(s)
+      }
+    }
+    const ordered: Array<WorkbenchSession & { depth: number; isChild: boolean }> = []
+    const walk = (s: WorkbenchSession, depth: number): void => {
+      ordered.push({ ...s, depth, isChild: depth > 0 || Boolean(s.forkedFrom) })
+      for (const child of children.get(s.id) ?? []) walk(child, depth + 1)
+    }
+    for (const r of roots) walk(r, 0)
+    return ordered
   }, [sessions, activeAgent, query])
+
+  const liveSubagentCards = useMemo(() => {
+    type Node = {
+      id: string
+      phase: 'start' | 'end'
+      childSessionId: string
+      task?: string
+      status?: string
+      resultPreview?: string
+      agentId?: string
+    }
+    const nodes: Node[] = []
+    for (const ev of liveSessionEvents) {
+      if (ev.type !== 'subagent/start' && ev.type !== 'subagent/end') continue
+      const p = ev.payload as {
+        childSessionId?: string
+        task?: string
+        agentId?: string
+        status?: string
+        resultPreview?: string
+      }
+      const childSessionId = String(p.childSessionId || '')
+      if (!childSessionId) continue
+      if (ev.type === 'subagent/start') {
+        nodes.push({
+          id: ev.id,
+          phase: 'start',
+          childSessionId,
+          task: p.task,
+          agentId: p.agentId,
+        })
+      } else {
+        const idx = nodes.findIndex((x) => x.childSessionId === childSessionId)
+        const patch = {
+          phase: 'end' as const,
+          status: p.status,
+          resultPreview: p.resultPreview,
+        }
+        if (idx >= 0) nodes[idx] = { ...nodes[idx], ...patch }
+        else nodes.push({ id: ev.id, childSessionId, ...patch })
+      }
+    }
+    return nodes.filter((n) => n.phase === 'start')
+  }, [liveSessionEvents])
 
   const ensureSession = async (agentId: AgentId): Promise<string> => {
     if (activeSession && activeSession.agentId === agentId) return activeSession.id
@@ -739,8 +814,9 @@ export function WorkbenchPage(): React.JSX.Element {
 
   const onDeleteSession = (id: string): void => {
     clearSessionArtifacts(id)
-    deleteSession(id)
-    refresh(null, activeAgent)
+    void deleteSession(id).then(() => {
+      refresh(null, activeAgent)
+    })
   }
 
   const onForkAtSeq = (boundarySeq: number): void => {
@@ -773,6 +849,34 @@ export function WorkbenchPage(): React.JSX.Element {
     clearLiveStream(activeId)
     pendingApprovalBySessionRef.current.delete(activeId)
     setPendingApproval(null)
+    setStreamPaused(false)
+  }
+
+  const onPauseGeneration = (): void => {
+    if (!activeId) return
+    const streamId = streamIdsBySessionRef.current.get(activeId)
+    if (!streamId) return
+    void window.treasureChest.pauseWorkbenchStream(streamId).then((ok) => {
+      if (ok) setStreamPaused(true)
+    })
+  }
+
+  const onResumeGeneration = (): void => {
+    if (!activeId) return
+    const streamId = streamIdsBySessionRef.current.get(activeId)
+    if (!streamId) return
+    void window.treasureChest.resumeWorkbenchStream(streamId).then((ok) => {
+      if (ok) setStreamPaused(false)
+    })
+  }
+
+  const onExportSession = (format: 'md' | 'pdf'): void => {
+    if (!activeId) return
+    setExportMenuOpen(false)
+    const payload = { sessionId: activeId, includeEvents: true }
+    void (format === 'md'
+      ? window.treasureChest.harnessExportSessionMarkdown(payload)
+      : window.treasureChest.harnessExportSessionPdf(payload))
   }
 
   const localEndpoint = isLocalLlmBaseUrl(aiBaseUrl)
@@ -890,21 +994,39 @@ export function WorkbenchPage(): React.JSX.Element {
         refreshForSession(sessionId)
         return true
       }
-      appendMessage(
-        sessionId,
-        'system',
-        t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
-      )
+      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }), undefined, undefined, { retryable: true })
       refreshForSession(sessionId)
       return false
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
+      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }), undefined, undefined, { retryable: true })
       if (activeIdRef.current === sessionId) refreshForSession(sessionId)
       return false
     } finally {
       if (streamSessionRef.current === sessionId) streamSessionRef.current = null
     }
+  }
+
+  const retryLastTurn = async (): Promise<void> => {
+    if (!activeId || activeStreaming) return
+    const msgs = listMessages(activeId)
+    let lastUser: string | null = null
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') {
+        lastUser = msgs[i].content
+        break
+      }
+    }
+    if (!lastUser?.trim()) return
+    await runChatRound(activeId, {
+      userContent: lastUser,
+      appendUser: false,
+      capabilityMode: activeCap || undefined,
+      useKnowledge:
+        /@知识库|@knowledge/i.test(lastUser) ||
+        activeCap === 'knowledge' ||
+        Boolean(!directMode && !activeAgentDef.builtin && activeAgentDef.alwaysUseKnowledge),
+    })
   }
 
   const runDailyBriefWorkflow = async (): Promise<void> => {
@@ -1139,11 +1261,7 @@ export function WorkbenchPage(): React.JSX.Element {
           const md = `![${alt}](${img.url})\n\n${doneLine}${meta ? ` (${meta})` : ''}`
           appendAssistant(sessionId, md)
         } else {
-          appendMessage(
-            sessionId,
-            'system',
-            t('workbench.chatFailed', { error: img.error || t('workbench.chatUnknownError') }),
-          )
+          appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: img.error || t('workbench.chatUnknownError') }), undefined, undefined, { retryable: true })
         }
       } else if (effectiveCap === 'video') {
         patchLiveStream(sessionId, { status: t('workbench.videoGenerating') })
@@ -1157,11 +1275,7 @@ export function WorkbenchPage(): React.JSX.Element {
         if (vid.ok && (vid.text || vid.url)) {
           appendAssistant(sessionId, vid.text || `[video](${vid.url})`)
         } else {
-          appendMessage(
-            sessionId,
-            'system',
-            t('workbench.chatFailed', { error: vid.error || t('workbench.chatUnknownError') }),
-          )
+          appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: vid.error || t('workbench.chatUnknownError') }), undefined, undefined, { retryable: true })
         }
       } else if (effectiveCap === 'music') {
         patchLiveStream(sessionId, { status: t('workbench.musicGenerating') })
@@ -1175,11 +1289,7 @@ export function WorkbenchPage(): React.JSX.Element {
         if (music.ok && (music.text || music.url)) {
           appendAssistant(sessionId, music.text || `[audio](${music.url})`)
         } else {
-          appendMessage(
-            sessionId,
-            'system',
-            t('workbench.chatFailed', { error: music.error || t('workbench.chatUnknownError') }),
-          )
+          appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: music.error || t('workbench.chatUnknownError') }), undefined, undefined, { retryable: true })
         }
       } else {
         patchLiveStream(sessionId, { citations: [], toolSteps: [] })
@@ -1242,16 +1352,12 @@ export function WorkbenchPage(): React.JSX.Element {
         } else if (res.ok && res.text?.trim()) {
           await finishHarnessTurn(sessionId)
         } else {
-          appendMessage(
-            sessionId,
-            'system',
-            t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
-          )
+          appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }), undefined, undefined, { retryable: true })
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }))
+      appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: msg }), undefined, undefined, { retryable: true })
     } finally {
       sendBusyBySessionRef.current.delete(sessionId)
       if (streamSessionRef.current === sessionId) streamSessionRef.current = null
@@ -1430,20 +1536,12 @@ export function WorkbenchPage(): React.JSX.Element {
           if (res.ok && res.text) {
             appendAssistant(sessionId, res.text)
           } else {
-            appendMessage(
-              sessionId,
-              'system',
-              t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }),
-            )
+            appendMessage(sessionId, 'system', t('workbench.chatFailed', { error: res.error || t('workbench.chatUnknownError') }), undefined, undefined, { retryable: true })
           }
         } catch (err) {
-          appendMessage(
-            sessionId,
-            'system',
-            t('workbench.chatFailed', {
+          appendMessage(sessionId, 'system', t('workbench.chatFailed', {
               error: err instanceof Error ? err.message : String(err),
-            }),
-          )
+            }), undefined, undefined, { retryable: true })
         } finally {
           if (streamSessionRef.current === sessionId) streamSessionRef.current = null
           clearLiveStream(sessionId)
@@ -1487,6 +1585,52 @@ export function WorkbenchPage(): React.JSX.Element {
       document.removeEventListener('keydown', onKey)
     }
   }, [moreOpen])
+
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    const onDoc = (e: MouseEvent): void => {
+      if (!exportMenuRef.current?.contains(e.target as Node)) setExportMenuOpen(false)
+    }
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      if (e.key === 'Escape') setExportMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [exportMenuOpen])
+
+  useEffect(() => {
+    if (!panelsMenuOpen) return
+    const onDoc = (e: MouseEvent): void => {
+      if (!panelsMenuRef.current?.contains(e.target as Node)) setPanelsMenuOpen(false)
+    }
+    const onKey = (e: globalThis.KeyboardEvent): void => {
+      if (e.key === 'Escape') setPanelsMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [panelsMenuOpen])
+
+  const openWorkbenchPanel = (panel: 'trajectory' | 'terminal' | 'memory' | 'artifacts'): void => {
+    const next = {
+      trajectory: panel === 'trajectory' ? !trajectoryOpen : false,
+      terminal: panel === 'terminal' ? !terminalOpen : false,
+      memory: panel === 'memory' ? !memoryOpen : false,
+      artifacts: panel === 'artifacts' ? !artifactsOpen : false,
+    }
+    setTrajectoryOpen(next.trajectory)
+    setTerminalOpen(next.terminal)
+    setMemoryOpen(next.memory)
+    setArtifactsOpen(next.artifacts)
+    setPanelsMenuOpen(false)
+  }
 
   const onFilesPicked = (files: FileList | null): void => {
     if (!files?.length) return
@@ -1829,7 +1973,11 @@ export function WorkbenchPage(): React.JSX.Element {
                 </button>
               ) : (
                 visibleSessions.map((session) => (
-                  <div key={session.id} className={styles.sessionRow}>
+                  <div
+                    key={session.id}
+                    className={styles.sessionRow}
+                    style={{ paddingLeft: session.depth ? `${session.depth * 0.75}rem` : undefined }}
+                  >
                     <button
                       type="button"
                       className={`${styles.sessionItem} ${
@@ -1843,26 +1991,46 @@ export function WorkbenchPage(): React.JSX.Element {
                         fallback="sparkles"
                         className={styles.sessionAvatar}
                       />
-                      <span className={styles.sessionTitle}>{session.title}</span>
+                      <span className={styles.sessionTitle}>
+                        {session.id.startsWith('sched_') ? (
+                          <span className={styles.sessionScheduleBadge} title={t('workbench.sessionSchedule')}>
+                            {t('workbench.sessionScheduleShort')}
+                          </span>
+                        ) : null}
+                        {session.isChild ? (
+                          <span className={styles.sessionChildBadge} title={t('workbench.sessionChild')}>
+                            {t('workbench.sessionChildShort')}
+                          </span>
+                        ) : null}
+                        {session.title}
+                      </span>
                     </button>
-                    <button
-                      type="button"
-                      className={styles.iconGhost}
-                      title={t('workbench.forkSession')}
-                      aria-label={t('workbench.forkSession')}
-                      onClick={() => onForkSession(session.id)}
-                    >
-                      ⎇
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.iconGhost}
-                      title={t('workbench.deleteSession')}
-                      aria-label={t('workbench.deleteSession')}
-                      onClick={() => onDeleteSession(session.id)}
-                    >
-                      <IconTrash />
-                    </button>
+                    <div className={styles.sessionRowActions}>
+                      <button
+                        type="button"
+                        className={styles.iconGhost}
+                        title={t('workbench.forkSession')}
+                        aria-label={t('workbench.forkSession')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onForkSession(session.id)
+                        }}
+                      >
+                        ⎇
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.iconGhost}
+                        title={t('workbench.deleteSession')}
+                        aria-label={t('workbench.deleteSession')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDeleteSession(session.id)
+                        }}
+                      >
+                        <IconTrash />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -1916,71 +2084,110 @@ export function WorkbenchPage(): React.JSX.Element {
             </div>
           </div>
           <div className={styles.headActions}>
-            <button
-              type="button"
-              className={`${styles.chipLink} ${trajectoryOpen ? styles.chipLinkActive : ''}`}
-              title={t('workbench.trajectory')}
-              onClick={() => {
-                setTrajectoryOpen((v) => !v)
-                if (!trajectoryOpen) {
-                  setMemoryOpen(false)
-                  setArtifactsOpen(false)
-                  setTerminalOpen(false)
-                }
-              }}
-            >
-              {t('workbench.trajectory')}
-            </button>
-            <button
-              type="button"
-              className={`${styles.chipLink} ${terminalOpen ? styles.chipLinkActive : ''}`}
-              title={t('workbench.terminal')}
-              onClick={() => {
-                setTerminalOpen((v) => !v)
-                if (!terminalOpen) {
-                  setMemoryOpen(false)
-                  setArtifactsOpen(false)
-                  setTrajectoryOpen(false)
-                }
-              }}
-            >
-              {t('workbench.terminal')}
-            </button>
-            <button
-              type="button"
-              className={`${styles.chipLink} ${memoryOpen ? styles.chipLinkActive : ''}`}
-              title={t('workbench.memory')}
-              onClick={() => {
-                setMemoryOpen((v) => !v)
-                if (!memoryOpen) {
-                  setArtifactsOpen(false)
-                  setTrajectoryOpen(false)
-                  setTerminalOpen(false)
-                }
-              }}
-            >
-              {t('workbench.memory')}
-            </button>
-            <button
-              type="button"
-              className={`${styles.chipLink} ${artifactsOpen ? styles.chipLinkActive : ''}`}
-              title={t('workbench.artifacts')}
-              onClick={() => {
-                setArtifactsOpen((v) => !v)
-                if (!artifactsOpen) {
-                  setMemoryOpen(false)
-                  setTrajectoryOpen(false)
-                  setTerminalOpen(false)
-                }
-              }}
-            >
-              {t('workbench.artifacts')}
-              {artifacts.length > 0 ? ` (${artifacts.length})` : ''}
-            </button>
-            <Link className={styles.chipLink} to="/settings">
-              <IconKey />
-              {t('workbench.modelSettings')}
-            </Link>
+            {activeId ? (
+              <div className={styles.exportWrap} ref={exportMenuRef}>
+                <button
+                  type="button"
+                  className={`${styles.chipLink} ${exportMenuOpen ? styles.chipLinkActive : ''}`}
+                  title={t('workbench.export')}
+                  aria-expanded={exportMenuOpen}
+                  aria-haspopup="menu"
+                  onClick={() => {
+                    setExportMenuOpen((v) => !v)
+                    setPanelsMenuOpen(false)
+                  }}
+                >
+                  <IconDownload />
+                  {t('workbench.export')}
+                  <span className={styles.exportCaret} aria-hidden>
+                    ▾
+                  </span>
+                </button>
+                {exportMenuOpen ? (
+                  <div className={styles.exportMenu} role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.exportMenuItem}
+                      onClick={() => onExportSession('md')}
+                    >
+                      {t('workbench.exportMarkdown')}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={styles.exportMenuItem}
+                      onClick={() => onExportSession('pdf')}
+                    >
+                      {t('workbench.exportPdf')}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <div className={styles.exportWrap} ref={panelsMenuRef}>
+              <button
+                type="button"
+                className={`${styles.chipLink} ${
+                  panelsMenuOpen || trajectoryOpen || terminalOpen || memoryOpen || artifactsOpen
+                    ? styles.chipLinkActive
+                    : ''
+                }`}
+                title={t('workbench.panels')}
+                aria-expanded={panelsMenuOpen}
+                aria-haspopup="menu"
+                onClick={() => {
+                  setPanelsMenuOpen((v) => !v)
+                  setExportMenuOpen(false)
+                }}
+              >
+                {t('workbench.panels')}
+                <span className={styles.exportCaret} aria-hidden>
+                  ▾
+                </span>
+              </button>
+              {panelsMenuOpen ? (
+                <div className={styles.exportMenu} role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`${styles.exportMenuItem} ${trajectoryOpen ? styles.exportMenuItemActive : ''}`}
+                    onClick={() => openWorkbenchPanel('trajectory')}
+                  >
+                    {t('workbench.trajectory')}
+                    {trajectoryOpen ? ' ✓' : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`${styles.exportMenuItem} ${terminalOpen ? styles.exportMenuItemActive : ''}`}
+                    onClick={() => openWorkbenchPanel('terminal')}
+                  >
+                    {t('workbench.terminal')}
+                    {terminalOpen ? ' ✓' : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`${styles.exportMenuItem} ${memoryOpen ? styles.exportMenuItemActive : ''}`}
+                    onClick={() => openWorkbenchPanel('memory')}
+                  >
+                    {t('workbench.memory')}
+                    {memoryOpen ? ' ✓' : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`${styles.exportMenuItem} ${artifactsOpen ? styles.exportMenuItemActive : ''}`}
+                    onClick={() => openWorkbenchPanel('artifacts')}
+                  >
+                    {t('workbench.artifacts')}
+                    {artifacts.length > 0 ? ` (${artifacts.length})` : ''}
+                    {artifactsOpen ? ' ✓' : ''}
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 
@@ -2040,9 +2247,41 @@ export function WorkbenchPage(): React.JSX.Element {
               ) : null}
               {messages.map((msg) => {
                 if (msg.role === 'system') {
+                  if (msg.subagent) {
+                    return (
+                      <div key={msg.id} className={styles.bubbleRow}>
+                        <SubagentCard meta={msg.subagent} onOpenChild={openChildSession} />
+                      </div>
+                    )
+                  }
+                  if (msg.goal) {
+                    const goalText =
+                      msg.goal.phase === 'set'
+                        ? t('workbench.goal.set', { title: msg.goal.title || msg.goal.goalId })
+                        : t('workbench.goal.update', {
+                            id: msg.goal.goalId,
+                            status: msg.goal.status || '',
+                          })
+                    return (
+                      <div key={msg.id} className={styles.bubbleRow}>
+                        <div className={`${styles.bubble} ${styles.bubbleSystem}`}>{goalText}</div>
+                      </div>
+                    )
+                  }
                   return (
                     <div key={msg.id} className={styles.bubbleRow}>
-                      <div className={`${styles.bubble} ${styles.bubbleSystem}`}>{msg.content}</div>
+                      <div className={`${styles.bubble} ${styles.bubbleSystem}`}>
+                        <div>{msg.content}</div>
+                        {msg.retryable && !activeStreaming ? (
+                          <button
+                            type="button"
+                            className={styles.retryInlineBtn}
+                            onClick={() => void retryLastTurn()}
+                          >
+                            {t('workbench.retryLast')}
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   )
                 }
@@ -2063,6 +2302,17 @@ export function WorkbenchPage(): React.JSX.Element {
                       className={styles.msgAvatar}
                     />
                     <div className={styles.assistantMessage}>
+                      {msg.toolSteps?.length ? (
+                        <ToolStepsCard
+                          steps={msg.toolSteps}
+                          defaultOpen={false}
+                          onRetryTurn={
+                            msg.toolSteps.some((s) => s.status === 'error' || s.status === 'denied')
+                              ? () => void retryLastTurn()
+                              : undefined
+                          }
+                        />
+                      ) : null}
                       {renderAssistantBody(msg.content)}
                       {msg.citations?.length ? (
                         <div className={styles.citations}>
@@ -2070,7 +2320,20 @@ export function WorkbenchPage(): React.JSX.Element {
                           {msg.citations.slice(0, 6).map((c) => (
                             <details key={c.chunkId} className={styles.citationItem}>
                               <summary>
-                                {c.title}
+                                <button
+                                  type="button"
+                                  className={styles.citationLink}
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    void navigate(
+                                      `/knowledge?doc=${encodeURIComponent(c.documentId)}&chunk=${encodeURIComponent(c.chunkId)}`,
+                                    )
+                                  }}
+                                  title={t('workbench.citations.open')}
+                                >
+                                  {c.title}
+                                </button>
                                 <span>#{c.ordinal + 1}</span>
                               </summary>
                               <p>{c.text}</p>
@@ -2083,6 +2346,20 @@ export function WorkbenchPage(): React.JSX.Element {
                 )
               })}
               {activeStreaming && streamSessionId === activeId ? (
+                <>
+                  {liveSubagentCards.map((n) => (
+                      <div key={`live-sub-${n.id}`} className={styles.bubbleRow}>
+                        <SubagentCard
+                          meta={{
+                            phase: 'start',
+                            childSessionId: n.childSessionId,
+                            task: n.task,
+                            agentId: n.agentId,
+                          }}
+                          onOpenChild={openChildSession}
+                        />
+                      </div>
+                    ))}
                 <div className={`${styles.bubbleRow} ${styles.bubbleRowAssistant}`}>
                   <AgentAvatar
                     agent={activeAgentDef}
@@ -2091,31 +2368,42 @@ export function WorkbenchPage(): React.JSX.Element {
                     className={styles.msgAvatar}
                   />
                   <div className={styles.assistantMessage}>
+                    {streamToolSteps.length > 0 ? (
+                      <ToolStepsCard steps={streamToolSteps} defaultOpen />
+                    ) : null}
                     {streamText ? (
                       renderAssistantBody(streamText, { streaming: true })
-                    ) : (
+                    ) : streamToolSteps.length === 0 ? (
                       <ThinkingIndicator
-                        label={
-                          streamStatus ||
-                          (streamToolSteps.length > 0
-                            ? t('workbench.tools.running', { count: streamToolSteps.length })
-                            : t('workbench.thinking'))
-                        }
+                        label={streamStatus || t('workbench.thinking')}
                       />
-                    )}
+                    ) : streamStatus ? (
+                      <ThinkingIndicator label={streamStatus} />
+                    ) : null}
                     {streamCitations.length > 0 && streamText ? (
                       <div className={styles.citations}>
                         <div className={styles.citationsTitle}>{t('workbench.citations')}</div>
                         {streamCitations.slice(0, 4).map((c) => (
-                          <div key={c.chunkId} className={styles.citationItem}>
+                          <button
+                            key={c.chunkId}
+                            type="button"
+                            className={styles.citationItem}
+                            onClick={() =>
+                              void navigate(
+                                `/knowledge?doc=${encodeURIComponent(c.documentId)}&chunk=${encodeURIComponent(c.chunkId)}`,
+                              )
+                            }
+                            title={t('workbench.citations.open')}
+                          >
                             <strong>{c.title}</strong>
                             <span>#{c.ordinal + 1}</span>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     ) : null}
                   </div>
                 </div>
+                </>
               ) : null}
               <p className={styles.disclaimer}>{t('workbench.disclaimer')}</p>
               <div ref={bottomRef} />
@@ -2444,7 +2732,7 @@ export function WorkbenchPage(): React.JSX.Element {
               </div>
               <div className={styles.composerRight} ref={composerRightRef}>
                 {modelGroups.length > 0 ? (
-                  <label className={styles.modelSelectWrap}>
+                  <div className={styles.modelSelectWrap}>
                     <select
                       className={styles.modelSelect}
                       value={
@@ -2465,7 +2753,15 @@ export function WorkbenchPage(): React.JSX.Element {
                         </optgroup>
                       ))}
                     </select>
-                  </label>
+                    <Link
+                      className={styles.modelSettingsLink}
+                      to="/settings"
+                      title={t('workbench.modelSettings')}
+                      aria-label={t('workbench.modelSettings')}
+                    >
+                      <IconKey />
+                    </Link>
+                  </div>
                 ) : (
                   <Link className={styles.modelPill} to="/settings">
                     {t('workbench.configureModel')}
@@ -2482,15 +2778,38 @@ export function WorkbenchPage(): React.JSX.Element {
                   </span>
                 ) : null}
                 {activeStreaming ? (
-                  <button
-                    type="button"
-                    className={styles.stopBtn}
-                    onClick={onStopGeneration}
-                    aria-label={t('workbench.stop')}
-                    title={t('workbench.stop')}
-                  >
-                    <IconClose />
-                  </button>
+                  <>
+                    {streamPaused ? (
+                      <button
+                        type="button"
+                        className={styles.pauseBtn}
+                        onClick={onResumeGeneration}
+                        aria-label={t('workbench.resume')}
+                        title={t('workbench.resume')}
+                      >
+                        <IconPlay />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.pauseBtn}
+                        onClick={onPauseGeneration}
+                        aria-label={t('workbench.pause')}
+                        title={t('workbench.pause')}
+                      >
+                        <IconPause />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.stopBtn}
+                      onClick={onStopGeneration}
+                      aria-label={t('workbench.stop')}
+                      title={t('workbench.stop')}
+                    >
+                      <IconClose />
+                    </button>
+                  </>
                 ) : null}
                 <button
                   type="button"
@@ -2547,14 +2866,18 @@ export function WorkbenchPage(): React.JSX.Element {
       {pendingApproval ? (
         <ToolApprovalModal
           request={pendingApproval}
-          onResolve={(approved) => {
+          onResolve={(decision) => {
             const req = pendingApproval
             setPendingApproval(null)
             if (activeId) pendingApprovalBySessionRef.current.delete(activeId)
+            const approved = decision === 'allow' || decision === 'always'
             void window.treasureChest.resolveToolApproval({
               streamId: req.streamId,
               toolCallId: req.toolCallId,
               approved,
+              alwaysAllow: decision === 'always',
+              sessionId: req.sessionId || activeId || undefined,
+              toolName: req.name,
             })
           }}
         />

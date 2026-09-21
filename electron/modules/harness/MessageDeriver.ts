@@ -5,8 +5,18 @@ import type {
   SessionEvent,
 } from '@shared'
 
+/** Prefix persisted in harness system rows so reload keeps retry UI. */
+export const RETRYABLE_SYSTEM_PREFIX = 'RETRYABLE::'
+
 function msgId(sessionId: string, seq: number): string {
   return `msg_${sessionId}_${seq}`
+}
+
+function stripRetryable(content: string): { content: string; retryable: boolean } {
+  if (content.startsWith(RETRYABLE_SYSTEM_PREFIX)) {
+    return { content: content.slice(RETRYABLE_SYSTEM_PREFIX.length), retryable: true }
+  }
+  return { content, retryable: false }
 }
 
 /** Project durable session events into UI messages. */
@@ -43,12 +53,19 @@ export function deriveMessagesFromEvents(events: SessionEvent[]): HarnessMessage
         turnCitations = []
         const p = event.payload as { content: string }
         const role = p.content.startsWith('[system] ') ? 'system' : 'user'
-        const content = role === 'system' ? p.content.slice('[system] '.length) : p.content
+        let content = role === 'system' ? p.content.slice('[system] '.length) : p.content
+        let retryable = false
+        if (role === 'system') {
+          const stripped = stripRetryable(content)
+          content = stripped.content
+          retryable = stripped.retryable
+        }
         messages.push({
           id: msgId(event.sessionId, event.seq),
           role,
           content,
           createdAt: event.createdAt,
+          ...(retryable ? { retryable: true } : {}),
         })
         break
       }
@@ -110,22 +127,42 @@ export function deriveMessagesFromEvents(events: SessionEvent[]): HarnessMessage
         break
       }
       case 'subagent/start': {
-        const p = event.payload as { task: string; childSessionId: string }
+        const p = event.payload as {
+          task: string
+          childSessionId: string
+          agentId?: string
+        }
         messages.push({
           id: msgId(event.sessionId, event.seq),
           role: 'system',
           content: `Subagent started (${p.childSessionId}): ${p.task}`,
           createdAt: event.createdAt,
+          subagent: {
+            phase: 'start',
+            childSessionId: p.childSessionId,
+            task: p.task,
+            agentId: p.agentId,
+          },
         })
         break
       }
       case 'subagent/end': {
-        const p = event.payload as { status: string; resultPreview?: string; childSessionId: string }
+        const p = event.payload as {
+          status: string
+          resultPreview?: string
+          childSessionId: string
+        }
         messages.push({
           id: msgId(event.sessionId, event.seq),
           role: 'system',
           content: `Subagent ${p.status} (${p.childSessionId})${p.resultPreview ? `: ${p.resultPreview}` : ''}`,
           createdAt: event.createdAt,
+          subagent: {
+            phase: 'end',
+            childSessionId: p.childSessionId,
+            status: p.status,
+            resultPreview: p.resultPreview,
+          },
         })
         break
       }
@@ -136,6 +173,7 @@ export function deriveMessagesFromEvents(events: SessionEvent[]): HarnessMessage
           role: 'system',
           content: `Goal set: ${p.title}`,
           createdAt: event.createdAt,
+          goal: { phase: 'set', goalId: p.goalId, title: p.title },
         })
         break
       }
@@ -146,6 +184,7 @@ export function deriveMessagesFromEvents(events: SessionEvent[]): HarnessMessage
           role: 'system',
           content: `Goal ${p.goalId} → ${p.status}`,
           createdAt: event.createdAt,
+          goal: { phase: 'update', goalId: p.goalId, status: p.status },
         })
         break
       }

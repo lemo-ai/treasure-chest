@@ -326,6 +326,7 @@ export function initDatabase(): void {
   const path = join(app.getPath('userData'), 'treasure-chest.db')
   db = new Database(path)
   db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
   runMigrations(db)
   migrateLegacyJson(db)
   logger.info(`database ready at ${path}`)

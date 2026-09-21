@@ -130,6 +130,21 @@
   font-weight: 500;
 }
 
+.retryBtn {
+  margin-left: auto;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--color-brand) 40%, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-brand) 10%, transparent);
+  color: var(--color-brand);
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.retryBtn:hover {
+  background: color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
 .meta {
   margin-top: 0.3rem;
   display: grid;

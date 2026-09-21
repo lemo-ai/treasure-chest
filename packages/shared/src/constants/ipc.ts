@@ -1,6 +1,11 @@
 export const IpcChannels = {
   app: {
     getVersion: 'app:getVersion',
+    getUpdateStatus: 'app:getUpdateStatus',
+    checkForUpdates: 'app:checkForUpdates',
+    downloadUpdate: 'app:downloadUpdate',
+    quitAndInstall: 'app:quitAndInstall',
+    openReleasesPage: 'app:openReleasesPage',
   },
   settings: {
     getTheme: 'settings:getTheme',
@@ -55,6 +60,8 @@ export const IpcChannels = {
     chatStream: 'workbench:chatStream',
     chatStreamEvent: 'workbench:chatStreamEvent',
     cancelStream: 'workbench:cancelStream',
+    pauseStream: 'workbench:pauseStream',
+    resumeStream: 'workbench:resumeStream',
     resolveToolApproval: 'workbench:resolveToolApproval',
   },
   harness: {
@@ -70,6 +77,8 @@ export const IpcChannels = {
     appendUserMessage: 'harness:appendUserMessage',
     appendSystemMessage: 'harness:appendSystemMessage',
     forkSession: 'harness:forkSession',
+    exportSessionMarkdown: 'harness:exportSessionMarkdown',
+    exportSessionPdf: 'harness:exportSessionPdf',
     listGoals: 'harness:listGoals',
     setGoal: 'harness:setGoal',
     reloadPlugins: 'harness:reloadPlugins',
@@ -121,6 +130,7 @@ export const IpcChannels = {
     stats: 'knowledge:stats',
     reembedDocument: 'knowledge:reembedDocument',
     reembedCollection: 'knowledge:reembedCollection',
+    reembedFailed: 'knowledge:reembedFailed',
   },
   image: {
     generate: 'image:generate',

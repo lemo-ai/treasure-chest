@@ -150,7 +150,7 @@ export function renameSession(id: string, title: string): void {
   void window.treasureChest.harnessRenameSession(id, title)
 }
 
-export function deleteSession(id: string): void {
+export async function deleteSession(id: string): Promise<boolean> {
   const store = ensureCache()
   const removed = store.sessions.find((s) => s.id === id)
   store.sessions = store.sessions.filter((s) => s.id !== id)
@@ -166,14 +166,17 @@ export function deleteSession(id: string): void {
     const nextSameAgent = store.sessions.find((s) => s.agentId === agentId)
     setActiveSessionId(nextSameAgent?.id ?? null, agentId)
   } else if (wasGlobalActive) {
-    // Prefer keeping global pointer on a session from the same agent when possible.
     const nextSameAgent = agentId
       ? store.sessions.find((s) => s.agentId === agentId)
       : undefined
     setActiveSessionId(nextSameAgent?.id ?? store.sessions[0]?.id ?? null, agentId)
   }
 
-  void window.treasureChest.harnessDeleteSession(id)
+  const ok = await window.treasureChest.harnessDeleteSession(id)
+  if (!ok) {
+    await reloadHarnessStore()
+  }
+  return ok
 }
 
 export function listMessages(sessionId: string): WorkbenchMessage[] {
@@ -192,6 +195,7 @@ export function appendMessage(
   content: string,
   citations?: WorkbenchMessage['citations'],
   toolSteps?: WorkbenchMessage['toolSteps'],
+  opts?: { retryable?: boolean },
 ): WorkbenchMessage {
   const store = ensureCache()
   const now = new Date().toISOString()
@@ -219,12 +223,14 @@ export function appendMessage(
   }
 
   if (role === 'system') {
-    void window.treasureChest.harnessAppendSystemMessage(sessionId, content)
+    const persistContent = opts?.retryable ? `RETRYABLE::${content}` : content
+    void window.treasureChest.harnessAppendSystemMessage(sessionId, persistContent)
     const msg: WorkbenchMessage = {
       id: `msg_${Date.now().toString(36)}`,
       role: 'system',
       content,
       createdAt: now,
+      ...(opts?.retryable ? { retryable: true } : {}),
     }
     const list = store.messagesBySession[sessionId] ?? []
     list.push(msg)

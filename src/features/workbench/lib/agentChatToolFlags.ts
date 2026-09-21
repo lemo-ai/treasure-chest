@@ -1,4 +1,5 @@
 import type { LlmChatRequest } from '@shared'
+import { BUILTIN_LOTTERY_DATA_SOURCE_ID } from '@shared'
 import type { AgentDef } from '@renderer/features/agents/lib/agentRegistry'
 import { isConfigPresetAgent, isDirectChatId } from '@renderer/features/agents/lib/agentRegistry'
 
@@ -17,7 +18,11 @@ export function agentChatToolFlags(
   | 'enableDataSourceTools'
   | 'enabledDataSourceIds'
 > {
-  const dsIds = (agentDef.dataSourceIds ?? []).map((id) => id.trim()).filter(Boolean)
+  let dsIds = (agentDef.dataSourceIds ?? []).map((id) => id.trim()).filter(Boolean)
+  // Lottery preset always keeps the built-in SQLite binding (read+write via query_data_source).
+  if (isConfigPresetAgent(agentDef) && !dsIds.includes(BUILTIN_LOTTERY_DATA_SOURCE_ID)) {
+    dsIds = [...dsIds, BUILTIN_LOTTERY_DATA_SOURCE_ID]
+  }
   const dataSourceTools = dsIds.length > 0
 
   if (directMode || isDirectChatId(String(agentDef.id))) {

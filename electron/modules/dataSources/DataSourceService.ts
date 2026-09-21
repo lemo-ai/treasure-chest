@@ -128,6 +128,8 @@ export type DataSourceListItem = {
   enabled: boolean
   /** True when agent may call query_data_source on this id */
   allowed: boolean
+  /** SQL/DB kinds are read_write via query_data_source sql override */
+  access?: 'read_write' | 'read'
   /** SQLite/file path when relevant */
   path?: string
   /** Default SQL saved on the source */
@@ -183,6 +185,7 @@ export function listDataSourcesForTools(allowedIds?: string[] | null): DataSourc
       kind: s.kind,
       enabled: s.enabled,
       allowed: allow == null ? s.enabled : allow.has(s.id) && s.enabled,
+      access: DB_KINDS.has(s.kind) ? 'read_write' : 'read',
       path: s.path,
       defaultSql: s.sql,
     }
@@ -299,15 +302,23 @@ export async function queryDataSourceForTools(
 
 /** Short catalog for system prompt (no row payloads). */
 export function buildDataSourcesCatalogHint(ids: string[] | undefined, isEn: boolean): string {
-  if (!ids?.length) return ''
   const all = settingsStore.getDataSources().sources
+  const selected =
+    ids === undefined
+      ? all.filter((s) => s.enabled)
+      : ids.length
+        ? all.filter((s) => ids.includes(s.id))
+        : []
   const lines: string[] = []
-  for (const id of ids) {
-    const src = all.find((s) => s.id === id)
-    if (!src) continue
+  for (const src of selected) {
     const flag = src.enabled ? '' : isEn ? ' (disabled)' : '（已禁用）'
     const schema = src.kind === 'sqlite' ? sqliteSchemaHint(src.path) : {}
-    lines.push(`- ${src.name} [${src.kind}] id=${src.id}${flag}`)
+    const access = DB_KINDS.has(src.kind)
+      ? isEn
+        ? ' [read_write: SELECT/INSERT/UPDATE via sql]'
+        : ' [可读写：用 sql 参数 SELECT/INSERT/UPDATE]'
+      : ''
+    lines.push(`- ${src.name} [${src.kind}] id=${src.id}${flag}${access}`)
     if (schema.schemaHint) {
       lines.push(
         isEn
@@ -321,8 +332,8 @@ export function buildDataSourcesCatalogHint(ids: string[] | undefined, isEn: boo
   }
   if (!lines.length) return ''
   return isEn
-    ? `Bound data sources (list_data_sources / query_data_source; pass sql for SQL kinds — use ONLY columns in schema):\n${lines.join('\n')}`
-    : `已绑定数据源（list_data_sources / query_data_source；SQL 请只用 schema 中的列名，勿用 match_date/home_team 等旧名）：\n${lines.join('\n')}`
+    ? `Bound data sources (list_data_sources / query_data_source; pass sql for SQL kinds — SELECT or INSERT/UPDATE; never invent a read-only policy):\n${lines.join('\n')}`
+    : `已绑定数据源（list_data_sources / query_data_source；SQL 用 schema 列名，可 SELECT 也可 INSERT/UPDATE 落库，禁止编造「只读/无法改权限」）：\n${lines.join('\n')}`
 }
 
 /** Probe connectivity using the draft/saved config (does not require prior save). */

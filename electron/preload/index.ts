@@ -30,6 +30,16 @@ import {
 
 const api = {
   getVersion: (): Promise<string> => ipcRenderer.invoke(IpcChannels.app.getVersion),
+  getUpdateStatus: (): Promise<import('@shared').AppUpdateStatus> =>
+    ipcRenderer.invoke(IpcChannels.app.getUpdateStatus),
+  checkForUpdates: (): Promise<import('@shared').AppUpdateStatus> =>
+    ipcRenderer.invoke(IpcChannels.app.checkForUpdates),
+  downloadUpdate: (): Promise<import('@shared').AppUpdateStatus> =>
+    ipcRenderer.invoke(IpcChannels.app.downloadUpdate),
+  quitAndInstallUpdate: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.app.quitAndInstall),
+  openReleasesPage: (): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IpcChannels.app.openReleasesPage),
   getTheme: (): Promise<ThemeMode> => ipcRenderer.invoke(IpcChannels.settings.getTheme),
   setTheme: (theme: ThemeMode): Promise<ThemeMode> =>
     ipcRenderer.invoke(IpcChannels.settings.setTheme, theme),
@@ -223,9 +233,16 @@ const api = {
     streamId: string
     toolCallId: string
     approved: boolean
+    alwaysAllow?: boolean
+    sessionId?: string
+    toolName?: string
   }): Promise<boolean> => ipcRenderer.invoke(IpcChannels.workbench.resolveToolApproval, payload),
   cancelWorkbenchStream: (streamId: string): Promise<boolean> =>
     ipcRenderer.invoke(IpcChannels.workbench.cancelStream, streamId),
+  pauseWorkbenchStream: (streamId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.workbench.pauseStream, streamId),
+  resumeWorkbenchStream: (streamId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.workbench.resumeStream, streamId),
   harnessGetStore: (): Promise<import('@shared').HarnessStoreSnapshot> =>
     ipcRenderer.invoke(IpcChannels.harness.getStore),
   harnessMigrateLocal: (payload: import('@shared').MigrateLocalHarnessInput): Promise<{ imported: number }> =>
@@ -248,6 +265,16 @@ const api = {
     ipcRenderer.invoke(IpcChannels.harness.listEvents, sessionId),
   harnessForkSession: (payload: import('@shared').ForkSessionInput): Promise<import('@shared').AgentSession | null> =>
     ipcRenderer.invoke(IpcChannels.harness.forkSession, payload),
+  harnessExportSessionMarkdown: (payload: {
+    sessionId: string
+    includeEvents?: boolean
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.harness.exportSessionMarkdown, payload),
+  harnessExportSessionPdf: (payload: {
+    sessionId: string
+    includeEvents?: boolean
+  }): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.harness.exportSessionPdf, payload),
   harnessListGoals: (sessionId: string, includeDone?: boolean): Promise<import('@shared').AgentGoal[]> =>
     ipcRenderer.invoke(IpcChannels.harness.listGoals, { sessionId, includeDone }),
   harnessSetGoal: (
@@ -349,8 +376,12 @@ const api = {
     ipcRenderer.invoke(IpcChannels.knowledge.reembedDocument, id),
   reembedKnowledgeCollection: (
     collectionId?: string,
-  ): Promise<{ ok: number; failed: number; errors: string[] }> =>
+  ): Promise<{ ok: number; failed: number; errors: string[]; skipped?: number }> =>
     ipcRenderer.invoke(IpcChannels.knowledge.reembedCollection, collectionId),
+  reembedKnowledgeFailed: (
+    collectionId?: string,
+  ): Promise<{ ok: number; failed: number; errors: string[]; skipped?: number }> =>
+    ipcRenderer.invoke(IpcChannels.knowledge.reembedFailed, collectionId),
   generateImage: (payload: {
     prompt: string
     size?: string

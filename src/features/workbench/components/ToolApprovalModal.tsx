@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next'
 import type { ToolApprovalRequest } from '@shared'
 import styles from './ToolApprovalModal.module.css'
 
+export type ToolApprovalDecision = 'deny' | 'allow' | 'always'
+
 interface ToolApprovalModalProps {
   request: ToolApprovalRequest
-  onResolve: (approved: boolean) => void
+  onResolve: (decision: ToolApprovalDecision) => void
 }
 
 export function ToolApprovalModal({ request, onResolve }: ToolApprovalModalProps): ReactNode {
@@ -41,11 +43,14 @@ export function ToolApprovalModal({ request, onResolve }: ToolApprovalModalProps
           </p>
         </div>
         <div className={styles.actions}>
-          <button type="button" className={styles.deny} onClick={() => onResolve(false)}>
+          <button type="button" className={styles.deny} onClick={() => onResolve('deny')}>
             {t('workbench.approval.deny')}
           </button>
-          <button type="button" className={styles.allow} onClick={() => onResolve(true)}>
+          <button type="button" className={styles.allowOnce} onClick={() => onResolve('allow')}>
             {t('workbench.approval.allow')}
+          </button>
+          <button type="button" className={styles.allow} onClick={() => onResolve('always')}>
+            {t('workbench.approval.allowSession')}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type {
   KnowledgeCollection,
@@ -144,11 +145,15 @@ async function fileToBase64(file: File): Promise<string> {
 
 export function KnowledgePage(): React.JSX.Element {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<Tab>('documents')
   const [collections, setCollections] = useState<KnowledgeCollection[]>([])
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null)
   const [docs, setDocs] = useState<KnowledgeDocument[]>([])
+  const [docFilter, setDocFilter] = useState<'all' | 'failed'>('all')
+  const [highlightDocId, setHighlightDocId] = useState<string | null>(null)
+  const docRowRefs = useRef<Map<string, HTMLElement>>(new Map())
   const [settings, setSettings] = useState<KnowledgeSettings | null>(null)
   const [draft, setDraft] = useState<KnowledgeSettings | null>(null)
   const [stats, setStats] = useState({ collections: 0, documents: 0, chunks: 0, embeddings: 0 })
@@ -219,6 +224,45 @@ export function KnowledgePage(): React.JSX.Element {
       setError(err instanceof Error ? err.message : String(err))
     })
   }, [])
+
+  /** Deep link from workbench citations: /knowledge?doc=&chunk= */
+  useEffect(() => {
+    const docId = searchParams.get('doc')?.trim()
+    if (!docId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        setTab('documents')
+        const allDocs = await window.treasureChest.listKnowledgeDocuments()
+        const hit = allDocs.find((d) => d.id === docId)
+        if (!hit || cancelled) return
+        setHighlightDocId(hit.id)
+        await refreshAll(hit.collectionId)
+        // Clear query so refresh/navigation does not keep re-firing; keep highlight
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev)
+            next.delete('doc')
+            next.delete('chunk')
+            return next
+          },
+          { replace: true },
+        )
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!highlightDocId) return
+    const el = docRowRefs.current.get(highlightDocId)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [highlightDocId, docs])
 
   useEffect(() => {
     if (!activeCollectionId) return
@@ -830,6 +874,58 @@ export function KnowledgePage(): React.JSX.Element {
                 <h2>{activeCollection?.name ?? t('knowledge.documents')}</h2>
                 <p>{t('knowledge.documentsHint')}</p>
               </div>
+              <div className={styles.filterRow}>
+                <button
+                  type="button"
+                  className={docFilter === 'all' ? styles.filterActive : styles.ghostBtn}
+                  onClick={() => setDocFilter('all')}
+                >
+                  {t('knowledge.filterAll')}
+                </button>
+                <button
+                  type="button"
+                  className={docFilter === 'failed' ? styles.filterActive : styles.ghostBtn}
+                  onClick={() => setDocFilter('failed')}
+                >
+                  {t('knowledge.filterFailed')}
+                  {docs.filter((d) => d.status === 'error' || (d.status === 'ready' && !d.embedded))
+                    .length
+                    ? ` (${docs.filter((d) => d.status === 'error' || (d.status === 'ready' && !d.embedded)).length})`
+                    : ''}
+                </button>
+                <button
+                  type="button"
+                  className={styles.ghostBtn}
+                  disabled={busy}
+                  onClick={() => {
+                    void (async () => {
+                      setBusy(true)
+                      setError('')
+                      try {
+                        const res = await window.treasureChest.reembedKnowledgeFailed(
+                          activeCollectionId || undefined,
+                        )
+                        await refreshAll(activeCollectionId)
+                        if (res.failed) {
+                          setError(
+                            t('knowledge.reembedPartial', {
+                              ok: res.ok,
+                              failed: res.failed,
+                              detail: res.errors.slice(0, 2).join('; '),
+                            }),
+                          )
+                        }
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : String(err))
+                      } finally {
+                        setBusy(false)
+                      }
+                    })()
+                  }}
+                >
+                  {t('knowledge.reembedFailed')}
+                </button>
+              </div>
             </div>
 
             <div
@@ -860,9 +956,19 @@ export function KnowledgePage(): React.JSX.Element {
               <span>{t('knowledge.dropHint')}</span>
             </div>
 
-            {docs.length === 0 ? (
-              <p className={styles.empty}>{t('knowledge.empty')}</p>
-            ) : (
+            {(() => {
+              const visibleDocs =
+                docFilter === 'failed'
+                  ? docs.filter((d) => d.status === 'error' || (d.status === 'ready' && !d.embedded))
+                  : docs
+              if (visibleDocs.length === 0) {
+                return (
+                  <p className={styles.empty}>
+                    {docFilter === 'failed' ? t('knowledge.filterFailedEmpty') : t('knowledge.empty')}
+                  </p>
+                )
+              }
+              return (
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
@@ -876,8 +982,16 @@ export function KnowledgePage(): React.JSX.Element {
                     </tr>
                   </thead>
                   <tbody>
-                    {docs.map((doc) => (
-                      <tr key={doc.id}>
+                    {visibleDocs.map((doc) => (
+                      <tr
+                        key={doc.id}
+                        ref={(el) => {
+                          if (el) docRowRefs.current.set(doc.id, el)
+                          else docRowRefs.current.delete(doc.id)
+                        }}
+                        className={highlightDocId === doc.id ? styles.docRowHighlight : undefined}
+                        data-doc-id={doc.id}
+                      >
                         <td>
                           <div className={styles.docTitle}>
                             <strong>{doc.title}</strong>
@@ -960,7 +1074,8 @@ export function KnowledgePage(): React.JSX.Element {
                   </tbody>
                 </table>
               </div>
-            )}
+              )
+            })()}
           </section>
         ) : null}
 

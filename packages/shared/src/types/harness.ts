@@ -25,7 +25,7 @@ export interface TurnStartPayload {
 
 export interface TurnEndPayload {
   turnIndex: number
-  reason: 'complete' | 'error' | 'cancelled' | 'max_steps' | 'empty'
+  reason: 'complete' | 'error' | 'cancelled' | 'max_steps' | 'empty' | 'interrupted'
 }
 
 export interface StepPayload {
@@ -275,6 +275,22 @@ export interface SessionEvent {
 }
 
 /** UI projection derived from the event log. */
+export interface HarnessSubagentMeta {
+  phase: 'start' | 'end'
+  childSessionId: string
+  task?: string
+  status?: string
+  resultPreview?: string
+  agentId?: string
+}
+
+export interface HarnessGoalMeta {
+  phase: 'set' | 'update'
+  goalId: string
+  title?: string
+  status?: string
+}
+
 export interface HarnessMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -282,6 +298,11 @@ export interface HarnessMessage {
   createdAt: string
   citations?: KnowledgeCitation[]
   toolSteps?: LlmToolStep[]
+  /** Structured subagent event — UI uses i18n; content is fallback. */
+  subagent?: HarnessSubagentMeta
+  goal?: HarnessGoalMeta
+  /** Failed turn / media call — show「重试上一问」. */
+  retryable?: boolean
 }
 
 export interface HarnessStoreSnapshot {

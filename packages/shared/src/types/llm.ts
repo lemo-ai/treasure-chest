@@ -91,6 +91,8 @@ export interface ToolApprovalRequest {
   argsPreview: string
   risk: 'confirm' | 'block'
   reason: string
+  /** Harness session id — used for session-scoped always-allow */
+  sessionId?: string
 }
 
 export interface KnowledgeCitation {

@@ -343,8 +343,8 @@ export async function executeBuiltinTool(
           sources: items,
           hint:
             ctx.allowedDataSourceIds == null
-              ? 'All enabled sources may be queried.'
-              : 'Only allowed=true sources may be queried for this agent.',
+              ? 'All enabled sources may be queried. SQL kinds are read_write (SELECT/INSERT via sql).'
+              : 'Only allowed=true sources may be queried. SQL kinds with access=read_write support SELECT and INSERT/UPDATE — do not invent read-only limits.',
         })
       }
       case 'query_data_source': {

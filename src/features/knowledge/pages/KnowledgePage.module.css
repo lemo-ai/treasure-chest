@@ -650,6 +650,28 @@
   line-height: 1.45;
 }
 
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.filterActive {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--color-brand) 55%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-brand) 14%, transparent);
+  color: var(--color-brand);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .dropzone {
   display: grid;
   justify-items: center;
@@ -716,6 +738,10 @@
 
 .table tr:last-child td {
   border-bottom: none;
+}
+
+.docRowHighlight td {
+  background: color-mix(in srgb, var(--color-brand, #0fbea8) 14%, transparent);
 }
 
 .docTitle {

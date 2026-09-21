@@ -41,6 +41,16 @@ if (isHarnessHeadless) {
   setTimeout(() => applyAppDockIcon(), 300)
   initDatabase()
   void import('../modules/debug/ActivityLog').then((m) => m.initActivityLog())
+  void import('../modules/harness/SessionRepo').then((m) => {
+    const recovered = m.recoverInterruptedTurns()
+    if (recovered.turns > 0) {
+      void import('../utils/logger').then(({ logger }) =>
+        logger.info(
+          `recovered ${recovered.turns} interrupted turn(s) across ${recovered.sessions} session(s)`,
+        ),
+      )
+    }
+  })
   void import('../modules/harness/cordis/CordisConfig').then((c) => {
     c.applyCordisStack()
   })

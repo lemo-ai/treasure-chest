@@ -54,6 +54,10 @@ export function createHarnessSession(agentId: string, title: string, id?: string
   return SessionRepo.createSession(agentId, title, id)
 }
 
+export function getHarnessSession(id: string): AgentSession | null {
+  return SessionRepo.getSession(id)
+}
+
 export function renameHarnessSession(id: string, title: string): boolean {
   return SessionRepo.renameSession(id, title)
 }
@@ -88,6 +92,26 @@ export function appendHarnessSystemMessage(sessionId: string, content: string): 
 
 export function forkHarnessSession(input: ForkSessionInput): AgentSession | null {
   return SessionRepo.forkSession(input.sourceSessionId, input.boundarySeq, input.title)
+}
+
+export async function exportHarnessSessionMarkdown(
+  sessionId: string,
+  opts?: { includeEvents?: boolean },
+) {
+  const { exportSessionMarkdown } = await import('./SessionExport')
+  return exportSessionMarkdown(sessionId, opts)
+}
+
+export async function exportHarnessSessionPdf(
+  sessionId: string,
+  opts?: { includeEvents?: boolean },
+) {
+  const { exportSessionPdf } = await import('./SessionExport')
+  return exportSessionPdf(sessionId, opts)
+}
+
+export function recoverHarnessInterruptedTurns() {
+  return SessionRepo.recoverInterruptedTurns()
 }
 
 export function migrateHarnessFromLocal(input: MigrateLocalHarnessInput): { imported: number } {

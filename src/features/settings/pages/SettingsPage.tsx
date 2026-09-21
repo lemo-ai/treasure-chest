@@ -3,6 +3,7 @@ import { useLocation } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type {
   AppLocale,
+  AppUpdateStatus,
   DataSourceConfig,
   DesktopWidgetView,
   DialFaceStyle,
@@ -81,6 +82,9 @@ export function SettingsPage(): React.JSX.Element {
     backgroundHistory: [],
   })
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null)
+  const [updateBusy, setUpdateBusy] = useState(false)
   const [launchBehavior, setLaunchBehavior] = useState<LaunchBehavior>('main')
   const [notifyChannels, setNotifyChannels] = useState<NotificationChannels>(DEFAULT_NOTIFICATION_CHANNELS)
   const [channelTestMsg, setChannelTestMsg] = useState<string | null>(null)
@@ -225,6 +229,8 @@ export function SettingsPage(): React.JSX.Element {
     void window.treasureChest.getLaunchAtLogin().then((state) => {
       setLaunchAtLogin(state.configured)
     })
+    void window.treasureChest.getVersion().then(setAppVersion)
+    void window.treasureChest.getUpdateStatus().then(setUpdateStatus)
   }, [])
 
   useEffect(() => {
@@ -253,6 +259,50 @@ export function SettingsPage(): React.JSX.Element {
   const onLocale = async (locale: AppLocale): Promise<void> => {
     await window.treasureChest.setLocale(locale)
     await setAppLocale(locale)
+  }
+
+  const updateStatusLabel = (status: AppUpdateStatus | null): string => {
+    if (!status) return t('settings.update.status.idle')
+    switch (status.state) {
+      case 'checking':
+        return t('settings.update.status.checking')
+      case 'available':
+        return t('settings.update.status.available', { version: status.latestVersion || '—' })
+      case 'not-available':
+        return t('settings.update.status.latest', { version: status.currentVersion })
+      case 'downloading':
+        return t('settings.update.status.downloading', { progress: status.progress ?? 0 })
+      case 'downloaded':
+        return t('settings.update.status.downloaded', { version: status.latestVersion || '—' })
+      case 'error':
+        return t('settings.update.status.error', { message: status.message || 'error' })
+      default:
+        return t('settings.update.status.idle')
+    }
+  }
+
+  const onCheckUpdates = async (): Promise<void> => {
+    setUpdateBusy(true)
+    try {
+      const next = await window.treasureChest.checkForUpdates()
+      setUpdateStatus(next)
+    } finally {
+      setUpdateBusy(false)
+    }
+  }
+
+  const onDownloadUpdate = async (): Promise<void> => {
+    setUpdateBusy(true)
+    try {
+      const next = await window.treasureChest.downloadUpdate()
+      setUpdateStatus(next)
+    } finally {
+      setUpdateBusy(false)
+    }
+  }
+
+  const onQuitAndInstall = async (): Promise<void> => {
+    await window.treasureChest.quitAndInstallUpdate()
   }
 
   const patchWidget = async (
@@ -618,6 +668,49 @@ export function SettingsPage(): React.JSX.Element {
                 {t(`settings.locale.${locale}`)}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className={styles.settingRow}>
+          <div>
+            <div className={styles.settingTitle}>{t('settings.update.title')}</div>
+            <div className={styles.settingHint}>{t('settings.update.hint')}</div>
+            <p className={styles.desc} style={{ marginTop: '0.5rem' }}>
+              {t('settings.update.current', { version: appVersion || '—' })}
+              <br />
+              {updateStatusLabel(updateStatus)}
+            </p>
+          </div>
+          <div className={styles.choiceControl} style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+            <SettingActionButton
+              icon={<IconSparkles />}
+              label={updateBusy ? t('settings.update.checking') : t('settings.update.check')}
+              variant="primary"
+              disabled={updateBusy}
+              onClick={() => void onCheckUpdates()}
+            />
+            <SettingActionButton
+              icon={<IconUpload />}
+              label={t('settings.update.openReleases')}
+              variant="ghost"
+              onClick={() => void window.treasureChest.openReleasesPage()}
+            />
+            {updateStatus?.canInstall ? (
+              <SettingActionButton
+                icon={<IconDownload />}
+                label={t('settings.update.install')}
+                variant="primary"
+                onClick={() => void onQuitAndInstall()}
+              />
+            ) : updateStatus?.state === 'available' ? (
+              <SettingActionButton
+                icon={<IconDownload />}
+                label={t('settings.update.download')}
+                variant="ghost"
+                disabled={updateBusy}
+                onClick={() => void onDownloadUpdate()}
+              />
+            ) : null}
           </div>
         </div>
       </div>

@@ -98,7 +98,12 @@ export function touchSession(id: string): void {
 
 export function deleteSession(id: string): boolean {
   const db = getDb()
-  const info = db.prepare(`DELETE FROM agent_sessions WHERE id = ?`).run(id)
+  const tx = db.transaction((sessionId: string) => {
+    db.prepare(`DELETE FROM agent_goals WHERE session_id = ?`).run(sessionId)
+    db.prepare(`DELETE FROM agent_session_events WHERE session_id = ?`).run(sessionId)
+    return db.prepare(`DELETE FROM agent_sessions WHERE id = ?`).run(sessionId)
+  })
+  const info = tx(id)
   return info.changes > 0
 }
 
@@ -373,3 +378,32 @@ function appendEventWithSeq(
     )
     .run(uid('evt'), sessionId, seq, type, JSON.stringify(payload), createdAt)
 }
+
+/**
+ * After crash/quit mid-turn: close orphan turns that have turn/start without turn/end.
+ * Returns number of sessions recovered.
+ */
+export function recoverInterruptedTurns(): { sessions: number; turns: number } {
+  const sessions = listSessions()
+  let turnCount = 0
+  let sessionCount = 0
+  for (const session of sessions) {
+    const events = listEvents(session.id)
+    let openTurn: number | null = null
+    for (const ev of events) {
+      if (ev.type === 'turn/start') {
+        const idx = (ev.payload as { turnIndex?: number }).turnIndex
+        openTurn = typeof idx === 'number' ? idx : openTurn
+      } else if (ev.type === 'turn/end') {
+        openTurn = null
+      }
+    }
+    if (openTurn != null) {
+      appendEvent(session.id, 'turn/end', { turnIndex: openTurn, reason: 'interrupted' })
+      turnCount += 1
+      sessionCount += 1
+    }
+  }
+  return { sessions: sessionCount, turns: turnCount }
+}
+

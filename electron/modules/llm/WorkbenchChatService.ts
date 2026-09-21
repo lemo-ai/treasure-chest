@@ -9,10 +9,27 @@ import {
   runHarnessChat,
   runHarnessChatStream,
 } from '../harness/HarnessService'
-import { cancelTurnRun } from '../harness/TurnRunRegistry'
+import {
+  cancelTurnRun,
+  isTurnPaused,
+  pauseTurnRun,
+  resumeTurnRun,
+} from '../harness/TurnRunRegistry'
 
 export function cancelWorkbenchStream(streamId: string): boolean {
   return cancelTurnRun(streamId)
+}
+
+export function pauseWorkbenchStream(streamId: string): boolean {
+  return pauseTurnRun(streamId)
+}
+
+export function resumeWorkbenchStream(streamId: string): boolean {
+  return resumeTurnRun(streamId)
+}
+
+export function isWorkbenchStreamPaused(streamId: string): boolean {
+  return isTurnPaused(streamId)
 }
 
 type ApprovalHandler = (request: ToolApprovalRequest) => Promise<boolean>

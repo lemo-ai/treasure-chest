@@ -118,6 +118,22 @@ export function IconClose(props: IconProps): React.JSX.Element {
   )
 }
 
+export function IconPause(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M8 5v14M16 5v14" />
+    </svg>
+  )
+}
+
+export function IconPlay(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base} {...props}>
+      <path d="M8 5l12 7-12 7V5z" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 export function IconPin(props: IconProps): React.JSX.Element {
   return (
     <svg {...base} {...props}>

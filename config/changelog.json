@@ -1,6 +1,36 @@
 {
   "releases": [
     {
+      "version": "0.5.0",
+      "date": "2026-09-21",
+      "title": {
+        "zh-CN": "信任感与闭环 · 工具可见 · 更新与导出",
+        "en-US": "Trust & closure · tool visibility · updates & export"
+      },
+      "items": {
+        "zh-CN": [
+          "聊天内展示工具步骤卡；体彩数据源明确可读写，减少「假只读」幻觉",
+          "设置可检查 GitHub 更新；知识引用可点跳转知识库",
+          "工具审批支持本会话始终允许；轨迹面板可展开/复制完整工具结果",
+          "长任务支持暂停/继续；崩溃后补写 interrupted checkpoint",
+          "子智能体卡片与会话父子标识；失败 turn / 工具可一键重试",
+          "会话导出 Markdown/PDF；知识库失败队列筛选与批量重建",
+          "定时 agent 任务改为无会话 ephemeral，结果进通知；历史会话删除更可靠",
+          "工作台顶栏面板菜单（轨迹/终端/记忆/产物）；macOS 签名/公证可选 CI 与文档"
+        ],
+        "en-US": [
+          "In-chat ToolStepsCard; lottery data source clearly read/write to cut fake read-only replies",
+          "In-app GitHub update check; knowledge citations deep-link into Knowledge",
+          "Session always-allow for tool approval; trajectory expand/copy full tool results",
+          "Pause/resume long turns; recover interrupted turns after crash",
+          "Subagent cards + parent/child session badges; retry failed turns/tools",
+          "Export session as Markdown/PDF; knowledge failure queue filter + batch re-embed",
+          "Scheduled agent jobs run ephemeral (no workbench sessions); more reliable session delete",
+          "Workbench Panels menu (trajectory/terminal/memory/artifacts); optional macOS signing/notarize CI docs"
+        ]
+      }
+    },
+    {
       "version": "0.4.0",
       "date": "2026-09-18",
       "title": {

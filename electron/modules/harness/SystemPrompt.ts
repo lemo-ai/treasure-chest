@@ -210,10 +210,15 @@ export async function assembleSystemPrompt(
     else if (isDirect) {
       parts.push(
         isEn
-          ? 'Data source tools are available. Call list_data_sources then query_data_source (pass sql to override for SQL kinds).'
-          : '可用数据源工具：先 list_data_sources，再用 query_data_source（SQL 类可传 sql 覆盖默认语句以读写）。',
+          ? 'Data source tools are available. Call list_data_sources then query_data_source (pass sql to override for SQL kinds; SELECT and INSERT/UPDATE are allowed).'
+          : '可用数据源工具：先 list_data_sources，再用 query_data_source（SQL 类可传 sql 覆盖默认语句以读写，勿编造只读限制）。',
       )
     }
+    parts.push(
+      isEn
+        ? 'Never claim a data source is read-only or that permissions cannot be changed. If allowed=true / access=read_write, call query_data_source with sql.'
+        : '禁止声称数据源只读或「无法修改权限」。若 allowed=true / access=read_write，直接用 query_data_source 传 sql 查询或写入。',
+    )
   }
   parts.push(modeHint, knowledgeHint, memoryHint(req, isEn), toolHint)
   if (sessionId && !isDirect) {

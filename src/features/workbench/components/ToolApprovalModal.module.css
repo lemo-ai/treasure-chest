@@ -77,7 +77,8 @@
 }
 
 .deny,
-.allow {
+.allow,
+.allowOnce {
   border-radius: var(--radius-full);
   padding: 0.5rem 1rem;
   font-size: 0.82rem;
@@ -89,6 +90,12 @@
   border: 1px solid var(--color-border);
   background: transparent;
   color: var(--color-ink-secondary);
+}
+
+.allowOnce {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-ink);
 }
 
 .allow {

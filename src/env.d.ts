@@ -36,6 +36,11 @@ import type {
 
 interface TreasureChestApi {
   getVersion: () => Promise<string>
+  getUpdateStatus: () => Promise<import('@shared').AppUpdateStatus>
+  checkForUpdates: () => Promise<import('@shared').AppUpdateStatus>
+  downloadUpdate: () => Promise<import('@shared').AppUpdateStatus>
+  quitAndInstallUpdate: () => Promise<{ ok: boolean; error?: string }>
+  openReleasesPage: () => Promise<{ ok: boolean }>
   getTheme: () => Promise<ThemeMode>
   setTheme: (theme: ThemeMode) => Promise<ThemeMode>
   getAccent: () => Promise<ThemeAccent>
@@ -100,8 +105,13 @@ interface TreasureChestApi {
     streamId: string
     toolCallId: string
     approved: boolean
+    alwaysAllow?: boolean
+    sessionId?: string
+    toolName?: string
   }) => Promise<boolean>
   cancelWorkbenchStream: (streamId: string) => Promise<boolean>
+  pauseWorkbenchStream: (streamId: string) => Promise<boolean>
+  resumeWorkbenchStream: (streamId: string) => Promise<boolean>
   harnessGetStore: () => Promise<import('@shared').HarnessStoreSnapshot>
   harnessMigrateLocal: (payload: import('@shared').MigrateLocalHarnessInput) => Promise<{ imported: number }>
   harnessCreateSession: (agentId: string, title: string, id?: string) => Promise<import('@shared').AgentSession>
@@ -113,6 +123,14 @@ interface TreasureChestApi {
   harnessAppendSystemMessage: (sessionId: string, content: string) => Promise<import('@shared').HarnessMessage>
   harnessListEvents: (sessionId: string) => Promise<import('@shared').SessionEvent[]>
   harnessForkSession: (payload: import('@shared').ForkSessionInput) => Promise<import('@shared').AgentSession | null>
+  harnessExportSessionMarkdown: (payload: {
+    sessionId: string
+    includeEvents?: boolean
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
+  harnessExportSessionPdf: (payload: {
+    sessionId: string
+    includeEvents?: boolean
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>
   harnessListGoals: (sessionId: string, includeDone?: boolean) => Promise<import('@shared').AgentGoal[]>
   harnessSetGoal: (sessionId: string, title: string, detail?: string) => Promise<import('@shared').AgentGoal>
   harnessReloadPlugins: () => Promise<{ plugins: import('@shared').HarnessPluginInfo[]; tools: unknown[] }>
@@ -205,7 +223,10 @@ interface TreasureChestApi {
   reembedKnowledgeDocument: (id: string) => Promise<import('@shared').KnowledgeDocument>
   reembedKnowledgeCollection: (
     collectionId?: string,
-  ) => Promise<{ ok: number; failed: number; errors: string[] }>
+  ) => Promise<{ ok: number; failed: number; errors: string[]; skipped?: number }>
+  reembedKnowledgeFailed: (
+    collectionId?: string,
+  ) => Promise<{ ok: number; failed: number; errors: string[]; skipped?: number }>
   generateImage: (payload: {
     prompt: string
     size?: string

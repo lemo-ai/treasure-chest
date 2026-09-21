@@ -32,6 +32,7 @@ import {
   isTurnCancelled,
   registerTurnRun,
   TurnCancelledError,
+  waitIfPaused,
 } from './TurnRunRegistry'
 
 const activeChunkPending = new Map<string, { text: string }>()
@@ -75,6 +76,11 @@ function effectiveMaxSteps(config: HarnessConfig): number {
 
 function throwIfCancelled(signal?: AbortSignal): void {
   if (isTurnCancelled(signal)) throw new TurnCancelledError()
+}
+
+async function checkpointPause(streamId: string | undefined, signal?: AbortSignal): Promise<void> {
+  await waitIfPaused(streamId, signal)
+  throwIfCancelled(signal)
 }
 
 function flushAssistantChunk(
@@ -316,7 +322,7 @@ async function runAgentTurnInner(
 
   try {
   for (stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
-    throwIfCancelled(abortSignal)
+    await checkpointPause(req.streamId, abortSignal)
     if (sessionId) {
       record('step/start', { turnIndex, stepIndex })
       if (!directChat) {
@@ -347,7 +353,7 @@ async function runAgentTurnInner(
       ? await callLlmChatStream(llmOptions, streamDelta)
       : await callLlmChat(llmOptions)
 
-    throwIfCancelled(abortSignal)
+    await checkpointPause(req.streamId, abortSignal)
 
     lastModel = result.model ?? model
     lastProvider = result.providerName ?? endpoint.providerName
@@ -484,6 +490,10 @@ async function runAgentTurnInner(
       }
 
       if (decision.tier === 'block') {
+        const blockedOutput = JSON.stringify({
+          error: 'Tool blocked by policy (payment/transfer class operations are not allowed).',
+          reason: decision.reason,
+        })
         const blocked: LlmToolStep = {
           id: stepId,
           name,
@@ -491,72 +501,75 @@ async function runAgentTurnInner(
           status: 'denied',
           argsPreview,
           error: decision.reason,
+          resultPreview: blockedOutput.slice(0, 220),
         }
         toolSteps.push(blocked)
         callbacks.onToolStep?.(blocked)
-        const output = JSON.stringify({
-          error: 'Tool blocked by policy (payment/transfer class operations are not allowed).',
-          reason: decision.reason,
-        })
         if (sessionId) {
           record('tool/result', {
             id: stepId,
             name,
-            content: output,
+            content: blockedOutput,
             status: 'denied',
           })
         }
-        messages.push({ role: 'tool', tool_call_id: call.id, name, content: output })
+        messages.push({ role: 'tool', tool_call_id: call.id, name, content: blockedOutput })
         continue
       }
 
       if (decision.tier === 'confirm') {
-        const pending: LlmToolStep = {
-          id: stepId,
-          name,
-          label,
-          status: 'pending',
-          argsPreview,
-        }
-        toolSteps.push(pending)
-        callbacks.onToolStep?.(pending)
-        callbacks.onStatus?.(isEn ? `Waiting for approval: ${label}…` : `等待审批：${label}…`)
-
-        let approved = false
-        if (callbacks.onApproval && req.streamId) {
-          approved = await callbacks.onApproval({
-            streamId: req.streamId,
-            toolCallId: stepId,
+        const { isSessionToolAllowed } = await import('../llm/ToolApprovalCache')
+        let approved = isSessionToolAllowed(sessionId, name)
+        if (!approved) {
+          const pending: LlmToolStep = {
+            id: stepId,
             name,
             label,
+            status: 'pending',
             argsPreview,
-            risk: 'confirm',
-            reason: decision.reason,
-          })
-        }
-        throwIfCancelled(abortSignal)
+          }
+          toolSteps.push(pending)
+          callbacks.onToolStep?.(pending)
+          callbacks.onStatus?.(isEn ? `Waiting for approval: ${label}…` : `等待审批：${label}…`)
 
-        if (!approved) {
-          const denied: LlmToolStep = { ...pending, status: 'denied', error: 'user_denied' }
-          const idx = toolSteps.findIndex((s) => s.id === stepId)
-          if (idx >= 0) toolSteps[idx] = denied
-          callbacks.onToolStep?.(denied)
-          const output = JSON.stringify({
-            error: 'User denied this sensitive tool call.',
-            reason: decision.reason,
-          })
-          if (sessionId) {
-            record('tool/result', {
-              id: stepId,
+          if (callbacks.onApproval && req.streamId) {
+            approved = await callbacks.onApproval({
+              streamId: req.streamId,
+              toolCallId: stepId,
               name,
-              content: output,
-              status: 'denied',
+              label,
+              argsPreview,
+              risk: 'confirm',
+              reason: decision.reason,
+              sessionId,
             })
           }
-          messages.push({ role: 'tool', tool_call_id: call.id, name, content: output })
-          continue
+          await checkpointPause(req.streamId, abortSignal)
+
+          if (!approved) {
+            const denied: LlmToolStep = { ...pending, status: 'denied', error: 'user_denied' }
+            const idx = toolSteps.findIndex((s) => s.id === stepId)
+            if (idx >= 0) toolSteps[idx] = denied
+            callbacks.onToolStep?.(denied)
+            const output = JSON.stringify({
+              error: 'User denied this sensitive tool call.',
+              reason: decision.reason,
+            })
+            if (sessionId) {
+              record('tool/result', {
+                id: stepId,
+                name,
+                content: output,
+                status: 'denied',
+              })
+            }
+            messages.push({ role: 'tool', tool_call_id: call.id, name, content: output })
+            continue
+          }
         }
       }
+
+      await checkpointPause(req.streamId, abortSignal)
 
       const running: LlmToolStep = {
         id: stepId,
@@ -671,7 +684,7 @@ async function runAgentTurnInner(
   }
 
   callbacks.onStatus?.(isEn ? 'Writing reply…' : '正在生成回复…')
-  throwIfCancelled(abortSignal)
+  await checkpointPause(req.streamId, abortSignal)
 
   const streamed = callbacks.onDelta
     ? await callLlmChatStream(
@@ -698,7 +711,7 @@ async function runAgentTurnInner(
         tag: `harness-final-${req.agentId || 'direct'}`,
       })
 
-  throwIfCancelled(abortSignal)
+  await checkpointPause(req.streamId, abortSignal)
   if (!streamed.ok && isTurnCancelled(abortSignal)) throw new TurnCancelledError()
   if (sessionId) flushAssistantChunk(sessionId, chunkPending, callbacks)
 

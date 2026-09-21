@@ -40,6 +40,8 @@ import {
   resolvePendingToolApproval,
   waitForToolApprovalFromIpc,
   cancelWorkbenchStream,
+  pauseWorkbenchStream,
+  resumeWorkbenchStream,
 } from '../modules/llm/WorkbenchChatService'
 import {
   appendHarnessSystemMessage,
@@ -85,6 +87,8 @@ import {
   saveHarnessCordisSettings,
   createHarnessCordisProfile,
   createHarnessCordisBundle,
+  exportHarnessSessionMarkdown,
+  exportHarnessSessionPdf,
 } from '../modules/harness/HarnessService'
 import {
   createKnowledgeCollection,
@@ -225,6 +229,26 @@ function afterWidgetChange(partial?: Partial<DesktopWidgetSettings>): void {
 
 export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.app.getVersion, () => app.getVersion())
+  ipcMain.handle(IpcChannels.app.getUpdateStatus, async () => {
+    const { getAppUpdateStatus } = await import('../modules/system/AppUpdateService')
+    return getAppUpdateStatus()
+  })
+  ipcMain.handle(IpcChannels.app.checkForUpdates, async () => {
+    const { checkForAppUpdates } = await import('../modules/system/AppUpdateService')
+    return checkForAppUpdates()
+  })
+  ipcMain.handle(IpcChannels.app.downloadUpdate, async () => {
+    const { downloadAppUpdate } = await import('../modules/system/AppUpdateService')
+    return downloadAppUpdate()
+  })
+  ipcMain.handle(IpcChannels.app.quitAndInstall, async () => {
+    const { quitAndInstallAppUpdate } = await import('../modules/system/AppUpdateService')
+    return quitAndInstallAppUpdate()
+  })
+  ipcMain.handle(IpcChannels.app.openReleasesPage, async () => {
+    const { openAppReleasesPage } = await import('../modules/system/AppUpdateService')
+    return openAppReleasesPage()
+  })
 
   ipcMain.handle(IpcChannels.settings.getTheme, () => settingsStore.getTheme())
   ipcMain.handle(IpcChannels.settings.setTheme, (_e, theme: ThemeMode) =>
@@ -418,12 +442,29 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.workbench.cancelStream, (_e, streamId: string) =>
     cancelWorkbenchStream(String(streamId || '')),
   )
+  ipcMain.handle(IpcChannels.workbench.pauseStream, (_e, streamId: string) =>
+    pauseWorkbenchStream(String(streamId || '')),
+  )
+  ipcMain.handle(IpcChannels.workbench.resumeStream, (_e, streamId: string) =>
+    resumeWorkbenchStream(String(streamId || '')),
+  )
   ipcMain.handle(
     IpcChannels.workbench.resolveToolApproval,
-    (
+    async (
       _e,
-      payload: { streamId: string; toolCallId: string; approved: boolean },
-    ): boolean => {
+      payload: {
+        streamId: string
+        toolCallId: string
+        approved: boolean
+        alwaysAllow?: boolean
+        sessionId?: string
+        toolName?: string
+      },
+    ): Promise<boolean> => {
+      if (payload.alwaysAllow && payload.approved && payload.sessionId && payload.toolName) {
+        const { allowSessionTool } = await import('../modules/llm/ToolApprovalCache')
+        allowSessionTool(payload.sessionId, payload.toolName)
+      }
       return resolvePendingToolApproval(
         payload.streamId,
         payload.toolCallId,
@@ -473,6 +514,16 @@ export function registerAllIpc(): void {
   )
   ipcMain.handle(IpcChannels.harness.forkSession, (_e, payload: ForkSessionInput) =>
     forkHarnessSession(payload),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.exportSessionMarkdown,
+    (_e, payload: { sessionId: string; includeEvents?: boolean }) =>
+      exportHarnessSessionMarkdown(payload.sessionId, { includeEvents: payload.includeEvents }),
+  )
+  ipcMain.handle(
+    IpcChannels.harness.exportSessionPdf,
+    (_e, payload: { sessionId: string; includeEvents?: boolean }) =>
+      exportHarnessSessionPdf(payload.sessionId, { includeEvents: payload.includeEvents }),
   )
   ipcMain.handle(IpcChannels.harness.listGoals, (_e, payload: { sessionId: string; includeDone?: boolean }) =>
     listHarnessGoals(payload.sessionId, payload.includeDone ?? true),
@@ -876,6 +927,9 @@ export function registerAllIpc(): void {
   )
   ipcMain.handle(IpcChannels.knowledge.reembedCollection, (_e, collectionId?: string) =>
     reembedKnowledgeCollection(collectionId),
+  )
+  ipcMain.handle(IpcChannels.knowledge.reembedFailed, (_e, collectionId?: string) =>
+    reembedKnowledgeCollection(collectionId, { onlyFailed: true }),
   )
   ipcMain.handle(
     IpcChannels.image.generate,

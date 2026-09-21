@@ -3,6 +3,7 @@ import type { AgentLoopCallbacks } from './AgentLoop'
 import { runAgentTurn } from './AgentLoop'
 import { resolveHarnessConfig } from './cordis/CordisConfig'
 import { appendEvent, appendUserMessage, createSession } from './SessionRepo'
+import { getDb } from '../../db/Database'
 
 export interface SubagentRunContext {
   parentSessionId: string
@@ -29,6 +30,10 @@ export async function runSubagent(
   }
 
   const child = createSession(agentId || ctx.parentAgentId, `Sub: ${task.trim().slice(0, 32)}`)
+  getDb()
+    .prepare(`UPDATE agent_sessions SET forked_from = ? WHERE id = ?`)
+    .run(ctx.parentSessionId, child.id)
+  child.forkedFrom = ctx.parentSessionId
   appendEvent(ctx.parentSessionId, 'subagent/start', {
     childSessionId: child.id,
     task: task.trim(),

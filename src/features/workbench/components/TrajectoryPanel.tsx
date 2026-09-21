@@ -55,6 +55,19 @@ function eventDetail(ev: SessionEvent): string {
   }
 }
 
+function fullPayloadText(ev: SessionEvent): string {
+  const p = ev.payload as unknown as Record<string, unknown>
+  if (ev.type === 'tool/result' && typeof p.content === 'string') return p.content
+  if (ev.type === 'tool/call' && typeof p.arguments === 'string') {
+    return `${String(p.name ?? '')}\n${p.arguments}`
+  }
+  try {
+    return JSON.stringify(p, null, 2)
+  } catch {
+    return String(p)
+  }
+}
+
 function mergeEvents(base: SessionEvent[], live: SessionEvent[]): SessionEvent[] {
   const byId = new Map<string, SessionEvent>()
   for (const ev of base) byId.set(ev.id, ev)
@@ -78,6 +91,8 @@ export function TrajectoryPanel({
   const [reloading, setReloading] = useState(false)
   const [goalTitle, setGoalTitle] = useState('')
   const [addingGoal, setAddingGoal] = useState(false)
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
+  const [copyFlash, setCopyFlash] = useState<string | null>(null)
 
   const refresh = (): void => {
     if (!sessionId) return
@@ -114,6 +129,21 @@ export function TrajectoryPanel({
       .finally(() => setAddingGoal(false))
   }
 
+  const toggleExpand = (id: string): void => {
+    setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const onCopy = async (ev: SessionEvent): Promise<void> => {
+    const text = fullPayloadText(ev)
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopyFlash(ev.id)
+      window.setTimeout(() => setCopyFlash((cur) => (cur === ev.id ? null : cur)), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
+
   const turns = useMemo(() => {
     const groups: Array<{ turnIndex: number; events: SessionEvent[] }> = []
     let current: SessionEvent[] = []
@@ -133,6 +163,31 @@ export function TrajectoryPanel({
     }
     if (current.length) groups.push({ turnIndex, events: current })
     return groups
+  }, [mergedEvents])
+
+  const orchestration = useMemo(() => {
+    const starts = mergedEvents.filter((e) => e.type === 'subagent/start')
+    return starts.map((ev) => {
+      const p = ev.payload as {
+        childSessionId?: string
+        task?: string
+        agentId?: string
+      }
+      const end = mergedEvents.find(
+        (e) =>
+          e.type === 'subagent/end' &&
+          (e.payload as { childSessionId?: string }).childSessionId === p.childSessionId,
+      )
+      const endPayload = end?.payload as { status?: string; resultPreview?: string } | undefined
+      return {
+        id: ev.id,
+        childSessionId: String(p.childSessionId || ''),
+        task: String(p.task || ''),
+        agentId: String(p.agentId || ''),
+        status: endPayload?.status || (end ? 'done' : 'running'),
+        preview: String(endPayload?.resultPreview || ''),
+      }
+    })
   }, [mergedEvents])
 
   if (!open) return null
@@ -190,6 +245,33 @@ export function TrajectoryPanel({
         )}
       </section>
 
+      {orchestration.length > 0 ? (
+        <section className={styles.section}>
+          <h3>{t('workbench.orchestration')}</h3>
+          <ul className={styles.orchList}>
+            {orchestration.map((node) => (
+              <li key={node.id} className={styles.orchItem} data-status={node.status}>
+                <div className={styles.orchHead}>
+                  <strong>{node.agentId || 'subagent'}</strong>
+                  <span>{node.status}</span>
+                </div>
+                <p className={styles.orchTask}>{node.task}</p>
+                {node.preview ? <p className={styles.orchPreview}>{node.preview.slice(0, 160)}</p> : null}
+                {node.childSessionId && onOpenChildSession ? (
+                  <button
+                    type="button"
+                    className={styles.childBtn}
+                    onClick={() => onOpenChildSession(node.childSessionId)}
+                  >
+                    {t('workbench.trajectoryOpenChild')}
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {plugins.length > 0 ? (
         <p className={styles.plugins}>{t('workbench.trajectoryPlugins', { names: plugins.join(', ') })}</p>
       ) : null}
@@ -209,28 +291,53 @@ export function TrajectoryPanel({
                     ev.type === 'subagent/start'
                       ? String((ev.payload as { childSessionId?: string }).childSessionId ?? '')
                       : ''
+                  const expandable = ev.type === 'tool/call' || ev.type === 'tool/result'
+                  const expanded = Boolean(expandedIds[ev.id])
                   return (
                     <li key={ev.id} className={styles.event} data-type={ev.type.replace('/', '-')}>
                       <span className={styles.eventType}>{eventLabel(ev.type, t)}</span>
                       <span className={styles.eventSeq}>#{ev.seq}</span>
                       <span className={styles.eventDetail}>{eventDetail(ev)}</span>
-                      {childId && onOpenChildSession ? (
-                        <button
-                          type="button"
-                          className={styles.childBtn}
-                          onClick={() => onOpenChildSession(childId)}
-                        >
-                          {t('workbench.trajectoryOpenChild')}
-                        </button>
-                      ) : null}
-                      {onForkAtSeq ? (
-                        <button
-                          type="button"
-                          className={styles.childBtn}
-                          onClick={() => onForkAtSeq(ev.seq)}
-                        >
-                          {t('workbench.trajectoryForkHere')}
-                        </button>
+                      <div className={styles.eventActions}>
+                        {expandable ? (
+                          <button
+                            type="button"
+                            className={styles.childBtn}
+                            onClick={() => toggleExpand(ev.id)}
+                          >
+                            {expanded
+                              ? t('workbench.trajectoryCollapse')
+                              : t('workbench.trajectoryExpand')}
+                          </button>
+                        ) : null}
+                        {expandable ? (
+                          <button type="button" className={styles.childBtn} onClick={() => void onCopy(ev)}>
+                            {copyFlash === ev.id
+                              ? t('workbench.trajectoryCopied')
+                              : t('workbench.trajectoryCopy')}
+                          </button>
+                        ) : null}
+                        {childId && onOpenChildSession ? (
+                          <button
+                            type="button"
+                            className={styles.childBtn}
+                            onClick={() => onOpenChildSession(childId)}
+                          >
+                            {t('workbench.trajectoryOpenChild')}
+                          </button>
+                        ) : null}
+                        {onForkAtSeq ? (
+                          <button
+                            type="button"
+                            className={styles.childBtn}
+                            onClick={() => onForkAtSeq(ev.seq)}
+                          >
+                            {t('workbench.trajectoryForkHere')}
+                          </button>
+                        ) : null}
+                      </div>
+                      {expanded ? (
+                        <pre className={styles.eventFull}>{fullPayloadText(ev)}</pre>
                       ) : null}
                     </li>
                   )

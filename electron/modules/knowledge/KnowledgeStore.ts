@@ -1024,12 +1024,16 @@ export async function reembedKnowledgeDocument(id: string): Promise<KnowledgeDoc
 
 export async function reembedKnowledgeCollection(
   collectionId?: string,
-): Promise<{ ok: number; failed: number; errors: string[] }> {
+  opts?: { onlyFailed?: boolean },
+): Promise<{ ok: number; failed: number; errors: string[]; skipped: number }> {
   const docs = listKnowledgeDocuments(collectionId)
+  const targets = opts?.onlyFailed
+    ? docs.filter((d) => d.status === 'error' || (d.status === 'ready' && !d.embedded))
+    : docs
   let ok = 0
   let failed = 0
   const errors: string[] = []
-  for (const doc of docs) {
+  for (const doc of targets) {
     try {
       await reembedKnowledgeDocument(doc.id)
       ok += 1
@@ -1038,7 +1042,7 @@ export async function reembedKnowledgeCollection(
       errors.push(`${doc.title}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
-  return { ok, failed, errors }
+  return { ok, failed, errors, skipped: docs.length - targets.length }
 }
 
 export function knowledgeStats(): {

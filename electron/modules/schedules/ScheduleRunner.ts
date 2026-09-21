@@ -1,8 +1,6 @@
 import type { ScheduleNotifyOverride, ScheduleRecurrence, ScheduleTask } from '@shared'
 import { setSetting } from '../../db/AppSettingsRepo'
 import {
-  appendHarnessUserMessage,
-  createHarnessSession,
   runHarnessChat,
 } from '../harness/HarnessService'
 import { settingsStore } from '../settings/SettingsStore'
@@ -250,7 +248,6 @@ async function runAgentTask(task: ScheduleTask, force = false): Promise<void> {
   const ctx = action.runContext ?? {}
   const locale = settingsStore.getLocale()
   const isEn = locale.toLowerCase().startsWith('en')
-  const titlePrefix = isEn ? 'Scheduled' : '定时'
   const agentIds =
     Array.isArray(action.agentIds) && action.agentIds.length > 0 ? action.agentIds : ['direct']
   const agentNames = Array.isArray(action.agentNames) ? action.agentNames : []
@@ -270,24 +267,18 @@ async function runAgentTask(task: ScheduleTask, force = false): Promise<void> {
 
   const sections: string[] = []
   const errors: string[] = []
-  let lastSessionId: string | undefined
   let firstPreview = ''
 
   for (let i = 0; i < agentIds.length; i++) {
     const agentId = agentIds[i]!
     const agentLabel = agentNames[i]?.trim() || agentId
-    const session = createHarnessSession(
-      agentId,
-      `${titlePrefix}: ${task.title}`.slice(0, 80),
-    )
-    lastSessionId = session.id
-    appendHarnessUserMessage(session.id, userMessage)
 
+    // Ephemeral turn: do not create workbench sessions for scheduled jobs.
+    // Results go to inbox / notify only.
     const res = await runHarnessChat(
       {
         agentId,
-        sessionId: session.id,
-        messages: [],
+        messages: [{ role: 'user', content: userMessage }],
         systemPrompt: prompts[agentId],
         model: ctx.model,
         skillPrompt: skillPrompt || undefined,
@@ -348,7 +339,6 @@ async function runAgentTask(task: ScheduleTask, force = false): Promise<void> {
     markRun(task, {
       lastStatus: 'error',
       lastError: errors.join('; '),
-      lastSessionId,
     })
     publishInboxItem({
       status: 'error',
@@ -357,7 +347,6 @@ async function runAgentTask(task: ScheduleTask, force = false): Promise<void> {
       detail: detailBody,
       detailFormat: format,
       taskId: task.id,
-      sessionId: lastSessionId,
       coverPreset: coverOf(task),
       notify,
     })
@@ -372,7 +361,6 @@ async function runAgentTask(task: ScheduleTask, force = false): Promise<void> {
   markRun(task, {
     lastStatus: errors.length ? 'ok' : 'ok',
     lastError: errors.length ? errors.join('; ') : undefined,
-    lastSessionId,
     lastPreview: firstPreview,
   })
 
@@ -395,7 +383,6 @@ async function runAgentTask(task: ScheduleTask, force = false): Promise<void> {
     detail: detailBody,
     detailFormat: format,
     taskId: task.id,
-    sessionId: lastSessionId,
     coverPreset: coverOf(task),
     notify: force && !notify ? undefined : notify,
   })

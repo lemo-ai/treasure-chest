@@ -7,9 +7,11 @@ interface ToolStepsCardProps {
   steps: LlmToolStep[]
   /** Live streaming: keep expanded by default */
   defaultOpen?: boolean
+  /** Optional: retry whole turn when a tool step failed */
+  onRetryTurn?: () => void
 }
 
-export function ToolStepsCard({ steps, defaultOpen }: ToolStepsCardProps): ReactNode {
+export function ToolStepsCard({ steps, defaultOpen, onRetryTurn }: ToolStepsCardProps): ReactNode {
   const { t } = useTranslation()
   const running = steps.some((s) => s.status === 'running' || s.status === 'pending')
   const [open, setOpen] = useState(defaultOpen ?? running)
@@ -61,6 +63,18 @@ export function ToolStepsCard({ steps, defaultOpen }: ToolStepsCardProps): React
                 </span>
                 <strong className={styles.name}>{step.label || step.name}</strong>
                 <code className={styles.fn}>{step.name}</code>
+                {(step.status === 'error' || step.status === 'denied') && onRetryTurn && !running ? (
+                  <button
+                    type="button"
+                    className={styles.retryBtn}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRetryTurn()
+                    }}
+                  >
+                    {t('workbench.retryTool')}
+                  </button>
+                ) : null}
               </div>
               {step.argsPreview ? (
                 <div className={styles.meta}>
@@ -76,6 +90,16 @@ export function ToolStepsCard({ steps, defaultOpen }: ToolStepsCardProps): React
                       : t('workbench.tools.result')}
                   </span>
                   <code>{step.resultPreview}</code>
+                </div>
+              ) : null}
+              {step.error ? (
+                <div className={styles.meta}>
+                  <span className={styles.metaLabel}>{t('workbench.tools.policy')}</span>
+                  <code>
+                    {t(`workbench.approval.reason.${step.error}` as 'workbench.approval.reason.destructive_or_write', {
+                      defaultValue: step.error,
+                    })}
+                  </code>
                 </div>
               ) : null}
             </li>

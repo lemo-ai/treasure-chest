@@ -88,7 +88,7 @@ const listDataSourcesTool: LlmToolSpec = {
   function: {
     name: 'list_data_sources',
     description:
-      'List Settings → Data sources available to this agent (id / name / kind / allowed). Call before query_data_source.',
+      'List Settings → Data sources available to this agent (id / name / kind / allowed / access). Call before query_data_source. access=read_write means SELECT and INSERT/UPDATE via sql are allowed — never invent a read-only or “cannot change permissions” story.',
     parameters: { type: 'object', properties: {} },
   },
 }
@@ -98,7 +98,7 @@ const queryDataSourceTool: LlmToolSpec = {
   function: {
     name: 'query_data_source',
     description:
-      'Read or write via a bound data source. For SQL kinds (sqlite/postgres/…), pass sql to override the saved default (SELECT to analyze; INSERT/UPDATE/CREATE to persist). For HTTP/file kinds, returns the resolved payload. Only ids allowed for this agent.',
+      'Read or write via a bound data source. For SQL kinds (sqlite/postgres/…), pass sql to override the saved default (SELECT to analyze; INSERT/INSERT OR REPLACE/UPDATE/CREATE to persist crawl results). builtin:lottery-sqlite is read_write. For HTTP/file kinds, returns the resolved payload. Only ids with allowed=true for this agent.',
     parameters: {
       type: 'object',
       properties: {
