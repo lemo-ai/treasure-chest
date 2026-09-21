@@ -22,13 +22,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # 无私钥时跳过签名；配置了 CSC_LINK 等 secrets 时自动开启
-  CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' && 'true' || 'false' }}
-  CSC_LINK: ${{ secrets.CSC_LINK }}
-  CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-  APPLE_ID: ${{ secrets.APPLE_ID }}
-  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  # 默认跳过签名。勿注入空的 CSC_LINK（electron-builder 会当成路径并报 not a file）。
+  # 有证书时在 mac 打包步骤里按需 export。
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
   # electron-builder / softprops 发 Release
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
@@ -160,7 +156,21 @@ jobs:
 
       - name: Build + package (macOS arm64 + x64)
         if: matrix.name == 'mac'
+        env:
+          # Only pass signing vars when the secret is actually set (non-empty).
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -euo pipefail
+          if [ -n "${CSC_LINK:-}" ]; then
+            export CSC_IDENTITY_AUTO_DISCOVERY=true
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID || true
+          fi
           npm run build
           npx electron-builder --mac --arm64 --x64 --publish never
 
