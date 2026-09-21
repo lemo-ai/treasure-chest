@@ -167,12 +167,18 @@ jobs:
           set -euo pipefail
           if [ -n "${CSC_LINK:-}" ]; then
             export CSC_IDENTITY_AUTO_DISCOVERY=true
+            echo "macOS signing: Developer ID enabled"
+            npm run build
+            npx electron-builder --mac --arm64 --x64 --publish never
           else
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID || true
+            echo "macOS signing: no CSC — ad-hoc deep-sign via afterPack; hardenedRuntime=false"
+            npm run build
+            # hardenedRuntime without a real identity produces Gatekeeper "damaged".
+            npx electron-builder --mac --arm64 --x64 --publish never \
+              --config.mac.hardenedRuntime=false
           fi
-          npm run build
-          npx electron-builder --mac --arm64 --x64 --publish never
 
       - name: Build + package (Windows)
         if: matrix.name == 'win'

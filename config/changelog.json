@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "0.6.2",
+      "date": "2026-09-21",
+      "title": {
+        "zh-CN": "修复未签名 macOS 包被报「已损坏」",
+        "en-US": "Fix unsigned macOS “damaged” Gatekeeper false positive"
+      },
+      "items": {
+        "zh-CN": [
+          "无开发者证书时对 .app 做整包 ad-hoc 深签名，避免残缺 linker-signed 触发「文件已损坏」",
+          "未签名构建关闭 hardenedRuntime；有 CSC 时仍走正式签名/公证"
+        ],
+        "en-US": [
+          "Ad-hoc deep-sign the .app when no Developer ID is present, so incomplete linker-signed binaries no longer look “damaged”",
+          "Disable hardenedRuntime for unsigned builds; Developer ID / notarize path unchanged when CSC is set"
+        ]
+      }
+    },
+    {
       "version": "0.6.1",
       "date": "2026-09-21",
       "title": {

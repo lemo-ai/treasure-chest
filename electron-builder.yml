@@ -41,6 +41,7 @@
     },
     "artifactName": "treasure-chest-${version}-${arch}.${ext}"
   },
+  "afterPack": "scripts/afterPack.js",
   "afterSign": "scripts/notarize.js",
   "win": {
     "icon": "resources/icon.png",
