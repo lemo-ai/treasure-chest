@@ -1,6 +1,26 @@
 {
   "releases": [
     {
+      "version": "0.6.1",
+      "date": "2026-09-21",
+      "title": {
+        "zh-CN": "安装包文件名修复 · ASCII 产物名",
+        "en-US": "Fix release artifact filenames (ASCII)"
+      },
+      "items": {
+        "zh-CN": [
+          "安装包改为 treasure-chest-… ASCII 文件名，避免 GitHub 剥离中文后变成 -0.6.0.dmg / Setup.0.6.0.exe",
+          "应用内显示名仍为「袖里乾坤」；与 latest-*.yml / 自动更新路径对齐",
+          "文档补充未签名 macOS「已损坏」误报的排障（xattr 清隔离）"
+        ],
+        "en-US": [
+          "Release artifacts use ASCII treasure-chest-… names so GitHub no longer strips CJK into -0.6.0.dmg / Setup.0.6.0.exe",
+          "In-app display name stays 袖里乾坤; aligns with latest-*.yml / auto-update paths",
+          "Docs: unsigned macOS “damaged” Gatekeeper false positive (xattr clear quarantine)"
+        ]
+      }
+    },
+    {
       "version": "0.6.0",
       "date": "2026-09-21",
       "title": {

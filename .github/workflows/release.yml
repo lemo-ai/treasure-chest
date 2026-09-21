@@ -205,9 +205,12 @@ jobs:
           tag_name: ${{ needs.prepare.outputs.tag }}
           draft: false
           files: |
+            release/treasure-chest*.dmg
+            release/treasure-chest*.exe
+            release/treasure-chest*.AppImage
+            release/treasure-chest*.deb
             release/*.dmg
             release/*.exe
-            release/*-setup.exe
             release/*.AppImage
             release/*.deb
             release/*.blockmap

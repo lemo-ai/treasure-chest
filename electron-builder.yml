@@ -1,6 +1,7 @@
 {
   "appId": "com.lemo.treasure-chest",
   "productName": "袖里乾坤",
+  "artifactName": "treasure-chest-${version}-${arch}.${ext}",
   "publish": [
     {
       "provider": "github",
@@ -37,14 +38,16 @@
     "entitlementsInherit": "resources/entitlements.mac.plist",
     "extendInfo": {
       "NSMicrophoneUsageDescription": "Workbench voice input uses on-device speech recognition when available. Audio stays on this Mac unless the OS speech service requires network."
-    }
+    },
+    "artifactName": "treasure-chest-${version}-${arch}.${ext}"
   },
   "afterSign": "scripts/notarize.js",
   "win": {
     "icon": "resources/icon.png",
     "target": [
       { "target": "nsis", "arch": ["x64"] }
-    ]
+    ],
+    "artifactName": "treasure-chest-setup-${version}.${ext}"
   },
   "linux": {
     "icon": "resources/icon.png",
@@ -53,12 +56,14 @@
       { "target": "AppImage", "arch": ["x64"] },
       { "target": "deb", "arch": ["x64"] }
     ],
-    "category": "Utility"
+    "category": "Utility",
+    "artifactName": "treasure-chest-${version}-${arch}.${ext}"
   },
   "npmRebuild": true,
   "nodeGypRebuild": false,
   "nsis": {
     "oneClick": false,
-    "allowToChangeInstallationDirectory": true
+    "allowToChangeInstallationDirectory": true,
+    "artifactName": "treasure-chest-setup-${version}.${ext}"
   }
 }
