@@ -22,6 +22,16 @@ import {
 import { AgentAvatar } from '@renderer/features/agents/components/AgentAvatar'
 import { CreateAgentModal } from '@renderer/features/agents/components/CreateAgentModal'
 import { InboxToastHost } from '@renderer/features/notifications/components/InboxToastHost'
+import { ProjectModal } from '@renderer/features/projects/components/ProjectModal'
+import {
+  archiveProject,
+  getActiveProjectIdSync,
+  hydrateProjects,
+  listProjectsSync,
+  onProjectsChanged,
+  setActiveProject,
+} from '@renderer/features/projects/lib/projectStore'
+import type { Project } from '@shared'
 import { useTheme } from '@renderer/shared/hooks/useTheme'
 import styles from './AppLayout.module.css'
 
@@ -54,6 +64,10 @@ export function AppLayout(): React.JSX.Element {
   const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
   const [agents, setAgents] = useState<AgentDef[]>(() => listAgents())
   const [unread, setUnread] = useState(0)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null)
+  const [projectModalOpen, setProjectModalOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
 
   useEffect(() => {
     void window.treasureChest.getVersion().then(setVersion)
@@ -65,6 +79,15 @@ export function AppLayout(): React.JSX.Element {
     window.addEventListener('qiankun-agents-changed', onChanged)
     return () => window.removeEventListener('qiankun-agents-changed', onChanged)
   }, [location.pathname, location.search, createOpen, editingAgent])
+
+  useEffect(() => {
+    const sync = (): void => {
+      setProjects(listProjectsSync(false))
+      setActiveProjectIdState(getActiveProjectIdSync())
+    }
+    void hydrateProjects().then(sync)
+    return onProjectsChanged(sync)
+  }, [])
 
   useEffect(() => {
     const refreshUnread = (): void => {
@@ -81,6 +104,18 @@ export function AppLayout(): React.JSX.Element {
       offOpen()
     }
   }, [navigate, location.pathname])
+
+  const activateProject = async (id: string | null): Promise<void> => {
+    const next = await setActiveProject(id)
+    setActiveProjectIdState(next)
+    const project = next ? projects.find((p) => p.id === next) ?? null : null
+    if (project?.defaultAgentId) {
+      void navigate(`/?agent=${encodeURIComponent(project.defaultAgentId)}`)
+    } else if (onWorkbench) {
+      // stay; workbench will refilter sessions
+      window.dispatchEvent(new Event('qiankun-projects-changed'))
+    }
+  }
 
   return (
     <div className={styles.shell}>
@@ -114,6 +149,86 @@ export function AppLayout(): React.JSX.Element {
             </span>
             <span className={styles.linkLabel}>{t('nav.knowledge')}</span>
           </NavLink>
+
+          <div className={styles.sectionLabel}>{t('nav.sectionProjects')}</div>
+          <button
+            type="button"
+            className={
+              activeProjectId === null
+                ? `${styles.link} ${styles.linkActive} ${styles.projectBtn}`
+                : `${styles.link} ${styles.projectBtn}`
+            }
+            onClick={() => void activateProject(null)}
+          >
+            <span className={styles.linkLabel}>{t('projects.none')}</span>
+          </button>
+          {projects.length === 0 ? (
+            <p className={styles.sectionHint}>{t('projects.emptyHint')}</p>
+          ) : null}
+          {projects.map((project) => {
+            const isActive = activeProjectId === project.id
+            return (
+              <div key={project.id} className={styles.agentRow}>
+                <button
+                  type="button"
+                  className={
+                    isActive
+                      ? `${styles.link} ${styles.linkActive} ${styles.projectBtn}`
+                      : `${styles.link} ${styles.projectBtn}`
+                  }
+                  onClick={() => void activateProject(project.id)}
+                  title={project.workDir || project.name}
+                >
+                  <span className={styles.linkLabel}>{project.name}</span>
+                </button>
+                <span className={styles.agentActions}>
+                  <button
+                    type="button"
+                    className={styles.agentEditBtn}
+                    title={t('projects.edit')}
+                    aria-label={t('projects.edit')}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setEditingProject(project)
+                      setProjectModalOpen(true)
+                    }}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.agentEditBtn} ${styles.agentDeleteBtn}`}
+                    title={t('projects.archive')}
+                    aria-label={t('projects.archive')}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (!window.confirm(t('projects.archiveConfirm'))) return
+                      void archiveProject(project.id, true).then(() => {
+                        if (activeProjectId === project.id) void activateProject(null)
+                      })
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            )
+          })}
+          <button
+            type="button"
+            className={styles.addAgentBtn}
+            onClick={() => {
+              setEditingProject(null)
+              setProjectModalOpen(true)
+            }}
+          >
+            <span className={styles.linkIcon}>
+              <IconPlus />
+            </span>
+            <span className={styles.linkLabel}>{t('nav.addProject')}</span>
+          </button>
 
           <div className={styles.sectionLabel}>{t('nav.sectionAgents')}</div>
           {agents.map((agent) => {
@@ -234,6 +349,7 @@ export function AppLayout(): React.JSX.Element {
           ) : null}
         </div>
       </aside>
+
       <main className={flushMain ? styles.mainFlush : styles.main}>
         <Outlet />
       </main>
@@ -253,10 +369,9 @@ export function AppLayout(): React.JSX.Element {
         <CreateAgentModal
           editing={editingAgent}
           onClose={() => setEditingAgent(null)}
-          onUpdated={(agent) => {
+          onUpdated={() => {
             setAgents(listAgents())
             setEditingAgent(null)
-            void navigate(`/?agent=${encodeURIComponent(agent.id)}`)
           }}
           onDeleted={(agentId) => {
             setAgents(listAgents())
@@ -266,6 +381,18 @@ export function AppLayout(): React.JSX.Element {
         />
       ) : null}
 
+      <ProjectModal
+        open={projectModalOpen}
+        project={editingProject}
+        onClose={() => {
+          setProjectModalOpen(false)
+          setEditingProject(null)
+        }}
+        onSaved={(saved) => {
+          setProjects(listProjectsSync(false))
+          if (!editingProject) void activateProject(saved.id)
+        }}
+      />
       <InboxToastHost />
     </div>
   )

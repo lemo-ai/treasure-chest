@@ -46,12 +46,17 @@ export function getHarnessStore(): HarnessStoreSnapshot {
   return SessionRepo.buildStoreSnapshot()
 }
 
-export function listHarnessSessions(agentId?: string): AgentSession[] {
-  return SessionRepo.listSessions(agentId)
+export function listHarnessSessions(agentId?: string, projectId?: string | null): AgentSession[] {
+  return SessionRepo.listSessions(agentId, projectId)
 }
 
-export function createHarnessSession(agentId: string, title: string, id?: string): AgentSession {
-  return SessionRepo.createSession(agentId, title, id)
+export function createHarnessSession(
+  agentId: string,
+  title: string,
+  id?: string,
+  projectId?: string | null,
+): AgentSession {
+  return SessionRepo.createSession(agentId, title, id, projectId)
 }
 
 export function getHarnessSession(id: string): AgentSession | null {

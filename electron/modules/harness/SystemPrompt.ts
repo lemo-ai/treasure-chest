@@ -4,6 +4,9 @@ import { wantsKnowledge } from './ToolRegistry'
 import { goalsPromptSection } from './GoalsStore'
 import { runInjectHooks } from './plugins/PluginHooks'
 import { getConfiguredSandboxRoot } from './coding/Sandbox'
+import { loadCodingRulesText } from './coding/FileDiffPreview'
+import { getActiveProjectId, getProject } from '../projects/ProjectsStore'
+import { getSetting } from '../../db/AppSettingsRepo'
 
 const BUILTIN_SYSTEM: Record<string, { zh: string; en: string }> = {
   fortune: {
@@ -202,6 +205,25 @@ export async function assembleSystemPrompt(
   if (toolNames.length) parts.push(liveDataPolicy(isEn))
   if (toolNames.includes('read_file') || toolNames.includes('run_shell')) {
     parts.push(codingPolicy(isEn, getConfiguredSandboxRoot()))
+    const projectId = getActiveProjectId()
+    const project = projectId ? getProject(projectId) : null
+    const globalRules = String(getSetting<string>('coding.globalRules', '') || '').trim()
+    const fileRules = loadCodingRulesText(project?.rulesPath)
+    const rulesBody = [globalRules, fileRules].filter(Boolean).join('\n\n').trim()
+    if (rulesBody) {
+      parts.push(
+        isEn
+          ? `Project / coding rules (follow unless the user overrides):\n${rulesBody}`
+          : `项目 / 编码规则（除非用户改口，请遵守）：\n${rulesBody}`,
+      )
+    }
+  }
+  if (toolNames.some((n) => n.startsWith('browser_') || n.startsWith('os_open_'))) {
+    parts.push(
+      isEn
+        ? 'Computer Use tools are enabled (gated). Prefer browser_* for in-app browsing; os_open_url / os_open_path open the system browser or a local path. Respect host allowlist; never bypass user approval.'
+        : '已启用 Computer Use（需审批）。站内浏览用 browser_*；os_open_url / os_open_path 打开系统浏览器或本地路径。遵守域名白名单，勿绕过用户审批。',
+    )
   }
   if (toolNames.includes('query_data_source') || toolNames.includes('list_data_sources')) {
     const { buildDataSourcesCatalogHint } = await import('../dataSources/DataSourceService')

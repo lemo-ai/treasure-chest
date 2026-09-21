@@ -27,6 +27,47 @@ import {
 } from '@shared'
 import { settingsStore } from '../modules/settings/SettingsStore'
 import {
+  getProjectsSnapshot,
+  listProjects,
+  getProject,
+  upsertProject,
+  archiveProject,
+  removeProject,
+  setActiveProjectId,
+  pickProjectWorkDir,
+} from '../modules/projects/ProjectsStore'
+import {
+  listMemoryFacts,
+  addMemoryFact,
+  updateMemoryFact,
+  removeMemoryFact,
+  clearMemoryScope,
+  getMemorySettings,
+  setMemorySettings,
+  migrateLocalMemoryFacts,
+} from '../modules/memory/MemoryStore'
+import {
+  listArtifacts as listWorkbenchArtifacts,
+  getArtifact as getWorkbenchArtifact,
+  addArtifact as addWorkbenchArtifact,
+  removeArtifact as removeWorkbenchArtifact,
+  clearSessionArtifacts as clearSessionWorkbenchArtifacts,
+  migrateLocalArtifacts as migrateLocalWorkbenchArtifacts,
+} from '../modules/artifacts/ArtifactsStore'
+import {
+  getUsageSnapshot,
+  setUsagePricing,
+  clearUsageStats,
+  exportUsageCsv,
+  getCodingGlobalRules,
+  setCodingGlobalRules,
+  estimateUsageCostUsd,
+} from '../modules/usage/UsageStore'
+import {
+  getComputerUseSettings,
+  setComputerUseSettings,
+} from '../modules/computerUse/ComputerUseStore'
+import {
   clearActiveDialBackground,
   deleteDialBackground,
   pickDialBackground,
@@ -477,13 +518,13 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.harness.migrateLocal, (_e, payload: MigrateLocalHarnessInput) =>
     migrateHarnessFromLocal(payload),
   )
-  ipcMain.handle(IpcChannels.harness.listSessions, (_e, agentId?: string) =>
-    listHarnessSessions(agentId),
+  ipcMain.handle(IpcChannels.harness.listSessions, (_e, agentId?: string, projectId?: string | null) =>
+    listHarnessSessions(agentId, projectId),
   )
   ipcMain.handle(
     IpcChannels.harness.createSession,
-    (_e, payload: { agentId: string; title: string; id?: string }) =>
-      createHarnessSession(payload.agentId, payload.title, payload.id),
+    (_e, payload: { agentId: string; title: string; id?: string; projectId?: string | null }) =>
+      createHarnessSession(payload.agentId, payload.title, payload.id, payload.projectId),
   )
   ipcMain.handle(IpcChannels.harness.renameSession, (_e, payload: { id: string; title: string }) =>
     renameHarnessSession(payload.id, payload.title),
@@ -1339,5 +1380,115 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.debug.openMainLog, () => openMainLogFile())
   ipcMain.handle(IpcChannels.debug.readMainLogTail, (_e, maxBytes?: number) =>
     readMainLogTail(maxBytes),
+  )
+
+  // —— Projects / Memory / Artifacts (0.6.0 P0) ——
+  ipcMain.handle(IpcChannels.projects.getSnapshot, () => getProjectsSnapshot())
+  ipcMain.handle(IpcChannels.projects.list, (_e, includeArchived?: boolean) =>
+    listProjects(Boolean(includeArchived)),
+  )
+  ipcMain.handle(IpcChannels.projects.get, (_e, id: string) => getProject(id))
+  ipcMain.handle(IpcChannels.projects.upsert, (_e, input: import('@shared').UpsertProjectInput) =>
+    upsertProject(input),
+  )
+  ipcMain.handle(IpcChannels.projects.archive, (_e, payload: { id: string; archived?: boolean }) =>
+    archiveProject(payload.id, payload.archived !== false),
+  )
+  ipcMain.handle(IpcChannels.projects.remove, (_e, id: string) => removeProject(id))
+  ipcMain.handle(IpcChannels.projects.setActive, (_e, id: string | null) => setActiveProjectId(id))
+  ipcMain.handle(IpcChannels.projects.pickWorkDir, () => pickProjectWorkDir())
+
+  ipcMain.handle(IpcChannels.memory.list, (_e, input?: import('@shared').ListMemoryFactsInput) =>
+    listMemoryFacts(input ?? {}),
+  )
+  ipcMain.handle(IpcChannels.memory.add, (_e, input: import('@shared').AddMemoryFactInput) =>
+    addMemoryFact(input),
+  )
+  ipcMain.handle(IpcChannels.memory.update, (_e, payload: { id: string; content: string }) =>
+    updateMemoryFact(payload.id, payload.content),
+  )
+  ipcMain.handle(IpcChannels.memory.remove, (_e, id: string) => removeMemoryFact(id))
+  ipcMain.handle(IpcChannels.memory.clearScope, (_e, scope: string) => clearMemoryScope(scope))
+  ipcMain.handle(IpcChannels.memory.getSettings, () => getMemorySettings())
+  ipcMain.handle(IpcChannels.memory.setSettings, (_e, next: Partial<import('@shared').MemorySettings>) =>
+    setMemorySettings(next),
+  )
+  ipcMain.handle(
+    IpcChannels.memory.migrateLocal,
+    (
+      _e,
+      facts: Array<{
+        id?: string
+        agentId: string
+        content: string
+        source?: string
+        createdAt?: string
+        updatedAt?: string
+      }>,
+    ) => migrateLocalMemoryFacts(facts),
+  )
+
+  ipcMain.handle(IpcChannels.artifacts.list, (_e, input?: import('@shared').ListArtifactsInput) =>
+    listWorkbenchArtifacts(input ?? {}),
+  )
+  ipcMain.handle(IpcChannels.artifacts.get, (_e, id: string) => getWorkbenchArtifact(id))
+  ipcMain.handle(IpcChannels.artifacts.add, (_e, input: import('@shared').AddArtifactInput) =>
+    addWorkbenchArtifact(input),
+  )
+  ipcMain.handle(IpcChannels.artifacts.remove, (_e, id: string) => removeWorkbenchArtifact(id))
+  ipcMain.handle(IpcChannels.artifacts.clearSession, (_e, sessionId: string) =>
+    clearSessionWorkbenchArtifacts(sessionId),
+  )
+  ipcMain.handle(
+    IpcChannels.artifacts.migrateLocal,
+    (
+      _e,
+      items: Array<{
+        id?: string
+        sessionId: string
+        messageId?: string
+        kind: import('@shared').ArtifactKind
+        title: string
+        content: string
+        language?: string
+        createdAt?: string
+      }>,
+    ) => migrateLocalWorkbenchArtifacts(items),
+  )
+
+  ipcMain.handle(IpcChannels.usage.getSnapshot, () => {
+    const snap = getUsageSnapshot()
+    return {
+      ...snap,
+      todayCostUsd: estimateUsageCostUsd(
+        snap.today.promptTokens,
+        snap.today.completionTokens,
+        snap.pricing,
+      ),
+    }
+  })
+  ipcMain.handle(IpcChannels.usage.setPricing, (_e, next: Partial<import('@shared').UsagePricing>) =>
+    setUsagePricing(next),
+  )
+  ipcMain.handle(IpcChannels.usage.clear, () => {
+    clearUsageStats()
+    return getUsageSnapshot()
+  })
+  ipcMain.handle(IpcChannels.usage.exportCsv, async () => {
+    const csv = exportUsageCsv()
+    const { saveTextDialog } = await import('../modules/tools/ToolsIO')
+    return saveTextDialog({
+      content: csv,
+      defaultName: `qiankun-usage-${new Date().toISOString().slice(0, 10)}.csv`,
+      extensions: ['csv', 'txt'],
+    })
+  })
+  ipcMain.handle(IpcChannels.usage.getGlobalRules, () => getCodingGlobalRules())
+  ipcMain.handle(IpcChannels.usage.setGlobalRules, (_e, text: string) => setCodingGlobalRules(text))
+
+  ipcMain.handle(IpcChannels.computerUse.getSettings, () => getComputerUseSettings())
+  ipcMain.handle(
+    IpcChannels.computerUse.setSettings,
+    (_e, next: Partial<import('@shared').ComputerUseSettings>) => setComputerUseSettings(next),
   )
 }

@@ -2,6 +2,7 @@ import type { AgentSession, HarnessMessage, SessionEvent } from '@shared'
 import { exportTextAsPdf } from '../tools/DocPdf'
 import { saveTextDialog } from '../tools/ToolsIO'
 import { getSession, listEvents, deriveMessages } from './SessionRepo'
+import { listArtifacts } from '../artifacts/ArtifactsStore'
 
 function escapeMd(text: string): string {
   return text.replace(/\r\n/g, '\n')
@@ -13,11 +14,12 @@ function formatMessagesMarkdown(session: AgentSession, messages: HarnessMessage[
     '',
     `- Session: \`${session.id}\``,
     `- Agent: \`${session.agentId}\``,
+    session.projectId ? `- Project: \`${session.projectId}\`` : '',
     `- Updated: ${session.updatedAt}`,
     '',
     '---',
     '',
-  ]
+  ].filter(Boolean) as string[]
   for (const msg of messages) {
     const role =
       msg.role === 'user' ? 'User' : msg.role === 'assistant' ? 'Assistant' : msg.role === 'system' ? 'System' : msg.role
@@ -52,14 +54,36 @@ function formatEventsAppendix(events: SessionEvent[]): string {
   return lines.join('\n')
 }
 
+function formatArtifactsAppendix(sessionId: string): string {
+  const arts = listArtifacts({ sessionId, limit: 80 })
+  if (!arts.length) return ''
+  const lines = ['', '---', '', '## Artifacts', '']
+  for (const a of arts) {
+    lines.push(`- **${a.kind}** — ${a.title} (\`${a.id}\`)`)
+    if (a.kind === 'link' || a.kind === 'image' || a.kind === 'video' || a.kind === 'audio') {
+      lines.push(`  - ${a.content.slice(0, 300)}`)
+    } else {
+      lines.push('')
+      lines.push('```' + (a.language || (a.kind === 'markdown' ? 'markdown' : 'text')))
+      lines.push(a.content.slice(0, 4000))
+      lines.push('```')
+      lines.push('')
+    }
+  }
+  return lines.join('\n')
+}
+
 export function buildSessionMarkdown(
   sessionId: string,
-  opts?: { includeEvents?: boolean },
+  opts?: { includeEvents?: boolean; includeArtifacts?: boolean },
 ): { ok: true; markdown: string; title: string } | { ok: false; error: string } {
   const session = getSession(sessionId)
   if (!session) return { ok: false, error: 'session_not_found' }
   const messages = deriveMessages(sessionId)
   let md = formatMessagesMarkdown(session, messages)
+  if (opts?.includeArtifacts !== false) {
+    md += formatArtifactsAppendix(sessionId)
+  }
   if (opts?.includeEvents) {
     md += formatEventsAppendix(listEvents(sessionId))
   }

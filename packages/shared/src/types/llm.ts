@@ -93,6 +93,21 @@ export interface ToolApprovalRequest {
   reason: string
   /** Harness session id — used for session-scoped always-allow */
   sessionId?: string
+  /** Proposed file edits for write/patch tools (0.6.0 review). */
+  fileDiffs?: Array<{
+    path: string
+    before: string
+    after: string
+    truncated?: boolean
+  }>
+}
+
+export interface LlmTokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  /** True when values are estimated (e.g. chars/4) */
+  estimated?: boolean
 }
 
 export interface KnowledgeCitation {
@@ -127,6 +142,7 @@ export interface LlmChatResponse {
   toolCalls?: LlmToolCall[]
   citations?: KnowledgeCitation[]
   toolSteps?: LlmToolStep[]
+  usage?: LlmTokenUsage
 }
 
 /** Renderer ↔ main stream handshake id */
@@ -174,6 +190,7 @@ export type LlmChatStreamEvent =
       citations?: KnowledgeCitation[]
       toolSteps?: LlmToolStep[]
       sessionId?: string
+      usage?: LlmTokenUsage
     }
   | {
       streamId: string

@@ -12,6 +12,7 @@ import type {
 } from '@shared'
 import { DEFAULT_HARNESS_CONFIG, HARNESS_ABSOLUTE_MAX_STEPS, isDirectChatAgentId } from '@shared'
 import { callLlmChat, callLlmChatStream } from '../llm/LlmClient'
+import { recordTokenUsage } from '../usage/UsageStore'
 import { appendEvent, listEvents } from './SessionRepo'
 import { ToolRegistry, eventsToChatMessages, wantsKnowledge, wantsWebSearch } from './ToolRegistry'
 import { assembleSystemPrompt, settingsToLlmEndpoint } from './SystemPrompt'
@@ -196,6 +197,21 @@ async function runAgentTurnInner(
   const isEn = locale.toLowerCase().startsWith('en')
   const toolSteps: LlmToolStep[] = []
   const citations: KnowledgeCitation[] = []
+  let turnUsage: import('@shared').LlmTokenUsage | undefined
+
+  const addUsage = (u?: import('@shared').LlmTokenUsage): void => {
+    if (!u) return
+    if (!turnUsage) {
+      turnUsage = { ...u }
+      return
+    }
+    turnUsage = {
+      promptTokens: turnUsage.promptTokens + u.promptTokens,
+      completionTokens: turnUsage.completionTokens + u.completionTokens,
+      totalTokens: turnUsage.totalTokens + u.totalTokens,
+      estimated: Boolean(turnUsage.estimated || u.estimated),
+    }
+  }
 
   const toolPolicy = resolveAgentToolPolicy(req.agentId || 'direct', {
     // Global harness kill-switch; undefined request flag keeps agent policy default.
@@ -308,6 +324,11 @@ async function runAgentTurnInner(
   let finalText = ''
   let lastModel = model
   let lastProvider = endpoint.providerName
+
+  const persistUsage = (): void => {
+    if (!turnUsage) return
+    recordTokenUsage({ sessionId, usage: turnUsage, model: lastModel })
+  }
   const maxSteps = effectiveMaxSteps(config)
   const mediaMarkdownSnippets: string[] = []
   const chunkPending = { text: '' }
@@ -357,6 +378,7 @@ async function runAgentTurnInner(
 
     lastModel = result.model ?? model
     lastProvider = result.providerName ?? endpoint.providerName
+    addUsage(result.usage)
 
     if (!result.ok) {
       if (isTurnCancelled(abortSignal)) throw new TurnCancelledError()
@@ -403,6 +425,7 @@ async function runAgentTurnInner(
         record('step/end', { turnIndex, stepIndex })
         record('turn/end', { turnIndex, reason: 'complete' })
       }
+      persistUsage()
       return maybeContinueForActiveGoals(
         {
           ok: true,
@@ -411,6 +434,7 @@ async function runAgentTurnInner(
           providerName: lastProvider,
           citations,
           toolSteps,
+          usage: turnUsage,
         },
         {
           sessionId,
@@ -533,6 +557,21 @@ async function runAgentTurnInner(
           callbacks.onStatus?.(isEn ? `Waiting for approval: ${label}…` : `等待审批：${label}…`)
 
           if (callbacks.onApproval && req.streamId) {
+            let fileDiffs: import('@shared').ToolApprovalRequest['fileDiffs']
+            try {
+              const { isFileEditTool, previewFileEdits } = await import('./coding/FileDiffPreview')
+              if (isFileEditTool(name)) {
+                let parsed: Record<string, unknown> = {}
+                try {
+                  parsed = JSON.parse(argsJson || '{}') as Record<string, unknown>
+                } catch {
+                  parsed = {}
+                }
+                fileDiffs = previewFileEdits(name, parsed)
+              }
+            } catch {
+              fileDiffs = undefined
+            }
             approved = await callbacks.onApproval({
               streamId: req.streamId,
               toolCallId: stepId,
@@ -542,6 +581,7 @@ async function runAgentTurnInner(
               risk: 'confirm',
               reason: decision.reason,
               sessionId,
+              fileDiffs,
             })
           }
           await checkpointPause(req.streamId, abortSignal)
@@ -714,6 +754,7 @@ async function runAgentTurnInner(
   await checkpointPause(req.streamId, abortSignal)
   if (!streamed.ok && isTurnCancelled(abortSignal)) throw new TurnCancelledError()
   if (sessionId) flushAssistantChunk(sessionId, chunkPending, callbacks)
+  addUsage(streamed.usage)
 
   if (streamed.ok && (streamed.text?.trim() || mediaMarkdownSnippets.length)) {
     const rawText = streamed.text?.trim() ?? ''
@@ -745,12 +786,14 @@ async function runAgentTurnInner(
     }
   }
 
+  persistUsage()
   return maybeContinueForActiveGoals(
     {
       ...streamed,
       text: finalText || streamed.text,
       citations,
       toolSteps,
+      usage: turnUsage ?? streamed.usage,
     },
     {
       sessionId,

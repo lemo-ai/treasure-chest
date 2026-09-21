@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import type { InboxItem } from '@shared'
+import { DIRECT_CHAT_AGENT_ID, type InboxItem } from '@shared'
 import { IconBell, IconTrash } from '@renderer/shared/ui/icons'
 import { MarkdownMessage } from '@renderer/features/workbench/components/MarkdownMessage'
+import { addArtifact } from '@renderer/features/workbench/lib/artifactStore'
+import { createSession } from '@renderer/features/workbench/lib/sessionStore'
+import { getActiveProjectIdSync } from '@renderer/features/projects/lib/projectStore'
 import { InboxHtmlFrame } from '../components/InboxHtmlFrame'
 import styles from './NotificationsPage.module.css'
 
@@ -32,10 +35,12 @@ function toneClass(item: InboxItem, stylesMap: typeof styles): string {
 
 export function NotificationsPage(): React.JSX.Element {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [items, setItems] = useState<InboxItem[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
   const [loaded, setLoaded] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async (): Promise<void> => {
     const snap = await window.treasureChest.getInboxSnapshot()
@@ -101,6 +106,66 @@ export function NotificationsPage(): React.JSX.Element {
     if (preset === 'lottery') return t('inbox.cover.lottery')
     if (preset === 'agent') return t('inbox.cover.agent')
     return t('inbox.cover.custom')
+  }
+
+  const agentIdForItem = (item: InboxItem): string => {
+    if (item.coverPreset === 'fortune') return 'fortune'
+    if (item.coverPreset === 'stocks') return 'stocks'
+    if (item.coverPreset === 'lottery') return 'lottery'
+    return DIRECT_CHAT_AGENT_ID
+  }
+
+  const saveAsArtifact = async (item: InboxItem): Promise<void> => {
+    setBusy(true)
+    try {
+      const body = (item.detail || item.summary || '').trim()
+      if (!body) return
+      await addArtifact({
+        kind: 'markdown',
+        title: item.title.slice(0, 80) || t('inbox.saveArtifact'),
+        content: body.slice(0, 12_000),
+        projectId: getActiveProjectIdSync() || undefined,
+        sessionId: item.sessionId,
+        source: 'inbox',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const continueInChat = async (item: InboxItem): Promise<void> => {
+    setBusy(true)
+    try {
+      const agentId = agentIdForItem(item)
+      const projectId = getActiveProjectIdSync()
+      const title = item.title.slice(0, 48) || (i18n.language.startsWith('zh') ? '续聊' : 'Continue')
+      const session = await createSession(agentId, title, projectId)
+      const body = (item.detail || item.summary || '').trim()
+      const inject = [
+        i18n.language.startsWith('zh')
+          ? '以下内容来自定时任务 / 通知，请基于此继续协助用户。'
+          : 'The following came from a schedule / inbox notification. Continue helping the user from here.',
+        '',
+        `## ${item.title}`,
+        body.slice(0, 8000),
+      ].join('\n')
+      await window.treasureChest.harnessAppendSystemMessage(session.id, inject)
+      if (body.length >= 200) {
+        await addArtifact({
+          kind: 'markdown',
+          title: item.title.slice(0, 80),
+          content: body.slice(0, 12_000),
+          sessionId: session.id,
+          projectId: projectId || undefined,
+          source: 'inbox',
+        })
+      }
+      const q =
+        agentId === DIRECT_CHAT_AGENT_ID ? '/' : `/?agent=${encodeURIComponent(agentId)}`
+      void navigate(q)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const unread = items.filter((i) => !i.read).length
@@ -230,6 +295,24 @@ export function NotificationsPage(): React.JSX.Element {
                     <p className={styles.detailTime}>
                       {formatTime(selected.createdAt, i18n.language)}
                     </p>
+                  </div>
+                  <div className={styles.detailActions}>
+                    <button
+                      type="button"
+                      className={styles.ghostBtn}
+                      disabled={busy}
+                      onClick={() => void saveAsArtifact(selected)}
+                    >
+                      {t('inbox.saveArtifact')}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.primaryBtn}
+                      disabled={busy}
+                      onClick={() => void continueInChat(selected)}
+                    >
+                      {t('inbox.continueChat')}
+                    </button>
                   </div>
                 </div>
                 <div className={styles.detailBody}>

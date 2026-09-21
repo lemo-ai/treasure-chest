@@ -1,96 +1,135 @@
-/** Per-agent durable facts shown across chat sessions. */
+/** Renderer memory facade — durable facts via main process (0.6.0). */
 
-export interface AgentMemoryFact {
-  id: string
-  agentId: string
-  content: string
-  source: 'manual' | 'user' | 'assistant'
-  createdAt: string
-  updatedAt: string
+import type { MemoryFact, MemorySettings } from '@shared'
+
+export type { MemoryFact }
+
+/** @deprecated use MemoryFact — kept for call-site compatibility */
+export type AgentMemoryFact = MemoryFact & { agentId?: string }
+
+const LEGACY_KEY = 'qiankun.agentMemory.v1'
+const MIGRATED_FLAG = 'qiankun.agentMemory.migrated.v2'
+
+let cache: MemoryFact[] = []
+let settingsCache: MemorySettings = { injectEnabled: true }
+let ready = false
+
+function agentScope(agentId: string): string {
+  return `agent:${(agentId || 'direct').trim() || 'direct'}`
 }
 
-const STORAGE_KEY = 'qiankun.agentMemory.v1'
-const MAX_FACTS_PER_AGENT = 40
-const MAX_FACT_LEN = 280
-
-function uid(): string {
-  return `mem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+function projectScope(projectId: string): string {
+  return `project:${projectId.trim()}`
 }
 
-function readAll(): AgentMemoryFact[] {
+async function migrateLegacyIfNeeded(): Promise<void> {
+  if (localStorage.getItem(MIGRATED_FLAG) === '1') return
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as { facts?: AgentMemoryFact[] }
-    return Array.isArray(parsed.facts) ? parsed.facts : []
+    const raw = localStorage.getItem(LEGACY_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as {
+        facts?: Array<{
+          id?: string
+          agentId: string
+          content: string
+          source?: string
+          createdAt?: string
+          updatedAt?: string
+        }>
+      }
+      const facts = Array.isArray(parsed.facts) ? parsed.facts : []
+      if (facts.length) {
+        await window.treasureChest.memoryMigrateLocal(facts)
+      }
+      localStorage.removeItem(LEGACY_KEY)
+    }
   } catch {
-    return []
+    /* ignore */
   }
+  localStorage.setItem(MIGRATED_FLAG, '1')
 }
 
-function writeAll(facts: AgentMemoryFact[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ facts: facts.slice(0, 500) }))
+export async function hydrateMemory(opts?: {
+  agentId?: string
+  projectId?: string
+}): Promise<MemoryFact[]> {
+  await migrateLegacyIfNeeded()
+  settingsCache = await window.treasureChest.memoryGetSettings()
+  cache = await window.treasureChest.memoryList({
+    includeGlobal: true,
+    agentId: opts?.agentId,
+    projectId: opts?.projectId,
+    limit: 120,
+  })
+  ready = true
+  return cache
 }
 
-export function listMemoryFacts(agentId: string): AgentMemoryFact[] {
-  const id = (agentId || 'direct').trim() || 'direct'
-  return readAll()
-    .filter((f) => f.agentId === id)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+export function listMemoryFacts(agentId?: string, projectId?: string): MemoryFact[] {
+  if (!ready) return cache
+  return cache.filter((f) => {
+    if (f.scope === 'global') return true
+    if (agentId && f.scope === agentScope(agentId)) return true
+    if (projectId && f.scope === projectScope(projectId)) return true
+    return false
+  })
 }
 
-export function addMemoryFact(
-  agentId: string,
+export async function addMemoryFact(
   content: string,
-  source: AgentMemoryFact['source'] = 'manual',
-): AgentMemoryFact {
-  const text = content.trim().slice(0, MAX_FACT_LEN)
-  if (!text) throw new Error('empty memory')
-  const id = (agentId || 'direct').trim() || 'direct'
-  const now = new Date().toISOString()
-  const fact: AgentMemoryFact = {
-    id: uid(),
-    agentId: id,
-    content: text,
-    source,
-    createdAt: now,
-    updatedAt: now,
-  }
-  const others = readAll().filter((f) => !(f.agentId === id && f.content === text))
-  const scoped = others.filter((f) => f.agentId === id)
-  const rest = others.filter((f) => f.agentId !== id)
-  writeAll([fact, ...scoped, ...rest].slice(0, MAX_FACTS_PER_AGENT + rest.length))
+  scope: string = 'global',
+  source: MemoryFact['source'] = 'manual',
+): Promise<MemoryFact> {
+  const fact = await window.treasureChest.memoryAdd({ scope, content, source })
+  cache = [fact, ...cache.filter((f) => !(f.scope === fact.scope && f.content === fact.content))]
   return fact
 }
 
-export function updateMemoryFact(id: string, content: string): AgentMemoryFact | null {
-  const text = content.trim().slice(0, MAX_FACT_LEN)
-  if (!text) return null
-  const all = readAll()
-  const hit = all.find((f) => f.id === id)
-  if (!hit) return null
-  hit.content = text
-  hit.updatedAt = new Date().toISOString()
-  writeAll(all)
-  return hit
+/** Compat: agent-scoped add used by older MemoryPanel */
+export async function addAgentMemoryFact(
+  agentId: string,
+  content: string,
+  source: MemoryFact['source'] = 'manual',
+): Promise<MemoryFact> {
+  return addMemoryFact(content, agentScope(agentId), source)
 }
 
-export function deleteMemoryFact(id: string): boolean {
-  const all = readAll()
-  const next = all.filter((f) => f.id !== id)
-  if (next.length === all.length) return false
-  writeAll(next)
-  return true
+export async function updateMemoryFact(id: string, content: string): Promise<MemoryFact | null> {
+  const fact = await window.treasureChest.memoryUpdate(id, content)
+  if (!fact) return null
+  cache = cache.map((f) => (f.id === id ? fact : f))
+  return fact
 }
 
-export function clearAgentMemory(agentId: string): void {
-  const id = (agentId || 'direct').trim() || 'direct'
-  writeAll(readAll().filter((f) => f.agentId !== id))
+export async function deleteMemoryFact(id: string): Promise<boolean> {
+  const ok = await window.treasureChest.memoryRemove(id)
+  if (ok) cache = cache.filter((f) => f.id !== id)
+  return ok
+}
+
+export async function clearAgentMemory(agentId: string): Promise<void> {
+  await window.treasureChest.memoryClearScope(agentScope(agentId))
+  cache = cache.filter((f) => f.scope !== agentScope(agentId))
+}
+
+export function getMemoryInjectEnabled(): boolean {
+  return settingsCache.injectEnabled !== false
+}
+
+export async function setMemoryInjectEnabled(enabled: boolean): Promise<void> {
+  settingsCache = await window.treasureChest.memorySetSettings({ injectEnabled: enabled })
 }
 
 /** Strings ready for LlmChatRequest.memoryFacts (newest first, capped). */
-export function memoryFactsForPrompt(agentId: string, limit = 20): string[] {
-  return listMemoryFacts(agentId)
+export function memoryFactsForPrompt(
+  agentId?: string,
+  projectId?: string,
+  limit = 20,
+): string[] {
+  if (!getMemoryInjectEnabled()) return []
+  return listMemoryFacts(agentId, projectId)
     .slice(0, limit)
     .map((f) => f.content)
 }
+
+export { agentScope as memoryAgentScope, projectScope as memoryProjectScope }

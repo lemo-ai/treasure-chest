@@ -261,6 +261,8 @@ export interface AgentSession {
   agentId: string
   title: string
   forkedFrom?: string
+  /** Optional workspace this session belongs to (0.6.0 Project). */
+  projectId?: string
   createdAt: string
   updatedAt: string
 }

@@ -1,0 +1,408 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  max-width: 42rem;
+  padding-bottom: 1.5rem;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.lede {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--color-ink-secondary);
+}
+
+.toast,
+.toastError {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.toast {
+  color: var(--color-brand-strong, var(--color-brand));
+}
+
+.toastError {
+  color: var(--color-danger, #c0392b);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(10rem, 0.85fr);
+  gap: 1rem 1.25rem;
+  padding: 1.15rem 1.2rem 1rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--color-brand) 18%, var(--color-border));
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--color-brand) 9%, var(--color-bg-elevated)) 0%,
+      var(--color-bg-elevated) 52%,
+      color-mix(in srgb, var(--color-accent, #0fbea8) 6%, var(--color-bg-elevated)) 100%
+    );
+}
+
+.heroMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.heroEyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-tertiary);
+}
+
+.heroValueRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.heroValue {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 2.55rem);
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--color-ink);
+}
+
+.heroUnit {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+}
+
+.heroExact {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  color: var(--color-ink-tertiary);
+}
+
+.heroSide {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.85rem;
+  padding-left: 1rem;
+  border-left: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+}
+
+.metaBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.metaLabel {
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: var(--color-ink-tertiary);
+}
+
+.metaValue {
+  font-size: 1.05rem;
+  font-weight: 720;
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+
+.metaHint {
+  font-size: 0.68rem;
+  color: var(--color-ink-tertiary);
+}
+
+.split {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.splitTrack {
+  display: flex;
+  height: 0.42rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+
+.splitIn {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--color-brand) 82%, #1a1a1a);
+}
+
+.splitOut {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--color-accent, #0fbea8) 75%, #1a1a1a);
+}
+
+.splitLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.1rem;
+  font-size: 0.72rem;
+  color: var(--color-ink-secondary);
+}
+
+.splitLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.dotIn,
+.dotOut {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotIn {
+  background: color-mix(in srgb, var(--color-brand) 82%, #1a1a1a);
+}
+
+.dotOut {
+  background: color-mix(in srgb, var(--color-accent, #0fbea8) 75%, #1a1a1a);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.05rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+
+.sectionHint {
+  margin: 0.25rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--color-ink-tertiary);
+  max-width: 34rem;
+}
+
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.empty {
+  margin: 0.25rem 0;
+  font-size: 0.8rem;
+  color: var(--color-ink-tertiary);
+}
+
+.dayList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dayRow {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr) 3.2rem 2.2rem;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.75rem;
+}
+
+.dayLabel {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-tertiary);
+  font-weight: 650;
+}
+
+.dayBarWrap {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 65%, transparent);
+  overflow: hidden;
+}
+
+.dayBar {
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--color-accent, #0fbea8) 55%, var(--color-border));
+  display: flex;
+  min-width: 0.35rem;
+  transition: width 180ms ease;
+}
+
+.dayBarIn {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--color-brand) 78%, transparent);
+  border-radius: inherit 0 0 inherit;
+}
+
+.dayTotal,
+.dayCalls {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--color-ink-secondary);
+  font-weight: 650;
+}
+
+.dayCalls {
+  color: var(--color-ink-tertiary);
+}
+
+.dayLegend {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.4rem;
+  margin-top: 0.15rem;
+  padding-right: 0.1rem;
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-ink-tertiary);
+}
+
+.priceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: var(--color-ink-secondary);
+}
+
+.fieldControl {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.55rem 0.15rem 0.15rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.fieldControl:focus-within {
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 14%, transparent);
+}
+
+.fieldControl input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 0.45rem 0.5rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fieldControl input:focus {
+  outline: none;
+}
+
+.fieldSuffix {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-ink-tertiary);
+  white-space: nowrap;
+}
+
+.rules {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  padding: 0.7rem 0.8rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.rules:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-brand) 45%, var(--color-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 14%, transparent);
+}
+
+@media (max-width: 720px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .heroSide {
+    padding-left: 0;
+    border-left: none;
+    padding-top: 0.35rem;
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+  }
+
+  .priceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dayRow {
+    grid-template-columns: 2.4rem minmax(0, 1fr) 2.8rem;
+  }
+
+  .dayCalls {
+    display: none;
+  }
+
+  .dayLegend span:last-child {
+    display: none;
+  }
+}

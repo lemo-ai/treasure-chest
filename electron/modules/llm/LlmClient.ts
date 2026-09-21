@@ -2,6 +2,7 @@ import type {
   FortuneSettings,
   LlmChatMessage,
   LlmChatResponse,
+  LlmTokenUsage,
   LlmToolCall,
   LlmToolSpec,
 } from '@shared'
@@ -60,13 +61,55 @@ interface ChatCompletionResponse {
     }
     finish_reason?: string
   }>
+  usage?: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
+  }
   error?: { message?: string }
 }
 
 interface AnthropicResponse {
   content?: Array<{ type?: string; text?: string; id?: string; name?: string; input?: Record<string, unknown> }>
   stop_reason?: string
+  usage?: {
+    input_tokens?: number
+    output_tokens?: number
+  }
   error?: { message?: string }
+}
+
+function usageFromOpenAi(raw?: {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+}): LlmTokenUsage | undefined {
+  if (!raw) return undefined
+  const promptTokens = Math.max(0, Number(raw.prompt_tokens) || 0)
+  const completionTokens = Math.max(0, Number(raw.completion_tokens) || 0)
+  const totalTokens = Math.max(0, Number(raw.total_tokens) || promptTokens + completionTokens)
+  if (promptTokens + completionTokens + totalTokens <= 0) return undefined
+  return { promptTokens, completionTokens, totalTokens }
+}
+
+function usageFromAnthropic(raw?: { input_tokens?: number; output_tokens?: number }): LlmTokenUsage | undefined {
+  if (!raw) return undefined
+  const promptTokens = Math.max(0, Number(raw.input_tokens) || 0)
+  const completionTokens = Math.max(0, Number(raw.output_tokens) || 0)
+  if (promptTokens + completionTokens <= 0) return undefined
+  return { promptTokens, completionTokens, totalTokens: promptTokens + completionTokens }
+}
+
+function estimateFromMessages(messages: LlmChatMessage[], completionText: string): LlmTokenUsage {
+  const promptChars = messages.reduce((n, m) => n + (m.content?.length || 0), 0)
+  const promptTokens = Math.max(1, Math.ceil(promptChars / 4))
+  const completionTokens = Math.max(0, Math.ceil((completionText || '').length / 4))
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    estimated: true,
+  }
 }
 
 export interface LlmCallOptions {
@@ -168,7 +211,7 @@ function finalizedToolCalls(acc: ToolCallAcc): LlmToolCall[] {
 function parseOpenAiDelta(
   data: string,
   toolAcc: ToolCallAcc,
-): { content?: string } | 'done' | null {
+): { content?: string; usage?: LlmTokenUsage } | 'done' | null {
   const trimmed = data.trim()
   if (!trimmed) return null
   if (trimmed === '[DONE]') return 'done'
@@ -188,6 +231,11 @@ function parseOpenAiDelta(
           tool_calls?: LlmToolCall[]
         }
       }>
+      usage?: {
+        prompt_tokens?: number
+        completion_tokens?: number
+        total_tokens?: number
+      }
       error?: { message?: string }
     }
     if (json.error?.message) throw new Error(json.error.message)
@@ -207,7 +255,9 @@ function parseOpenAiDelta(
       })
     }
     const content = choice?.delta?.content ?? choice?.message?.content
-    if (typeof content === 'string' && content.length > 0) return { content }
+    const usage = usageFromOpenAi(json.usage)
+    if (typeof content === 'string' && content.length > 0) return { content, usage }
+    if (usage) return { usage }
     return null
   } catch (err) {
     if (err instanceof SyntaxError) return null
@@ -350,6 +400,9 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
         toolCalls: parsed.toolCalls.length ? parsed.toolCalls : undefined,
         providerName,
         model,
+        usage:
+          usageFromAnthropic(data.usage) ??
+          estimateFromMessages(options.messages, parsed.text || ''),
       }
     }
 
@@ -382,6 +435,9 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
     }
     const message = data.choices?.[0]?.message
     const toolCalls = message?.tool_calls?.filter((c) => c?.function?.name) ?? []
+    const usage =
+      usageFromOpenAi(data.usage) ??
+      estimateFromMessages(options.messages, message?.content?.trim() || '')
     if (toolCalls.length > 0) {
       logger.info(`[${tag}] tool_calls=${toolCalls.map((c) => c.function.name).join(',')}`)
       return {
@@ -390,6 +446,7 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
         toolCalls,
         providerName,
         model,
+        usage,
       }
     }
     const text = message?.content?.trim() ?? ''
@@ -398,7 +455,7 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
       return { ok: false, error: 'Empty AI response.', providerName, model }
     }
     logger.info(`[${tag}] success format=openai text_len=${text.length}`)
-    return { ok: true, text, providerName, model }
+    return { ok: true, text, providerName, model, usage }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     logger.warn(`[${tag}] request error: ${msg}`)
@@ -444,6 +501,7 @@ export async function callLlmChatStream(
   let assembled = ''
   const openaiTools: ToolCallAcc = new Map()
   const anthropicTools: Array<{ id: string; name: string; json: string }> = []
+  let streamUsage: LlmTokenUsage | undefined
 
   const finishOk = (text: string, toolCalls?: LlmToolCall[]): LlmChatResponse => {
     const calls = toolCalls?.length ? toolCalls : undefined
@@ -454,7 +512,8 @@ export async function callLlmChatStream(
     logger.info(
       `[${tag}] stream-success text_len=${text.length} tools=${calls?.map((c) => c.function.name).join(',') || '-'}`,
     )
-    return { ok: true, text: text || undefined, toolCalls: calls, providerName, model }
+    const usage = streamUsage ?? estimateFromMessages(options.messages, text)
+    return { ok: true, text: text || undefined, toolCalls: calls, providerName, model, usage }
   }
 
   try {
@@ -533,6 +592,7 @@ export async function callLlmChatStream(
           temperature: options.temperature ?? 0.7,
           max_tokens: options.maxTokens ?? 2048,
           stream: true,
+          stream_options: { include_usage: true },
           messages: toOpenAiChatMessages(options.messages),
           ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
         }),
@@ -554,6 +614,7 @@ export async function callLlmChatStream(
         const message = data.choices?.[0]?.message
         const toolCalls = message?.tool_calls?.filter((c) => c?.function?.name) ?? []
         const text = message?.content?.trim() ?? ''
+        streamUsage = usageFromOpenAi(data.usage)
         if (text) {
           assembled = text
           onDelta(text)
@@ -569,9 +630,12 @@ export async function callLlmChatStream(
           const payload = line.slice(5).trimStart()
           const piece = parseOpenAiDelta(payload, openaiTools)
           if (piece === 'done') return 'stop'
-          if (piece && typeof piece === 'object' && piece.content) {
-            assembled += piece.content
-            onDelta(piece.content)
+          if (piece && typeof piece === 'object') {
+            if (piece.usage) streamUsage = piece.usage
+            if (piece.content) {
+              assembled += piece.content
+              onDelta(piece.content)
+            }
           }
         },
         controller.signal,

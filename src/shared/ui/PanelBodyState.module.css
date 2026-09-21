@@ -1,0 +1,10 @@
+.state {
+  margin: 0.75rem 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-ink-tertiary);
+}
+
+.error {
+  color: var(--color-danger, #c0392b);
+}

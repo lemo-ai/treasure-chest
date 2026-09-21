@@ -131,9 +131,18 @@ export function getSession(id: string): WorkbenchSession | undefined {
   return ensureCache().sessions.find((s) => s.id === id)
 }
 
-export async function createSession(agentId: WorkbenchAgentId, title: string): Promise<WorkbenchSession> {
+export async function createSession(
+  agentId: WorkbenchAgentId,
+  title: string,
+  projectId?: string | null,
+): Promise<WorkbenchSession> {
   const id = uid('ses')
-  const session = await window.treasureChest.harnessCreateSession(String(agentId), title, id)
+  const session = await window.treasureChest.harnessCreateSession(
+    String(agentId),
+    title,
+    id,
+    projectId,
+  )
   const store = ensureCache()
   store.sessions = [session, ...store.sessions.filter((s) => s.id !== session.id)]
   store.messagesBySession[session.id] = store.messagesBySession[session.id] ?? []

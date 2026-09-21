@@ -269,6 +269,56 @@ function runMigrations(database: Database.Database): void {
     // Formerly created lottery_matches / lottery_sync_log; specialized lottery module removed.
     database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(10)
   }
+  if (current < 11) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id              TEXT PRIMARY KEY NOT NULL,
+        name            TEXT NOT NULL,
+        work_dir        TEXT NOT NULL DEFAULT '',
+        knowledge_json  TEXT NOT NULL DEFAULT '[]',
+        default_agent_id TEXT,
+        skill_ids_json  TEXT NOT NULL DEFAULT '[]',
+        mcp_ids_json    TEXT NOT NULL DEFAULT '[]',
+        data_source_ids_json TEXT NOT NULL DEFAULT '[]',
+        rules_path      TEXT,
+        archived        INTEGER NOT NULL DEFAULT 0,
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS memory_facts (
+        id          TEXT PRIMARY KEY NOT NULL,
+        scope       TEXT NOT NULL,
+        content     TEXT NOT NULL,
+        source      TEXT NOT NULL DEFAULT 'manual',
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_facts_scope ON memory_facts(scope, updated_at DESC);
+      CREATE TABLE IF NOT EXISTS workbench_artifacts (
+        id          TEXT PRIMARY KEY NOT NULL,
+        session_id  TEXT,
+        project_id  TEXT,
+        message_id  TEXT,
+        kind        TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        content     TEXT NOT NULL,
+        language    TEXT,
+        source      TEXT NOT NULL DEFAULT 'turn',
+        created_at  TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_artifacts_session ON workbench_artifacts(session_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_artifacts_project ON workbench_artifacts(project_id, created_at DESC);
+    `)
+    const sessionCols = database.prepare(`PRAGMA table_info(agent_sessions)`).all() as Array<{ name: string }>
+    const sessionNames = new Set(sessionCols.map((c) => c.name))
+    if (!sessionNames.has('project_id')) {
+      database.exec(`ALTER TABLE agent_sessions ADD COLUMN project_id TEXT`)
+      database.exec(
+        `CREATE INDEX IF NOT EXISTS idx_agent_sessions_project ON agent_sessions(project_id)`,
+      )
+    }
+    database.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(11)
+  }
 }
 
 function setSetting(database: Database.Database, key: string, value: unknown): void {

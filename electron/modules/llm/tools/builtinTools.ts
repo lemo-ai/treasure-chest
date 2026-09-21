@@ -395,6 +395,20 @@ export function toolStatusLabel(name: string, locale: string): string {
       return en ? 'Listing goals…' : '正在读取目标…'
     case 'spawn_subagent':
       return en ? 'Spawning subagent…' : '正在启动子智能体…'
+    case 'browser_navigate':
+      return en ? 'Opening page…' : '正在打开网页…'
+    case 'browser_click':
+      return en ? 'Clicking…' : '正在点击…'
+    case 'browser_type':
+      return en ? 'Typing…' : '正在输入…'
+    case 'browser_read_text':
+      return en ? 'Reading page…' : '正在读取页面…'
+    case 'browser_screenshot':
+      return en ? 'Capturing screenshot…' : '正在截图…'
+    case 'os_open_url':
+      return en ? 'Opening in system browser…' : '正在用系统浏览器打开…'
+    case 'os_open_path':
+      return en ? 'Opening path…' : '正在打开本地路径…'
     default:
       if (name.startsWith('plugin__')) {
         const short = name.replace(/^plugin__/, '').replace(/__/g, ' / ')
@@ -479,6 +493,20 @@ export function toolDisplayName(name: string, locale: string): string {
       return en ? 'List goals' : '目标列表'
     case 'spawn_subagent':
       return en ? 'Subagent' : '子智能体'
+    case 'browser_navigate':
+      return en ? 'Browser navigate' : '浏览器打开'
+    case 'browser_click':
+      return en ? 'Browser click' : '浏览器点击'
+    case 'browser_type':
+      return en ? 'Browser type' : '浏览器输入'
+    case 'browser_read_text':
+      return en ? 'Browser read' : '浏览器读文'
+    case 'browser_screenshot':
+      return en ? 'Browser screenshot' : '浏览器截图'
+    case 'os_open_url':
+      return en ? 'Open URL' : '打开链接'
+    case 'os_open_path':
+      return en ? 'Open path' : '打开路径'
     default:
       if (name.startsWith('plugin__')) {
         return name.replace(/^plugin__/, '').replace(/__/g, ' · ')

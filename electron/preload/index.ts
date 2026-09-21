@@ -247,8 +247,13 @@ const api = {
     ipcRenderer.invoke(IpcChannels.harness.getStore),
   harnessMigrateLocal: (payload: import('@shared').MigrateLocalHarnessInput): Promise<{ imported: number }> =>
     ipcRenderer.invoke(IpcChannels.harness.migrateLocal, payload),
-  harnessCreateSession: (agentId: string, title: string, id?: string): Promise<import('@shared').AgentSession> =>
-    ipcRenderer.invoke(IpcChannels.harness.createSession, { agentId, title, id }),
+  harnessCreateSession: (
+    agentId: string,
+    title: string,
+    id?: string,
+    projectId?: string | null,
+  ): Promise<import('@shared').AgentSession> =>
+    ipcRenderer.invoke(IpcChannels.harness.createSession, { agentId, title, id, projectId }),
   harnessRenameSession: (id: string, title: string): Promise<boolean> =>
     ipcRenderer.invoke(IpcChannels.harness.renameSession, { id, title }),
   harnessDeleteSession: (id: string): Promise<boolean> =>
@@ -997,6 +1002,100 @@ const api = {
     ipcRenderer.on(IpcChannels.inbox.open, handler)
     return () => ipcRenderer.removeListener(IpcChannels.inbox.open, handler)
   },
+
+  // Projects / Memory / Artifacts (0.6.0)
+  projectsGetSnapshot: (): Promise<import('@shared').ProjectsSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.projects.getSnapshot),
+  projectsList: (includeArchived?: boolean): Promise<import('@shared').Project[]> =>
+    ipcRenderer.invoke(IpcChannels.projects.list, includeArchived),
+  projectsGet: (id: string): Promise<import('@shared').Project | null> =>
+    ipcRenderer.invoke(IpcChannels.projects.get, id),
+  projectsUpsert: (input: import('@shared').UpsertProjectInput): Promise<import('@shared').Project> =>
+    ipcRenderer.invoke(IpcChannels.projects.upsert, input),
+  projectsArchive: (id: string, archived?: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.projects.archive, { id, archived }),
+  projectsRemove: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.projects.remove, id),
+  projectsSetActive: (id: string | null): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.projects.setActive, id),
+  projectsPickWorkDir: (): Promise<string | null> =>
+    ipcRenderer.invoke(IpcChannels.projects.pickWorkDir),
+
+  memoryList: (
+    input?: import('@shared').ListMemoryFactsInput,
+  ): Promise<import('@shared').MemoryFact[]> => ipcRenderer.invoke(IpcChannels.memory.list, input),
+  memoryAdd: (input: import('@shared').AddMemoryFactInput): Promise<import('@shared').MemoryFact> =>
+    ipcRenderer.invoke(IpcChannels.memory.add, input),
+  memoryUpdate: (id: string, content: string): Promise<import('@shared').MemoryFact | null> =>
+    ipcRenderer.invoke(IpcChannels.memory.update, { id, content }),
+  memoryRemove: (id: string): Promise<boolean> => ipcRenderer.invoke(IpcChannels.memory.remove, id),
+  memoryClearScope: (scope: string): Promise<number> =>
+    ipcRenderer.invoke(IpcChannels.memory.clearScope, scope),
+  memoryGetSettings: (): Promise<import('@shared').MemorySettings> =>
+    ipcRenderer.invoke(IpcChannels.memory.getSettings),
+  memorySetSettings: (
+    next: Partial<import('@shared').MemorySettings>,
+  ): Promise<import('@shared').MemorySettings> =>
+    ipcRenderer.invoke(IpcChannels.memory.setSettings, next),
+  memoryMigrateLocal: (
+    facts: Array<{
+      id?: string
+      agentId: string
+      content: string
+      source?: string
+      createdAt?: string
+      updatedAt?: string
+    }>,
+  ): Promise<{ imported: number }> => ipcRenderer.invoke(IpcChannels.memory.migrateLocal, facts),
+
+  artifactsList: (
+    input?: import('@shared').ListArtifactsInput,
+  ): Promise<import('@shared').WorkbenchArtifact[]> =>
+    ipcRenderer.invoke(IpcChannels.artifacts.list, input),
+  artifactsGet: (id: string): Promise<import('@shared').WorkbenchArtifact | null> =>
+    ipcRenderer.invoke(IpcChannels.artifacts.get, id),
+  artifactsAdd: (
+    input: import('@shared').AddArtifactInput,
+  ): Promise<import('@shared').WorkbenchArtifact> =>
+    ipcRenderer.invoke(IpcChannels.artifacts.add, input),
+  artifactsRemove: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.artifacts.remove, id),
+  artifactsClearSession: (sessionId: string): Promise<number> =>
+    ipcRenderer.invoke(IpcChannels.artifacts.clearSession, sessionId),
+  artifactsMigrateLocal: (
+    items: Array<{
+      id?: string
+      sessionId: string
+      messageId?: string
+      kind: import('@shared').ArtifactKind
+      title: string
+      content: string
+      language?: string
+      createdAt?: string
+    }>,
+  ): Promise<{ imported: number }> => ipcRenderer.invoke(IpcChannels.artifacts.migrateLocal, items),
+
+  usageGetSnapshot: (): Promise<
+    import('@shared').UsageSnapshot & { todayCostUsd: number | null }
+  > => ipcRenderer.invoke(IpcChannels.usage.getSnapshot),
+  usageSetPricing: (
+    next: Partial<import('@shared').UsagePricing>,
+  ): Promise<import('@shared').UsagePricing> =>
+    ipcRenderer.invoke(IpcChannels.usage.setPricing, next),
+  usageClear: (): Promise<import('@shared').UsageSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.usage.clear),
+  usageExportCsv: (): Promise<{ ok: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke(IpcChannels.usage.exportCsv),
+  usageGetGlobalRules: (): Promise<string> => ipcRenderer.invoke(IpcChannels.usage.getGlobalRules),
+  usageSetGlobalRules: (text: string): Promise<string> =>
+    ipcRenderer.invoke(IpcChannels.usage.setGlobalRules, text),
+
+  computerUseGetSettings: (): Promise<import('@shared').ComputerUseSettings> =>
+    ipcRenderer.invoke(IpcChannels.computerUse.getSettings),
+  computerUseSetSettings: (
+    next: Partial<import('@shared').ComputerUseSettings>,
+  ): Promise<import('@shared').ComputerUseSettings> =>
+    ipcRenderer.invoke(IpcChannels.computerUse.setSettings, next),
 }
 
 contextBridge.exposeInMainWorld('treasureChest', api)

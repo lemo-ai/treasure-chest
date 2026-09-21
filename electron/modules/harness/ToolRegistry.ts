@@ -12,6 +12,11 @@ import { executeHarnessTool } from './executeHarnessTools'
 import { getHarnessPluginTools } from './plugins/PluginLoader'
 import { buildPluginContext } from './plugins/PluginContext'
 import { resolveAgentToolPolicy } from './AgentToolPolicy'
+import {
+  computerUseToolSpecs,
+  getComputerUseSettings,
+} from '../computerUse/ComputerUseStore'
+import { executeComputerUseTool } from '../computerUse/BrowserSession'
 
 export type ToolExecuteResult = {
   output: string
@@ -21,7 +26,7 @@ export type ToolExecuteResult = {
 
 export interface RegisteredTool {
   spec: LlmToolSpec
-  source: 'builtin' | 'mcp' | 'coding' | 'harness' | 'plugin'
+  source: 'builtin' | 'mcp' | 'coding' | 'harness' | 'plugin' | 'computerUse'
   execute(argsJson: string, ctx: ToolExecCtx): Promise<ToolExecuteResult>
 }
 
@@ -313,6 +318,34 @@ export class ToolRegistry {
         }
       } catch (err) {
         logger.warn('tool registry plugin load failed', err)
+      }
+    }
+
+    if (getComputerUseSettings().enabled) {
+      for (const spec of computerUseToolSpecs) {
+        const name = spec.function.name
+        if (this.tools.has(name)) continue
+        this.tools.set(name, {
+          spec,
+          source: 'computerUse',
+          execute: async (argsJson) => {
+            let args: Record<string, unknown> = {}
+            try {
+              args = argsJson.trim() ? (JSON.parse(argsJson) as Record<string, unknown>) : {}
+            } catch {
+              return { output: JSON.stringify({ error: 'invalid arguments JSON' }), failed: true }
+            }
+            const output = await executeComputerUseTool(name, args)
+            let failed = false
+            try {
+              const parsed = JSON.parse(output) as { error?: string }
+              if (parsed?.error) failed = true
+            } catch {
+              /* ok */
+            }
+            return { output, failed }
+          },
+        })
       }
     }
 

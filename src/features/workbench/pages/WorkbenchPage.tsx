@@ -112,10 +112,17 @@ import {
   clearSessionArtifacts,
   deleteArtifact,
   extractArtifactsFromContent,
+  hydrateArtifacts,
   listArtifacts,
   type WorkbenchArtifact,
 } from '../lib/artifactStore'
-import { memoryFactsForPrompt } from '../lib/agentMemoryStore'
+import { hydrateMemory, memoryFactsForPrompt } from '../lib/agentMemoryStore'
+import {
+  getActiveProjectIdSync,
+  getActiveProjectSync,
+  hydrateProjects,
+  onProjectsChanged,
+} from '@renderer/features/projects/lib/projectStore'
 import {
   WORKFLOW_DEFS,
   type WorkflowId,
@@ -231,6 +238,8 @@ export function WorkbenchPage(): React.JSX.Element {
   const [sessions, setSessions] = useState<WorkbenchSession[]>([])
   const [messages, setMessages] = useState<WorkbenchMessage[]>([])
   const [draft, setDraft] = useState('')
+  const [voiceListening, setVoiceListening] = useState(false)
+  const [voiceHint, setVoiceHint] = useState('')
   const [activeCap, setActiveCap] = useState<WorkbenchCapabilityId | null>(null)
   const [webSearchOn, setWebSearchOn] = useState(readWebSearchOn)
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null)
@@ -277,6 +286,10 @@ export function WorkbenchPage(): React.JSX.Element {
   const [hasApiKey, setHasApiKey] = useState(false)
   const [mediaCaps, setMediaCaps] = useState<MediaCapabilitiesSnapshot | null>(null)
   const [projectRoot, setProjectRoot] = useState('')
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+  const [activeProjectName, setActiveProjectName] = useState('')
+  const activeProjectIdRef = useRef<string | null>(null)
+  activeProjectIdRef.current = activeProjectId
   const [capOptions, setCapOptions] = useState<CapOptionValues>({ ...DEFAULT_CAP_OPTIONS })
   const [streamingSessions, setStreamingSessions] = useState<Record<string, true>>({})
   const streamingSessionsRef = useRef<Record<string, true>>({})
@@ -317,8 +330,108 @@ export function WorkbenchPage(): React.JSX.Element {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const draftRef = useRef(draft)
   draftRef.current = draft
+  const recognitionRef = useRef<{ stop: () => void; abort: () => void } | null>(null)
   const attachmentsRef = useRef(attachments)
   attachmentsRef.current = attachments
+
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.abort()
+      } catch {
+        /* ignore */
+      }
+      recognitionRef.current = null
+    }
+  }, [])
+
+  const stopVoiceInput = (): void => {
+    try {
+      recognitionRef.current?.stop()
+    } catch {
+      /* ignore */
+    }
+    recognitionRef.current = null
+    setVoiceListening(false)
+  }
+
+  const toggleVoiceInput = (): void => {
+    if (voiceListening) {
+      stopVoiceInput()
+      return
+    }
+    setVoiceHint('')
+    type SpeechRecCtor = new () => {
+      lang: string
+      continuous: boolean
+      interimResults: boolean
+      onresult: ((ev: { results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null
+      onerror: ((ev: { error?: string }) => void) | null
+      onend: (() => void) | null
+      start: () => void
+      stop: () => void
+      abort: () => void
+    }
+    const w = window as unknown as {
+      SpeechRecognition?: SpeechRecCtor
+      webkitSpeechRecognition?: SpeechRecCtor
+    }
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition
+    if (!Ctor) {
+      setVoiceHint(t('workbench.voice.unsupported'))
+      return
+    }
+    const rec = new Ctor()
+    rec.lang = i18n.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+    rec.continuous = false
+    rec.interimResults = true
+    rec.onresult = (ev) => {
+      let interim = ''
+      let finalText = ''
+      for (let i = 0; i < ev.results.length; i++) {
+        const row = ev.results[i]
+        if (!row) continue
+        if (row.isFinal) finalText += row[0].transcript
+        else interim += row[0].transcript
+      }
+      const piece = (finalText || interim).trim()
+      if (!piece) return
+      setDraft((prev) => {
+        const base = prev.trimEnd()
+        const next = base ? `${base} ${piece}` : piece
+        draftByAgentRef.current[String(activeAgentRef.current)] = next
+        return next
+      })
+    }
+    rec.onerror = (ev) => {
+      const code = ev.error || 'error'
+      if (code === 'not-allowed' || code === 'service-not-allowed') {
+        setVoiceHint(t('workbench.voice.permissionDenied'))
+      } else if (code !== 'aborted' && code !== 'no-speech') {
+        setVoiceHint(t('workbench.voice.failed', { error: code }))
+      }
+      setVoiceListening(false)
+      recognitionRef.current = null
+    }
+    rec.onend = () => {
+      setVoiceListening(false)
+      recognitionRef.current = null
+    }
+    recognitionRef.current = rec
+    try {
+      rec.start()
+      setVoiceListening(true)
+      setVoiceHint(t('workbench.voice.listening'))
+    } catch (err) {
+      recognitionRef.current = null
+      setVoiceListening(false)
+      setVoiceHint(
+        t('workbench.voice.failed', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
+    }
+  }
 
   const isSessionStreaming = (sessionId: string | null | undefined): boolean =>
     sessionId != null && sessionId in streamingSessionsRef.current
@@ -457,7 +570,12 @@ export function WorkbenchPage(): React.JSX.Element {
     const agentId = forAgent ?? activeAgentRef.current
     const all = listSessions()
     setSessions(all)
-    const scoped = all.filter((s) => s.agentId === agentId)
+    const projectId = activeProjectIdRef.current
+    const scoped = all.filter((s) => {
+      if (s.agentId !== agentId) return false
+      if (projectId && s.projectId !== projectId) return false
+      return true
+    })
     const preferred =
       preferSessionId && scoped.some((s) => s.id === preferSessionId)
         ? preferSessionId
@@ -471,9 +589,14 @@ export function WorkbenchPage(): React.JSX.Element {
     setActiveSessionId(nextId, String(agentId))
     if (nextId) {
       setMessages(listMessages(nextId))
-      const arts = listArtifacts(nextId)
-      setArtifacts(arts)
-      setActiveArtifactId((prev) => (prev && arts.some((a) => a.id === prev) ? prev : arts[0]?.id ?? null))
+      void hydrateArtifacts({
+        sessionId: nextId,
+        projectId: projectId || undefined,
+      }).then(() => {
+        const arts = listArtifacts(nextId, projectId || undefined)
+        setArtifacts(arts)
+        setActiveArtifactId((prev) => (prev && arts.some((a) => a.id === prev) ? prev : arts[0]?.id ?? null))
+      })
     } else {
       setMessages([])
       setArtifacts([])
@@ -498,10 +621,16 @@ export function WorkbenchPage(): React.JSX.Element {
     toolSteps?: Parameters<typeof appendMessage>[4],
   ): void => {
     const msg = appendMessage(sessionId, 'assistant', content, citations, toolSteps)
-    extractArtifactsFromContent(sessionId, content, msg.id)
-    const arts = listArtifacts(sessionId)
-    setArtifacts(arts)
-    if (arts[0]) setActiveArtifactId(arts[0].id)
+    void extractArtifactsFromContent(
+      sessionId,
+      content,
+      msg.id,
+      activeProjectIdRef.current || undefined,
+    ).then(() => {
+      const arts = listArtifacts(sessionId, activeProjectIdRef.current || undefined)
+      setArtifacts(arts)
+      if (arts[0]) setActiveArtifactId(arts[0].id)
+    })
   }
 
   const finishHarnessTurn = async (sessionId: string): Promise<void> => {
@@ -510,8 +639,13 @@ export function WorkbenchPage(): React.JSX.Element {
     setTrajectoryTick((n) => n + 1)
     const last = [...msgs].reverse().find((m) => m.role === 'assistant')
     if (last) {
-      extractArtifactsFromContent(sessionId, last.content, last.id)
-      const arts = listArtifacts(sessionId)
+      await extractArtifactsFromContent(
+        sessionId,
+        last.content,
+        last.id,
+        activeProjectIdRef.current || undefined,
+      )
+      const arts = listArtifacts(sessionId, activeProjectIdRef.current || undefined)
       setArtifacts(arts)
       if (arts[0]) setActiveArtifactId(arts[0].id)
     }
@@ -569,6 +703,25 @@ export function WorkbenchPage(): React.JSX.Element {
     const onFocus = (): void => loadAi()
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
+  }, [])
+
+  useEffect(() => {
+    const syncProject = (): void => {
+      const id = getActiveProjectIdSync()
+      const project = getActiveProjectSync()
+      activeProjectIdRef.current = id
+      setActiveProjectId(id)
+      setActiveProjectName(project?.name ?? '')
+      void hydrateMemory({
+        agentId: String(activeAgentRef.current),
+        projectId: id || undefined,
+      })
+      refresh(activeIdRef.current, activeAgentRef.current)
+    }
+    void hydrateProjects().then(syncProject)
+    return onProjectsChanged(syncProject)
+    // refresh is stable enough via refs for project switches
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const projectName = useMemo(() => {
@@ -717,6 +870,7 @@ export function WorkbenchPage(): React.JSX.Element {
     const q = query.trim().toLowerCase()
     const filtered = sessions.filter((s) => {
       if (s.agentId !== activeAgent) return false
+      if (activeProjectId && s.projectId !== activeProjectId) return false
       if (!q) return true
       return s.title.toLowerCase().includes(q)
     })
@@ -740,7 +894,7 @@ export function WorkbenchPage(): React.JSX.Element {
     }
     for (const r of roots) walk(r, 0)
     return ordered
-  }, [sessions, activeAgent, query])
+  }, [sessions, activeAgent, query, activeProjectId])
 
   const liveSubagentCards = useMemo(() => {
     type Node = {
@@ -789,7 +943,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const ensureSession = async (agentId: AgentId): Promise<string> => {
     if (activeSession && activeSession.agentId === agentId) return activeSession.id
     const title = i18n.language.startsWith('zh') ? '新会话' : 'New chat'
-    const created = await createSession(agentId, title)
+    const created = await createSession(agentId, title, activeProjectIdRef.current)
     refresh(created.id, agentId)
     return created.id
   }
@@ -797,7 +951,7 @@ export function WorkbenchPage(): React.JSX.Element {
   const onNewSession = (): void => {
     const title = i18n.language.startsWith('zh') ? '新会话' : 'New chat'
     const agentAtCreate = activeAgent
-    void createSession(agentAtCreate, title).then((created) => {
+    void createSession(agentAtCreate, title, activeProjectIdRef.current).then((created) => {
       if (activeAgentRef.current !== agentAtCreate) {
         setSessions(listSessions())
         return
@@ -813,8 +967,7 @@ export function WorkbenchPage(): React.JSX.Element {
   }
 
   const onDeleteSession = (id: string): void => {
-    clearSessionArtifacts(id)
-    void deleteSession(id).then(() => {
+    void clearSessionArtifacts(id).then(() => deleteSession(id)).then(() => {
       refresh(null, activeAgent)
     })
   }
@@ -920,10 +1073,12 @@ export function WorkbenchPage(): React.JSX.Element {
     if (activeIdRef.current === sessionId) syncLiveStreamToUi(sessionId)
     setLiveSessionEvents([])
 
+    const projectCtx = getActiveProjectSync()
     const knowledgeCollectionId =
-      !directMode && !activeAgentDef.builtin
+      projectCtx?.knowledgeCollectionIds?.[0] ||
+      (!directMode && !activeAgentDef.builtin
         ? activeAgentDef.knowledgeCollectionIds?.[0]
-        : undefined
+        : undefined)
     const toolFlags = agentChatToolFlags(activeAgentDef, directMode)
     const preferredRaw = !directMode ? activeAgentDef.preferredModel : undefined
     const preferredDecoded = preferredRaw ? decodeChatModelRef(preferredRaw) : null
@@ -948,7 +1103,7 @@ export function WorkbenchPage(): React.JSX.Element {
           enableWebSearch,
           knowledgeCollectionId,
           ...toolFlags,
-          memoryFacts: memoryFactsForPrompt(String(activeAgent)),
+          memoryFacts: memoryFactsForPrompt(String(activeAgent), activeProjectIdRef.current || undefined),
           capabilityMode: opts.capabilityMode,
           skillPrompt: opts.skillPrompt,
         },
@@ -1201,11 +1356,14 @@ export function WorkbenchPage(): React.JSX.Element {
         !directMode &&
           !activeAgentDef.builtin &&
           (activeAgentDef.knowledgeCollectionIds?.length ?? 0) > 0,
-      )
+      ) ||
+      Boolean((getActiveProjectSync()?.knowledgeCollectionIds?.length ?? 0) > 0)
+    const projectCtx = getActiveProjectSync()
     const knowledgeCollectionId =
-      !directMode && !activeAgentDef.builtin
+      projectCtx?.knowledgeCollectionIds?.[0] ||
+      (!directMode && !activeAgentDef.builtin
         ? activeAgentDef.knowledgeCollectionIds?.[0]
-        : undefined
+        : undefined)
     const toolFlags = agentChatToolFlags(activeAgentDef, directMode)
     const preferredRaw = !directMode ? activeAgentDef.preferredModel : undefined
     const preferredDecoded = preferredRaw ? decodeChatModelRef(preferredRaw) : null
@@ -1313,7 +1471,7 @@ export function WorkbenchPage(): React.JSX.Element {
             enableWebSearch,
             knowledgeCollectionId,
             ...toolFlags,
-            memoryFacts: memoryFactsForPrompt(String(activeAgent)),
+            memoryFacts: memoryFactsForPrompt(String(activeAgent), activeProjectIdRef.current || undefined),
             capabilityMode,
             skillPrompt: mergedSkillPrompt || undefined,
           },
@@ -2412,6 +2570,11 @@ export function WorkbenchPage(): React.JSX.Element {
         </div>
 
         <div className={styles.composerWrap}>
+          {activeProjectName ? (
+            <div className={styles.workspaceChip} title={activeProjectName}>
+              {t('projects.workspaceChip', { name: activeProjectName })}
+            </div>
+          ) : null}
           <div className={styles.projectBar}>
             {projectRoot ? (
               <div className={styles.projectChip} title={projectRoot}>
@@ -2813,6 +2976,18 @@ export function WorkbenchPage(): React.JSX.Element {
                 ) : null}
                 <button
                   type="button"
+                  className={`${styles.voiceBtn} ${voiceListening ? styles.voiceBtnActive : ''}`}
+                  onClick={toggleVoiceInput}
+                  aria-pressed={voiceListening}
+                  aria-label={
+                    voiceListening ? t('workbench.voice.stop') : t('workbench.voice.start')
+                  }
+                  title={voiceListening ? t('workbench.voice.stop') : t('workbench.voice.start')}
+                >
+                  <IconMic />
+                </button>
+                <button
+                  type="button"
                   className={styles.sendBtn}
                   disabled={!draft.trim() && attachments.length === 0}
                   onClick={() => void sendText(draft)}
@@ -2824,7 +2999,9 @@ export function WorkbenchPage(): React.JSX.Element {
               </div>
             </div>
           </div>
-          <p className={styles.hint}>{t('workbench.inputHint')}</p>
+          <p className={styles.hint}>
+            {voiceHint || t('workbench.inputHint')}
+          </p>
         </div>
       </section>
       <ArtifactsPanel
@@ -2834,16 +3011,19 @@ export function WorkbenchPage(): React.JSX.Element {
         onSelect={setActiveArtifactId}
         onClose={() => setArtifactsOpen(false)}
         onDelete={(id) => {
-          deleteArtifact(id)
-          const next = listArtifacts(activeId ?? undefined)
-          setArtifacts(next)
-          setActiveArtifactId(next[0]?.id ?? null)
+          void deleteArtifact(id).then(() => {
+            const next = listArtifacts(activeId ?? undefined, activeProjectId || undefined)
+            setArtifacts(next)
+            setActiveArtifactId(next[0]?.id ?? null)
+          })
         }}
       />
       <MemoryPanel
         open={memoryOpen}
         agentId={String(activeAgent)}
         agentName={activeAgentName}
+        projectId={activeProjectId}
+        projectName={activeProjectName || undefined}
         onClose={() => setMemoryOpen(false)}
       />
       <TrajectoryPanel

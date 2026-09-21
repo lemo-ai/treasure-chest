@@ -47,10 +47,20 @@
 
 .addRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.35rem;
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
+}
+
+.addRow select {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  padding: 0.4rem 0.45rem;
+  font-size: 0.72rem;
+  max-width: 5.5rem;
 }
 
 .addRow input {
@@ -78,12 +88,76 @@
   cursor: not-allowed;
 }
 
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.72rem;
+  color: var(--color-ink-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.scopeTag {
+  font-size: 0.65rem;
+  color: var(--color-ink-tertiary);
+  font-weight: 650;
+}
+
+.itemActions {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.editRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.3rem;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.editRow input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.editRow button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
 .empty {
   margin: 0;
   padding: 1.1rem 1rem;
   font-size: 0.8rem;
   color: var(--color-ink-tertiary);
   line-height: 1.45;
+}
+
+.errorBanner {
+  margin: 0 0.75rem 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--color-danger, #c0392b);
+  background: color-mix(in srgb, var(--color-danger, #c0392b) 10%, transparent);
 }
 
 .list {

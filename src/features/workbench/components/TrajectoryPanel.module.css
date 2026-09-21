@@ -255,32 +255,18 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.45rem;
 }
 
-.orchItem {
-  padding: 0.5rem 0.55rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-elevated);
-  font-size: 0.75rem;
-}
-
-.orchHead {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-}
-
-.orchTask {
-  margin: 0;
-  color: var(--color-ink-secondary);
-  line-height: 1.35;
-}
-
-.orchPreview {
-  margin: 0.3rem 0 0;
+.orchHint {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
   color: var(--color-ink-tertiary);
-  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.orchCard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }

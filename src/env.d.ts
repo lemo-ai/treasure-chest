@@ -114,7 +114,12 @@ interface TreasureChestApi {
   resumeWorkbenchStream: (streamId: string) => Promise<boolean>
   harnessGetStore: () => Promise<import('@shared').HarnessStoreSnapshot>
   harnessMigrateLocal: (payload: import('@shared').MigrateLocalHarnessInput) => Promise<{ imported: number }>
-  harnessCreateSession: (agentId: string, title: string, id?: string) => Promise<import('@shared').AgentSession>
+  harnessCreateSession: (
+    agentId: string,
+    title: string,
+    id?: string,
+    projectId?: string | null,
+  ) => Promise<import('@shared').AgentSession>
   harnessRenameSession: (id: string, title: string) => Promise<boolean>
   harnessDeleteSession: (id: string) => Promise<boolean>
   harnessSetActiveSession: (id: string | null, agentId?: string) => Promise<boolean>
@@ -644,6 +649,71 @@ interface TreasureChestApi {
   clearInbox: () => Promise<number>
   onInboxAppended: (cb: (item: InboxItem) => void) => () => void
   onInboxOpen: (cb: (payload: { id: string }) => void) => () => void
+
+  projectsGetSnapshot: () => Promise<import('@shared').ProjectsSnapshot>
+  projectsList: (includeArchived?: boolean) => Promise<import('@shared').Project[]>
+  projectsGet: (id: string) => Promise<import('@shared').Project | null>
+  projectsUpsert: (input: import('@shared').UpsertProjectInput) => Promise<import('@shared').Project>
+  projectsArchive: (id: string, archived?: boolean) => Promise<boolean>
+  projectsRemove: (id: string) => Promise<boolean>
+  projectsSetActive: (id: string | null) => Promise<string | null>
+  projectsPickWorkDir: () => Promise<string | null>
+
+  memoryList: (input?: import('@shared').ListMemoryFactsInput) => Promise<import('@shared').MemoryFact[]>
+  memoryAdd: (input: import('@shared').AddMemoryFactInput) => Promise<import('@shared').MemoryFact>
+  memoryUpdate: (id: string, content: string) => Promise<import('@shared').MemoryFact | null>
+  memoryRemove: (id: string) => Promise<boolean>
+  memoryClearScope: (scope: string) => Promise<number>
+  memoryGetSettings: () => Promise<import('@shared').MemorySettings>
+  memorySetSettings: (
+    next: Partial<import('@shared').MemorySettings>,
+  ) => Promise<import('@shared').MemorySettings>
+  memoryMigrateLocal: (
+    facts: Array<{
+      id?: string
+      agentId: string
+      content: string
+      source?: string
+      createdAt?: string
+      updatedAt?: string
+    }>,
+  ) => Promise<{ imported: number }>
+
+  artifactsList: (
+    input?: import('@shared').ListArtifactsInput,
+  ) => Promise<import('@shared').WorkbenchArtifact[]>
+  artifactsGet: (id: string) => Promise<import('@shared').WorkbenchArtifact | null>
+  artifactsAdd: (
+    input: import('@shared').AddArtifactInput,
+  ) => Promise<import('@shared').WorkbenchArtifact>
+  artifactsRemove: (id: string) => Promise<boolean>
+  artifactsClearSession: (sessionId: string) => Promise<number>
+  artifactsMigrateLocal: (
+    items: Array<{
+      id?: string
+      sessionId: string
+      messageId?: string
+      kind: import('@shared').ArtifactKind
+      title: string
+      content: string
+      language?: string
+      createdAt?: string
+    }>,
+  ) => Promise<{ imported: number }>
+
+  usageGetSnapshot: () => Promise<import('@shared').UsageSnapshot & { todayCostUsd: number | null }>
+  usageSetPricing: (
+    next: Partial<import('@shared').UsagePricing>,
+  ) => Promise<import('@shared').UsagePricing>
+  usageClear: () => Promise<import('@shared').UsageSnapshot>
+  usageExportCsv: () => Promise<{ ok: boolean; path?: string; error?: string }>
+  usageGetGlobalRules: () => Promise<string>
+  usageSetGlobalRules: (text: string) => Promise<string>
+
+  computerUseGetSettings: () => Promise<import('@shared').ComputerUseSettings>
+  computerUseSetSettings: (
+    next: Partial<import('@shared').ComputerUseSettings>,
+  ) => Promise<import('@shared').ComputerUseSettings>
 }
 
 declare global {

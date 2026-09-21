@@ -48,11 +48,15 @@ import {
   IconSparkles,
   IconPlus,
   IconWorkbench,
+  IconResearch,
+  IconGlobe,
 } from '@renderer/shared/ui/icons'
 import { BirthProfileForm } from '@renderer/features/fortune/components/BirthProfileForm'
 import { HarnessPluginMarketplace } from '../components/HarnessPluginMarketplace'
 import { DataSourcesPanel } from '../components/DataSourcesPanel'
 import { AgentsPanel } from '../components/AgentsPanel'
+import { UsagePanel } from '../components/UsagePanel'
+import { ComputerUsePanel } from '../components/ComputerUsePanel'
 import { McpServersPanel } from '../components/McpServersPanel'
 import { ModelsApiPanel } from '../components/ModelsApiPanel'
 import { LocalModelsPanel } from '../components/LocalModelsPanel'
@@ -128,6 +132,8 @@ export function SettingsPage(): React.JSX.Element {
     | 'notifications'
     | 'dataSources'
     | 'data'
+    | 'usage'
+    | 'computerUse'
     | 'debug'
   const [section, setSection] = useState<SettingsSection>('general')
 
@@ -144,6 +150,8 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'mcp', labelKey: 'settings.nav.mcp', icon: <IconLayers /> },
     { id: 'notifications', labelKey: 'settings.nav.notifications', icon: <IconBell /> },
     { id: 'dataSources', labelKey: 'settings.nav.dataSources', icon: <IconUpload /> },
+    { id: 'usage', labelKey: 'settings.nav.usage', icon: <IconResearch /> },
+    { id: 'computerUse', labelKey: 'settings.nav.computerUse', icon: <IconGlobe /> },
     { id: 'data', labelKey: 'settings.nav.data', icon: <IconDownload /> },
     { id: 'debug', labelKey: 'settings.nav.debug', icon: <IconBug /> },
   ]
@@ -248,6 +256,8 @@ export function SettingsPage(): React.JSX.Element {
       'mcp',
       'notifications',
       'dataSources',
+      'usage',
+      'computerUse',
       'data',
       'debug',
     ]
@@ -1185,6 +1195,14 @@ export function SettingsPage(): React.JSX.Element {
 
       <div className={styles.group} hidden={section !== 'dataSources'}>
         <DataSourcesPanel sources={dataSources} onSourcesChange={setDataSources} />
+      </div>
+
+      <div className={styles.group} hidden={section !== 'usage'}>
+        <UsagePanel />
+      </div>
+
+      <div className={styles.group} hidden={section !== 'computerUse'}>
+        <ComputerUsePanel />
       </div>
 
       <div className={styles.group} hidden={section !== 'data'}>

@@ -106,6 +106,7 @@ app.on('before-quit', () => {
   disposeAllMcpSessions()
   void import('../modules/harness/coding/LspService').then((m) => m.shutdownLsp())
   void import('../modules/harness/coding/DshWebService').then((m) => m.stopEmbeddedDshWeb())
+  void import('../modules/computerUse/BrowserSession').then((m) => m.disposeComputerUseBrowser())
   closeDatabase()
   const main = getMainWindow()
   if (main && !main.isDestroyed()) {

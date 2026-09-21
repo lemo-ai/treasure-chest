@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentGoal, SessionEvent } from '@shared'
+import type { AgentGoal, HarnessSubagentMeta, SessionEvent } from '@shared'
+import { PanelBodyState } from '@renderer/shared/ui/PanelBodyState'
+import { SubagentCard } from './SubagentCard'
 import styles from './TrajectoryPanel.module.css'
 
 interface TrajectoryPanelProps {
@@ -89,6 +91,8 @@ export function TrajectoryPanel({
   const [goals, setGoals] = useState<AgentGoal[]>([])
   const [plugins, setPlugins] = useState<string[]>([])
   const [reloading, setReloading] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [goalTitle, setGoalTitle] = useState('')
   const [addingGoal, setAddingGoal] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
@@ -96,9 +100,22 @@ export function TrajectoryPanel({
 
   const refresh = (): void => {
     if (!sessionId) return
-    void window.treasureChest.harnessListEvents(sessionId).then(setEvents)
-    void window.treasureChest.harnessListGoals(sessionId, true).then(setGoals)
-    void window.treasureChest.harnessListPlugins().then((list) => setPlugins(list.map((p) => p.name)))
+    setLoading(true)
+    setLoadError('')
+    void Promise.all([
+      window.treasureChest.harnessListEvents(sessionId),
+      window.treasureChest.harnessListGoals(sessionId, true),
+      window.treasureChest.harnessListPlugins(),
+    ])
+      .then(([evs, gs, list]) => {
+        setEvents(evs)
+        setGoals(gs)
+        setPlugins(list.map((p) => p.name))
+      })
+      .catch(() => {
+        setLoadError(t('workbench.trajectoryLoadError'))
+      })
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -165,7 +182,7 @@ export function TrajectoryPanel({
     return groups
   }, [mergedEvents])
 
-  const orchestration = useMemo(() => {
+  const orchestration = useMemo((): HarnessSubagentMeta[] => {
     const starts = mergedEvents.filter((e) => e.type === 'subagent/start')
     return starts.map((ev) => {
       const p = ev.payload as {
@@ -179,18 +196,29 @@ export function TrajectoryPanel({
           (e.payload as { childSessionId?: string }).childSessionId === p.childSessionId,
       )
       const endPayload = end?.payload as { status?: string; resultPreview?: string } | undefined
+      const rawStatus = String(endPayload?.status || '').toLowerCase()
+      const errored = Boolean(end) && (rawStatus === 'error' || rawStatus === 'failed')
       return {
-        id: ev.id,
+        phase: end ? 'end' : 'start',
         childSessionId: String(p.childSessionId || ''),
         task: String(p.task || ''),
         agentId: String(p.agentId || ''),
-        status: endPayload?.status || (end ? 'done' : 'running'),
-        preview: String(endPayload?.resultPreview || ''),
+        status: end ? (errored ? 'error' : 'complete') : undefined,
+        resultPreview: String(endPayload?.resultPreview || ''),
       }
     })
   }, [mergedEvents])
 
   if (!open) return null
+
+  const timelineStatus =
+    loadError && turns.length === 0
+      ? 'error'
+      : loading && turns.length === 0
+        ? 'loading'
+        : turns.length === 0
+          ? 'empty'
+          : 'ready'
 
   return (
     <aside className={styles.panel} aria-label={t('workbench.trajectory')}>
@@ -245,42 +273,35 @@ export function TrajectoryPanel({
         )}
       </section>
 
-      {orchestration.length > 0 ? (
-        <section className={styles.section}>
-          <h3>{t('workbench.orchestration')}</h3>
+      <section className={styles.section}>
+        <h3>{t('workbench.orchestration')}</h3>
+        <p className={styles.orchHint}>{t('workbench.orchestrationHint')}</p>
+        {orchestration.length === 0 ? (
+          <p className={styles.empty}>{t('workbench.orchestrationEmpty')}</p>
+        ) : (
           <ul className={styles.orchList}>
-            {orchestration.map((node) => (
-              <li key={node.id} className={styles.orchItem} data-status={node.status}>
-                <div className={styles.orchHead}>
-                  <strong>{node.agentId || 'subagent'}</strong>
-                  <span>{node.status}</span>
-                </div>
-                <p className={styles.orchTask}>{node.task}</p>
-                {node.preview ? <p className={styles.orchPreview}>{node.preview.slice(0, 160)}</p> : null}
-                {node.childSessionId && onOpenChildSession ? (
-                  <button
-                    type="button"
-                    className={styles.childBtn}
-                    onClick={() => onOpenChildSession(node.childSessionId)}
-                  >
-                    {t('workbench.trajectoryOpenChild')}
-                  </button>
-                ) : null}
+            {orchestration.map((meta) => (
+              <li key={`${meta.childSessionId}-${meta.phase}-${meta.task}`} className={styles.orchCard}>
+                <SubagentCard meta={meta} onOpenChild={onOpenChildSession} />
               </li>
             ))}
           </ul>
-        </section>
-      ) : null}
+        )}
+      </section>
 
       {plugins.length > 0 ? (
         <p className={styles.plugins}>{t('workbench.trajectoryPlugins', { names: plugins.join(', ') })}</p>
       ) : null}
 
       <div className={styles.timeline}>
-        {turns.length === 0 ? (
-          <p className={styles.empty}>{t('workbench.trajectoryEmpty')}</p>
-        ) : (
-          turns.map((group) => (
+        <PanelBodyState
+          status={timelineStatus}
+          loadingLabel={t('workbench.trajectoryLoading')}
+          emptyLabel={t('workbench.trajectoryEmpty')}
+          errorLabel={loadError || t('workbench.trajectoryLoadError')}
+          className={styles.empty}
+        >
+          {turns.map((group) => (
             <section key={`turn-${group.turnIndex}-${group.events[0]?.seq ?? 0}`} className={styles.turn}>
               <header className={styles.turnHead}>
                 {t('workbench.trajectoryTurn', { index: group.turnIndex })}
@@ -344,8 +365,8 @@ export function TrajectoryPanel({
                 })}
               </ol>
             </section>
-          ))
-        )}
+          ))}
+        </PanelBodyState>
       </div>
     </aside>
   )

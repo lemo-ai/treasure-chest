@@ -18,6 +18,56 @@
   padding: var(--space-5);
   display: grid;
   gap: var(--space-3);
+  max-height: min(90vh, 42rem);
+  overflow: auto;
+}
+
+.dialogWide {
+  width: min(44rem, 100%);
+}
+
+.diffList {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.diffBlock {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+}
+
+.diffPath {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  background: var(--color-bg-muted);
+  border-bottom: 1px solid var(--color-border);
+  word-break: break-all;
+}
+
+.diffTrunc {
+  font-weight: 600;
+  color: var(--color-ink-tertiary);
+  font-size: 0.65rem;
+}
+
+.diffPre {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  max-height: 14rem;
+  overflow: auto;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-ink-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .title {

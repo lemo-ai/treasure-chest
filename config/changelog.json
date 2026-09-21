@@ -1,6 +1,34 @@
 {
   "releases": [
     {
+      "version": "0.6.0",
+      "date": "2026-09-21",
+      "title": {
+        "zh-CN": "工作区与产出 · Project · Memory · 产物 · Computer Use",
+        "en-US": "Workspace & output · Project · Memory · Artifacts · Computer Use"
+      },
+      "items": {
+        "zh-CN": [
+          "工作区 Project：绑定目录 / 知识分区 / 默认 Agent·Skill·MCP，会话可归属项目",
+          "跨会话 Memory（全局 / Agent / 项目）与会话产物 Artifacts 面板",
+          "编码 Rules 注入 + 写文件 diff 审阅；设置页用量统计与全局规则",
+          "通知结果可续聊；轨迹侧栏子智能体编排看板与聊天卡片一致",
+          "Computer Use（默认关闭）：隐藏浏览器导航/点击/输入/读文/截图 + 系统打开链接/路径，强审批与域名白名单",
+          "工作台语音听写（Web Speech）；macOS 麦克风 entitlements",
+          "正式签名文档与 CI：mac 公证 / Win 可选 CSC；未签名包仍引导手动更新"
+        ],
+        "en-US": [
+          "Workspace Projects: bind folder / knowledge scope / default Agent·Skill·MCP; sessions can belong to a project",
+          "Cross-session Memory (global / agent / project) and session Artifacts panel",
+          "Coding Rules injection + write-file diff review; usage stats and global rules in Settings",
+          "Continue chats from notification results; trajectory subagent board matches in-chat cards",
+          "Computer Use (off by default): hidden browser navigate/click/type/read/screenshot + OS open URL/path, strong approval and host allowlist",
+          "Workbench voice dictation (Web Speech); macOS microphone entitlements",
+          "Signing docs & CI: mac notarize / optional Windows CSC; unsigned builds still guide manual updates"
+        ]
+      }
+    },
+    {
       "version": "0.5.0",
       "date": "2026-09-21",
       "title": {

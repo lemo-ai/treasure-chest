@@ -1,4 +1,5 @@
 import type { ToolSensitivityDecision } from '@shared'
+import { COMPUTER_USE_TOOL_NAMES } from '../computerUse/ComputerUseStore'
 
 const BUILTIN_AUTO = new Set([
   'get_weather',
@@ -52,6 +53,10 @@ export function classifyToolSensitivity(
 
   if (BUILTIN_AUTO.has(raw)) {
     return { tier: 'auto', reason: 'builtin_safe' }
+  }
+
+  if (COMPUTER_USE_TOOL_NAMES.has(raw) || COMPUTER_USE_TOOL_NAMES.has(bare)) {
+    return { tier: 'confirm', reason: 'computer_use' }
   }
 
   if (BLOCK_RE.test(hay)) {

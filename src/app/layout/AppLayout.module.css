@@ -88,6 +88,14 @@
   color: var(--color-ink-tertiary);
 }
 
+.sectionHint {
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-3);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--color-ink-tertiary);
+}
+
 .navFooter {
   margin-top: auto;
   padding-top: var(--space-3);
@@ -215,6 +223,15 @@
 
 .linkActive .linkIcon {
   opacity: 1;
+}
+
+.projectBtn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
 }
 
 .agentRow {

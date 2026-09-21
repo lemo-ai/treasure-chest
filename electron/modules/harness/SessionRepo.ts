@@ -18,21 +18,38 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-export function listSessions(agentId?: string): AgentSession[] {
+export function listSessions(agentId?: string, projectId?: string | null): AgentSession[] {
   const db = getDb()
-  const rows = agentId
-    ? (db
-        .prepare(
-          `SELECT id, agent_id, title, forked_from, created_at, updated_at
-           FROM agent_sessions WHERE agent_id = ? ORDER BY updated_at DESC`,
-        )
-        .all(agentId) as SessionRow[])
-    : (db
-        .prepare(
-          `SELECT id, agent_id, title, forked_from, created_at, updated_at
-           FROM agent_sessions ORDER BY updated_at DESC`,
-        )
-        .all() as SessionRow[])
+  let rows: SessionRow[]
+  if (agentId && projectId) {
+    rows = db
+      .prepare(
+        `SELECT id, agent_id, title, forked_from, project_id, created_at, updated_at
+         FROM agent_sessions WHERE agent_id = ? AND project_id = ? ORDER BY updated_at DESC`,
+      )
+      .all(agentId, projectId) as SessionRow[]
+  } else if (agentId) {
+    rows = db
+      .prepare(
+        `SELECT id, agent_id, title, forked_from, project_id, created_at, updated_at
+         FROM agent_sessions WHERE agent_id = ? ORDER BY updated_at DESC`,
+      )
+      .all(agentId) as SessionRow[]
+  } else if (projectId) {
+    rows = db
+      .prepare(
+        `SELECT id, agent_id, title, forked_from, project_id, created_at, updated_at
+         FROM agent_sessions WHERE project_id = ? ORDER BY updated_at DESC`,
+      )
+      .all(projectId) as SessionRow[]
+  } else {
+    rows = db
+      .prepare(
+        `SELECT id, agent_id, title, forked_from, project_id, created_at, updated_at
+         FROM agent_sessions ORDER BY updated_at DESC`,
+      )
+      .all() as SessionRow[]
+  }
   return rows.map(rowToSession)
 }
 
@@ -41,6 +58,7 @@ interface SessionRow {
   agent_id: string
   title: string
   forked_from: string | null
+  project_id: string | null
   created_at: string
   updated_at: string
 }
@@ -51,6 +69,7 @@ function rowToSession(row: SessionRow): AgentSession {
     agentId: row.agent_id,
     title: row.title,
     forkedFrom: row.forked_from ?? undefined,
+    projectId: row.project_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -59,26 +78,39 @@ function rowToSession(row: SessionRow): AgentSession {
 export function getSession(id: string): AgentSession | null {
   const row = getDb()
     .prepare(
-      `SELECT id, agent_id, title, forked_from, created_at, updated_at
+      `SELECT id, agent_id, title, forked_from, project_id, created_at, updated_at
        FROM agent_sessions WHERE id = ?`,
     )
     .get(id) as SessionRow | undefined
   return row ? rowToSession(row) : null
 }
 
-export function createSession(agentId: string, title: string, id?: string): AgentSession {
+export function createSession(
+  agentId: string,
+  title: string,
+  id?: string,
+  projectId?: string | null,
+): AgentSession {
   const db = getDb()
   const session: AgentSession = {
     id: id ?? uid('ses'),
     agentId,
     title,
+    projectId: projectId?.trim() || undefined,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   }
   db.prepare(
-    `INSERT INTO agent_sessions (id, agent_id, title, forked_from, created_at, updated_at)
-     VALUES (?, ?, ?, NULL, ?, ?)`,
-  ).run(session.id, session.agentId, session.title, session.createdAt, session.updatedAt)
+    `INSERT INTO agent_sessions (id, agent_id, title, forked_from, project_id, created_at, updated_at)
+     VALUES (?, ?, ?, NULL, ?, ?, ?)`,
+  ).run(
+    session.id,
+    session.agentId,
+    session.title,
+    session.projectId ?? null,
+    session.createdAt,
+    session.updatedAt,
+  )
   return session
 }
 
@@ -273,6 +305,8 @@ export function forkSession(
   const child = createSession(
     source.agentId,
     title?.trim() || `${source.title} (fork)`,
+    undefined,
+    source.projectId,
   )
   getDb()
     .prepare(`UPDATE agent_sessions SET forked_from = ? WHERE id = ?`)

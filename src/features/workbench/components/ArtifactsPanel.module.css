@@ -45,6 +45,15 @@
   line-height: 1.45;
 }
 
+.errorBanner {
+  margin: 0 0.75rem 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--color-danger, #c0392b);
+  background: color-mix(in srgb, var(--color-danger, #c0392b) 10%, transparent);
+}
+
 .body {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -123,6 +132,13 @@
   font-size: 0.78rem;
   font-weight: 650;
   color: var(--color-ink-secondary);
+}
+
+.previewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  justify-content: flex-end;
 }
 
 .media {
