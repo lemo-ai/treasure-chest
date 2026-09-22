@@ -84,11 +84,17 @@ async function generateFunMusic(
     if (!res.ok) {
       const errBody = await res.text().catch(() => '')
       logger.warn(`dashscope fun-music HTTP ${res.status}: ${errBody.slice(0, 240)}`)
+      const accessDenied =
+        res.status === 403 || /AccessDenied|access denied|Forbidden/i.test(errBody)
       return {
         ok: false,
-        error:
-          `百炼 Fun-Music 失败 HTTP ${res.status}: ${errBody.slice(0, 200)}。` +
-          `请确认已开通 fun-music（邀测），且 Base URL 可访问 /services/audio/music/generation。`,
+        error: accessDenied
+          ? `百炼 Fun-Music 访问被拒绝（HTTP ${res.status}）。` +
+            `Fun-Music 为邀测能力：请到阿里云百炼控制台开通 fun-music，并使用「百炼 API-KEY」` +
+            `（能调 dashscope.aliyuncs.com），不要用仅开通对话的 MaaS/兼容模式专用 Key。` +
+            `文档：https://help.aliyun.com/zh/model-studio/error-code#access-denied`
+          : `百炼 Fun-Music 失败 HTTP ${res.status}: ${errBody.slice(0, 200)}。` +
+            `请确认已开通 fun-music，且能访问 ${root}/services/audio/music/generation。`,
         providerId: 'dashscope',
       }
     }

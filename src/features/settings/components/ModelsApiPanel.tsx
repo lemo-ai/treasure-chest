@@ -3,17 +3,17 @@ import { useTranslation } from 'react-i18next'
 import type {
   AiModelConfig,
   FortuneAiProviderConfig,
+  FortuneSettings,
   MediaProfileId,
 } from '@shared'
 import {
-  AI_PROVIDER_PRESETS,
   DEFAULT_FORTUNE_SETTINGS,
   MEDIA_PROFILE_IDS,
   aiModelIds,
-  defaultAiModelConfig,
+  firstChatModelId,
   firstModelId,
+  isChatAiModel,
   mediaIdsFromModels,
-  modelsFromProviderPreset,
 } from '@shared'
 import { AddModelModal } from './AddModelModal'
 import styles from './ModelsApiPanel.module.css'
@@ -40,6 +40,7 @@ export function ModelsApiPanel({
   const [aiModel, setAiModel] = useState(DEFAULT_FORTUNE_SETTINGS.aiModel)
   const [aiApiKey, setAiApiKey] = useState(DEFAULT_FORTUNE_SETTINGS.aiApiKey)
   const [aiMediaProfile, setAiMediaProfile] = useState<MediaProfileId>('auto')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [modelModal, setModelModal] = useState<AiModelConfig | null | 'new'>(null)
   const [savedHint, setSavedHint] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
@@ -63,6 +64,72 @@ export function ModelsApiPanel({
     })
   }, [refreshKey])
 
+  const applyFromFortune = (next: FortuneSettings): void => {
+    setAiProviders(next.aiProviders)
+    setAiActiveProviderId(next.aiActiveProviderId)
+    setAiProviderName(next.aiProviderName)
+    setAiBaseUrl(next.aiBaseUrl)
+    setAiApiFormat(next.aiApiFormat)
+    setAiModel(next.aiModel)
+    setAiApiKey(next.aiApiKey)
+    const active =
+      next.aiProviders.find((p) => p.id === next.aiActiveProviderId) ?? next.aiProviders[0]
+    setAiMediaProfile(active?.mediaProfile ?? 'auto')
+  }
+
+  const persistConfig = (opts: {
+    providers: FortuneAiProviderConfig[]
+    activeProviderId: string
+    providerName: string
+    baseUrl: string
+    apiFormat: 'openai' | 'anthropic'
+    model: string
+    apiKey: string
+    mediaProfile: MediaProfileId
+    hint?: boolean
+  }): void => {
+    const current =
+      opts.providers.find((p) => p.id === opts.activeProviderId) ?? opts.providers[0]
+    const resolvedModels = current?.models ?? []
+    const ids = aiModelIds(resolvedModels)
+    const resolvedModel = ids.includes(opts.model.trim())
+      ? opts.model.trim()
+      : firstChatModelId(resolvedModels) || ids[0] || ''
+    const media = mediaIdsFromModels(resolvedModels)
+    const nextProviders = opts.providers.map((provider) =>
+      provider.id === opts.activeProviderId
+        ? {
+            ...provider,
+            name: opts.providerName.trim() || provider.name,
+            baseUrl: opts.baseUrl.trim() || provider.baseUrl,
+            apiFormat: opts.apiFormat,
+            models: resolvedModels,
+            apiKey: opts.apiKey.trim(),
+            mediaProfile: opts.mediaProfile,
+            imageModel: media.imageModel ?? current?.imageModel,
+            videoModel: media.videoModel ?? current?.videoModel,
+            musicModel: media.musicModel ?? current?.musicModel,
+          }
+        : provider,
+    )
+
+    void window.treasureChest
+      .setFortuneSettings({
+        aiProviderName: opts.providerName.trim(),
+        aiBaseUrl: opts.baseUrl.trim(),
+        aiApiFormat: opts.apiFormat,
+        aiModels: ids,
+        aiModel: resolvedModel,
+        aiApiKey: opts.apiKey.trim(),
+        aiProviders: nextProviders,
+        aiActiveProviderId: opts.activeProviderId,
+      })
+      .then((next) => {
+        applyFromFortune(next)
+        if (opts.hint !== false) setSavedHint(t('settings.fortuneAiConfigSaved'))
+      })
+  }
+
   const onSelectProvider = (id: string): void => {
     const provider = aiProviders.find((p) => p.id === id)
     if (!provider) return
@@ -70,7 +137,7 @@ export function ModelsApiPanel({
     setAiProviderName(provider.name)
     setAiBaseUrl(provider.baseUrl)
     setAiApiFormat(provider.apiFormat)
-    setAiModel(firstModelId(provider.models))
+    setAiModel(firstChatModelId(provider.models) || firstModelId(provider.models))
     setAiApiKey(provider.apiKey)
     setAiMediaProfile(provider.mediaProfile ?? 'auto')
   }
@@ -86,7 +153,8 @@ export function ModelsApiPanel({
       apiKey: '',
       mediaProfile: 'auto',
     }
-    setAiProviders([...aiProviders, next])
+    const providers = [...aiProviders, next]
+    setAiProviders(providers)
     setAiActiveProviderId(next.id)
     setAiProviderName(next.name)
     setAiBaseUrl(next.baseUrl)
@@ -94,80 +162,56 @@ export function ModelsApiPanel({
     setAiModel('')
     setAiApiKey('')
     setAiMediaProfile('auto')
+    persistConfig({
+      providers,
+      activeProviderId: next.id,
+      providerName: next.name,
+      baseUrl: next.baseUrl,
+      apiFormat: next.apiFormat,
+      model: '',
+      apiKey: '',
+      mediaProfile: 'auto',
+    })
   }
 
   const onRemoveProvider = (id: string): void => {
     const next = aiProviders.filter((p) => p.id !== id)
     if (next.length === 0) return
     setAiProviders(next)
+    let activeId = aiActiveProviderId
+    let name = aiProviderName
+    let baseUrl = aiBaseUrl
+    let apiFormat = aiApiFormat
+    let model = aiModel
+    let apiKey = aiApiKey
+    let mediaProfile = aiMediaProfile
     if (aiActiveProviderId === id) {
       const first = next[0]!
-      setAiActiveProviderId(first.id)
-      setAiProviderName(first.name)
-      setAiBaseUrl(first.baseUrl)
-      setAiApiFormat(first.apiFormat)
-      setAiModel(firstModelId(first.models))
-      setAiApiKey(first.apiKey)
-      setAiMediaProfile(first.mediaProfile ?? 'auto')
+      activeId = first.id
+      name = first.name
+      baseUrl = first.baseUrl
+      apiFormat = first.apiFormat
+      model = firstChatModelId(first.models) || firstModelId(first.models)
+      apiKey = first.apiKey
+      mediaProfile = first.mediaProfile ?? 'auto'
+      setAiActiveProviderId(activeId)
+      setAiProviderName(name)
+      setAiBaseUrl(baseUrl)
+      setAiApiFormat(apiFormat)
+      setAiModel(model)
+      setAiApiKey(apiKey)
+      setAiMediaProfile(mediaProfile)
     }
-  }
-
-  const applyCloudPreset = (presetId: string): void => {
-    const preset = AI_PROVIDER_PRESETS.find((p) => p.id === presetId)
-    if (!preset) return
-    const models = modelsFromProviderPreset(preset)
-    setAiProviderName(t(preset.nameKey))
-    setAiBaseUrl(preset.baseUrl)
-    setAiApiFormat(preset.apiFormat)
-    setAiMediaProfile(preset.mediaProfile)
-    setAiProviders((prev) =>
-      prev.map((p) =>
-        p.id === aiActiveProviderId
-          ? {
-              ...p,
-              name: t(preset.nameKey),
-              baseUrl: preset.baseUrl,
-              apiFormat: preset.apiFormat,
-              mediaProfile: preset.mediaProfile,
-              models,
-              imageModel: preset.imageModel,
-              videoModel: preset.videoModel,
-              musicModel: preset.musicModel,
-            }
-          : p,
-      ),
-    )
-    setAiModel(firstModelId(models))
-  }
-
-  const applyLocalPreset = (kind: 'ollama' | 'lmstudio'): void => {
-    const isOllama = kind === 'ollama'
-    const name = isOllama ? 'Ollama' : 'LM Studio'
-    const baseUrl = isOllama ? 'http://127.0.0.1:11434/v1' : 'http://127.0.0.1:1234/v1'
-    const fallbackId = isOllama ? 'qwen2.5:7b' : 'local-model'
-    const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
-    const models = current.length > 0 ? current : [defaultAiModelConfig(fallbackId)]
-    setAiProviderName(name)
-    setAiBaseUrl(baseUrl)
-    setAiApiFormat('openai')
-    setAiApiKey('')
-    setAiMediaProfile('openai_compat')
-    setAiProviders((prev) =>
-      prev.map((p) =>
-        p.id === aiActiveProviderId
-          ? { ...p, name, baseUrl, apiFormat: 'openai', mediaProfile: 'openai_compat', models }
-          : p,
-      ),
-    )
-    if (current.length === 0) setAiModel(fallbackId)
-  }
-
-  const patchActiveModels = (models: AiModelConfig[]): void => {
-    setAiProviders((prev) =>
-      prev.map((p) => (p.id === aiActiveProviderId ? { ...p, models } : p)),
-    )
-    const ids = aiModelIds(models)
-    if (!ids.includes(aiModel)) setAiModel(ids[0] ?? '')
+    persistConfig({
+      providers: next,
+      activeProviderId: activeId,
+      providerName: name,
+      baseUrl,
+      apiFormat,
+      model,
+      apiKey,
+      mediaProfile,
+    })
   }
 
   const onSaveAiModel = (model: AiModelConfig): void => {
@@ -176,74 +220,75 @@ export function ModelsApiPanel({
     const without = oldId
       ? current.filter((m) => m.id !== oldId)
       : current.filter((m) => m.id !== model.id)
-    const next = without.some((m) => m.id === model.id)
+    const nextModels = without.some((m) => m.id === model.id)
       ? without.map((m) => (m.id === model.id ? model : m))
       : [...without, model]
-    patchActiveModels(next)
+    const providers = aiProviders.map((p) =>
+      p.id === aiActiveProviderId ? { ...p, models: nextModels } : p,
+    )
+    setAiProviders(providers)
     setAiModel(model.id)
     setModelModal(null)
+    persistConfig({
+      providers,
+      activeProviderId: aiActiveProviderId,
+      providerName: aiProviderName,
+      baseUrl: aiBaseUrl,
+      apiFormat: aiApiFormat,
+      model: model.id,
+      apiKey: aiApiKey,
+      mediaProfile: aiMediaProfile,
+    })
   }
 
   const onRemoveAiModel = (modelId: string): void => {
     const current = aiProviders.find((p) => p.id === aiActiveProviderId)?.models ?? []
-    patchActiveModels(current.filter((m) => m.id !== modelId))
+    const nextModels = current.filter((m) => m.id !== modelId)
+    const nextModel =
+      aiModel === modelId ? firstChatModelId(nextModels) || firstModelId(nextModels) : aiModel
+    const providers = aiProviders.map((p) =>
+      p.id === aiActiveProviderId ? { ...p, models: nextModels } : p,
+    )
+    setAiProviders(providers)
+    setAiModel(nextModel)
+    persistConfig({
+      providers,
+      activeProviderId: aiActiveProviderId,
+      providerName: aiProviderName,
+      baseUrl: aiBaseUrl,
+      apiFormat: aiApiFormat,
+      model: nextModel,
+      apiKey: aiApiKey,
+      mediaProfile: aiMediaProfile,
+    })
   }
 
   const onSaveAiConfig = (): void => {
     setSavedHint(null)
-    const current = aiProviders.find((p) => p.id === aiActiveProviderId) ?? aiProviders[0]
-    const resolvedModels = current?.models ?? []
-    const ids = aiModelIds(resolvedModels)
-    const resolvedModel = ids.includes(aiModel.trim()) ? aiModel.trim() : (ids[0] ?? '')
-    const media = mediaIdsFromModels(resolvedModels)
-    const nextProviders = aiProviders.map((provider) =>
-      provider.id === aiActiveProviderId
-        ? {
-            ...provider,
-            name: aiProviderName.trim() || provider.name,
-            baseUrl: aiBaseUrl.trim() || provider.baseUrl,
-            apiFormat: aiApiFormat,
-            models: resolvedModels,
-            apiKey: aiApiKey.trim(),
-            mediaProfile: aiMediaProfile,
-            imageModel: media.imageModel,
-            videoModel: media.videoModel,
-            musicModel: media.musicModel,
-          }
-        : provider,
-    )
-
-    void window.treasureChest
-      .setFortuneSettings({
-        aiProviderName: aiProviderName.trim(),
-        aiBaseUrl: aiBaseUrl.trim(),
-        aiApiFormat,
-        aiModels: ids,
-        aiModel: resolvedModel,
-        aiApiKey: aiApiKey.trim(),
-        aiProviders: nextProviders,
-        aiActiveProviderId,
-      })
-      .then((next) => {
-        setAiProviders(next.aiProviders)
-        setAiActiveProviderId(next.aiActiveProviderId)
-        setAiProviderName(next.aiProviderName)
-        setAiBaseUrl(next.aiBaseUrl)
-        setAiApiFormat(next.aiApiFormat)
-        setAiModel(next.aiModel)
-        setAiApiKey(next.aiApiKey)
-        const active =
-          next.aiProviders.find((p) => p.id === next.aiActiveProviderId) ?? next.aiProviders[0]
-        setAiMediaProfile(active?.mediaProfile ?? 'auto')
-        setSavedHint(t('settings.fortuneAiConfigSaved'))
-      })
+    persistConfig({
+      providers: aiProviders,
+      activeProviderId: aiActiveProviderId,
+      providerName: aiProviderName,
+      baseUrl: aiBaseUrl,
+      apiFormat: aiApiFormat,
+      model: aiModel,
+      apiKey: aiApiKey,
+      mediaProfile: aiMediaProfile,
+    })
   }
 
   const onTestAiConnection = (): void => {
     const current = aiProviders.find((p) => p.id === aiActiveProviderId)
-    const model = aiModel.trim() || firstModelId(current?.models ?? [])
+    const models = current?.models ?? []
+    const selected = models.find((m) => m.id === aiModel.trim())
+    // Probe chat completions only — media models (wanx etc.) are skipped for the
+    // request, but we do not change the user's selected model in the UI.
+    const model =
+      (selected && isChatAiModel(selected) ? selected.id : '') ||
+      firstChatModelId(models) ||
+      ''
     if (!model) {
-      setTestHint(t('settings.fortuneAiNeedModel'))
+      setTestHint(t('settings.fortuneAiNeedChatModel'))
       return
     }
     const provider: FortuneAiProviderConfig = {
@@ -251,7 +296,7 @@ export function ModelsApiPanel({
       name: aiProviderName.trim() || 'Provider',
       baseUrl: aiBaseUrl.trim(),
       apiFormat: aiApiFormat,
-      models: current?.models?.length ? current.models : [defaultAiModelConfig(model)],
+      models: models.length ? models : [{ id: model, inputModalities: ['text'], outputModalities: ['text'] }],
       apiKey: aiApiKey.trim(),
     }
     setTesting(true)
@@ -281,37 +326,6 @@ export function ModelsApiPanel({
             </button>
           </p>
         ) : null}
-      </div>
-
-      <div className={styles.section}>
-        <p className={styles.sectionLabel}>{t('settings.modelsLocalPresets')}</p>
-        <div className={styles.presetGrid}>
-          <button type="button" className={styles.presetChip} onClick={() => applyLocalPreset('ollama')}>
-            {t('settings.modelsPreset.ollama')}
-          </button>
-          <button
-            type="button"
-            className={styles.presetChip}
-            onClick={() => applyLocalPreset('lmstudio')}
-          >
-            {t('settings.modelsPreset.lmstudio')}
-          </button>
-        </div>
-        <p className={styles.sectionLabel}>{t('settings.modelsCloudPresets')}</p>
-        <div className={styles.presetGrid}>
-          {AI_PROVIDER_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className={styles.presetChip}
-              onClick={() => applyCloudPreset(preset.id)}
-            >
-              {t(preset.nameKey)}
-            </button>
-          ))}
-        </div>
-        <p className={styles.hint}>{t('settings.modelsPresetHint')}</p>
-        <p className={styles.hint}>{t('settings.modelsLocalHint')}</p>
       </div>
 
       <div className={styles.section}>
@@ -367,6 +381,7 @@ export function ModelsApiPanel({
 
       <div className={styles.detailCard}>
         <h3 className={styles.detailTitle}>{t('settings.modelsActiveProvider')}</h3>
+        <p className={styles.hint}>{t('settings.modelModal.protocolNotice')}</p>
         <div className={styles.formGrid}>
           <label className={styles.field}>
             <span>{t('settings.fortuneAiProviderName')}</span>
@@ -394,7 +409,7 @@ export function ModelsApiPanel({
               placeholder={t('settings.fortuneAiBaseUrlPlaceholder')}
             />
           </label>
-          <label className={styles.field}>
+          <label className={`${styles.field} ${styles.fieldFull}`}>
             <span>{t('settings.fortuneAiApiKey')}</span>
             <input
               value={aiApiKey}
@@ -404,21 +419,33 @@ export function ModelsApiPanel({
               autoComplete="off"
             />
           </label>
-          <label className={styles.field}>
-            <span>{t('settings.mediaProfile')}</span>
-            <select
-              value={aiMediaProfile}
-              onChange={(e) => setAiMediaProfile(e.target.value as MediaProfileId)}
-            >
-              {MEDIA_PROFILE_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {t(`settings.mediaProfile.${id}`)}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
-        <p className={styles.hint}>{t('settings.mediaProfileHint')}</p>
+
+        <button
+          type="button"
+          className={styles.linkBtn}
+          onClick={() => setAdvancedOpen((v) => !v)}
+        >
+          {advancedOpen ? t('settings.modelModal.hideAdvanced') : t('settings.modelModal.showAdvanced')}
+        </button>
+        {advancedOpen ? (
+          <div className={styles.advancedBox}>
+            <label className={styles.field}>
+              <span>{t('settings.mediaProfile')}</span>
+              <select
+                value={aiMediaProfile}
+                onChange={(e) => setAiMediaProfile(e.target.value as MediaProfileId)}
+              >
+                {MEDIA_PROFILE_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {t(`settings.mediaProfile.${id}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className={styles.hint}>{t('settings.mediaProfileHint')}</p>
+          </div>
+        ) : null}
 
         <div className={styles.modelsHead}>
           <div>
@@ -433,57 +460,96 @@ export function ModelsApiPanel({
         {activeModels.length === 0 ? (
           <div className={styles.emptyModels}>{t('settings.modelsEmptyModels')}</div>
         ) : (
-          <div className={styles.modelGrid}>
-            {activeModels.map((model) => (
-              <article
-                key={model.id}
-                className={`${styles.modelCard} ${aiModel === model.id ? styles.modelCardActive : ''}`}
-              >
-                <button
-                  type="button"
-                  className={styles.modelId}
-                  onClick={() => setAiModel(model.id)}
-                  title={model.id}
-                >
-                  {model.id}
-                </button>
-                <div className={styles.caps}>
-                  {model.inputModalities
-                    .filter((m) => m !== 'text')
-                    .map((m) => (
-                      <span key={`in-${m}`} className={styles.cap}>
-                        {t(`settings.modelModal.modality.${m}`)}
-                        {t('settings.modelModal.capIn')}
-                      </span>
-                    ))}
-                  {model.outputModalities
-                    .filter((m) => m !== 'text')
-                    .map((m) => (
-                      <span key={`out-${m}`} className={styles.cap}>
-                        {t(`settings.modelModal.modality.${m}`)}
-                        {t('settings.modelModal.capOut')}
-                      </span>
-                    ))}
-                </div>
-                <div className={styles.modelActions}>
-                  <button
-                    type="button"
-                    className={styles.ghostBtn}
-                    onClick={() => setModelModal(model)}
+          <>
+            <p className={styles.legend}>
+              <span className={`${styles.cap} ${styles.capChat}`}>{t('settings.modelModal.roleChat')}</span>
+              <span>{t('settings.modelLegendChat')}</span>
+              <span className={`${styles.cap} ${styles.capMedia}`}>{t('settings.modelModal.roleMedia')}</span>
+              <span>{t('settings.modelLegendMedia')}</span>
+            </p>
+            <div className={styles.modelGrid}>
+              {activeModels.map((model) => {
+                const chat = isChatAiModel(model)
+                return (
+                  <article
+                    key={model.id}
+                    className={`${styles.modelCard} ${aiModel === model.id ? styles.modelCardActive : ''} ${chat ? '' : styles.modelCardMedia}`}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={aiModel === model.id}
+                    title={
+                      chat
+                        ? t('settings.modelCardChatTitle')
+                        : t('settings.modelCardMediaTitle')
+                    }
+                    onClick={() => {
+                      if (!chat) return
+                      setAiModel(model.id)
+                    }}
+                    onKeyDown={(e) => {
+                      if (!chat) return
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setAiModel(model.id)
+                      }
+                    }}
                   >
-                    {t('settings.fortuneAiModelEdit')}
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.ghostBtn} ${styles.ghostDanger}`}
-                    onClick={() => onRemoveAiModel(model.id)}
-                  >
-                    {t('settings.modelsDeleteModel')}
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
+                    <div className={styles.modelId} title={model.id}>
+                      {model.id}
+                    </div>
+                    <div className={styles.caps}>
+                      <span className={`${styles.cap} ${chat ? styles.capChat : styles.capMedia}`}>
+                        {chat
+                          ? t('settings.modelModal.roleChat')
+                          : t('settings.modelModal.roleMedia')}
+                      </span>
+                      {!chat ? (
+                        <span className={styles.capNote}>{t('settings.modelModal.roleMediaNote')}</span>
+                      ) : null}
+                      {model.inputModalities
+                        .filter((m) => m !== 'text')
+                        .map((m) => (
+                          <span key={`in-${m}`} className={styles.cap}>
+                            {t(`settings.modelModal.modality.${m}`)}
+                            {t('settings.modelModal.capIn')}
+                          </span>
+                        ))}
+                      {model.outputModalities
+                        .filter((m) => m !== 'text')
+                        .map((m) => (
+                          <span key={`out-${m}`} className={styles.cap}>
+                            {t(`settings.modelModal.modality.${m}`)}
+                            {t('settings.modelModal.capOut')}
+                          </span>
+                        ))}
+                    </div>
+                    <div className={styles.modelActions}>
+                      <button
+                        type="button"
+                        className={styles.ghostBtn}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setModelModal(model)
+                        }}
+                      >
+                        {t('settings.fortuneAiModelEdit')}
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.ghostBtn} ${styles.ghostDanger}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRemoveAiModel(model.id)
+                        }}
+                      >
+                        {t('settings.modelsDeleteModel')}
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </>
         )}
 
         <div className={styles.actions}>

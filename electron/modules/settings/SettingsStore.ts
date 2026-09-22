@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
@@ -37,10 +37,13 @@ import {
   DIAL_FACE_STYLES,
   DEFAULT_THEME_ACCENT,
   HEXAGRAM_SCHOOLS,
+  IpcChannels,
   MCP_WORKSPACE_PATH_TOKEN,
   THEME_ACCENTS,
   aiModelIds,
+  firstChatModelId,
   hydrateLegacyMediaModels,
+  isChatAiModel,
   mediaIdsFromModels,
   parseAiModelList,
 } from '@shared'
@@ -760,9 +763,10 @@ export const settingsStore = {
     const activeProvider = safeProviders.find((p) => p.id === activeId) ?? safeProviders[0]!
 
     const activeIds = aiModelIds(activeProvider.models)
-    const selectedOnProvider = activeIds.includes(nextSelectedModel)
+    const chatIds = activeProvider.models.filter(isChatAiModel).map((m) => m.id)
+    const selectedOnProvider = chatIds.includes(nextSelectedModel)
       ? nextSelectedModel
-      : (activeIds[0] ?? '')
+      : firstChatModelId(activeProvider.models) || activeIds[0] || ''
 
     memory.fortune = {
       ...memory.fortune,
@@ -781,7 +785,11 @@ export const settingsStore = {
       aiActiveProviderId: activeProvider.id,
     }
     persist()
-    return { ...memory.fortune }
+    const snapshot = { ...memory.fortune }
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send(IpcChannels.settings.fortuneUpdated, snapshot)
+    }
+    return snapshot
   },
   getStocksSettings(): StocksSettings {
     return { ...memory.stocks }

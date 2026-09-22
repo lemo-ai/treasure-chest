@@ -33,14 +33,26 @@ function asModalities(raw: unknown, lockText: boolean): AiModelModality[] {
   )
 }
 
+/** True when outputs are media-only (no text) — used for dedicated image/video/music models. */
+function isMediaOnlyOutputs(list: AiModelModality[] | undefined): boolean {
+  if (!list?.length) return false
+  if (list.includes('text')) return false
+  return list.some((m) => m === 'image' || m === 'video' || m === 'audio')
+}
+
 export function defaultAiModelConfig(id: string, patch?: Partial<Omit<AiModelConfig, 'id'>>): AiModelConfig {
   const trimmed = id.trim()
+  const mediaOnly = isMediaOnlyOutputs(patch?.outputModalities)
   return {
     id: trimmed,
     contextWindow: patch?.contextWindow,
     maxOutputTokens: patch?.maxOutputTokens,
     inputModalities: uniqModalities(patch?.inputModalities ?? ['text'], true),
-    outputModalities: uniqModalities(patch?.outputModalities ?? ['text'], true),
+    // Dedicated media models must not force-lock text output, or the chat picker
+    // cannot tell them apart from chat/multimodal models.
+    outputModalities: mediaOnly
+      ? uniqModalities(patch!.outputModalities!, false)
+      : uniqModalities(patch?.outputModalities ?? ['text'], true),
   }
 }
 
@@ -61,11 +73,13 @@ export function parseAiModelEntry(raw: unknown): AiModelConfig | null {
     typeof rec.maxOutputTokens === 'number' && Number.isFinite(rec.maxOutputTokens)
       ? Math.max(1, Math.round(rec.maxOutputTokens))
       : undefined
+  const rawOut = asModalities(rec.outputModalities, false)
+  const mediaOnly = isMediaOnlyOutputs(rawOut)
   return defaultAiModelConfig(id, {
     contextWindow,
     maxOutputTokens,
     inputModalities: asModalities(rec.inputModalities, true),
-    outputModalities: asModalities(rec.outputModalities, true),
+    outputModalities: mediaOnly ? rawOut : asModalities(rec.outputModalities, true),
   })
 }
 
@@ -86,33 +100,60 @@ export function aiModelIds(models: AiModelConfig[]): string[] {
   return models.map((m) => m.id)
 }
 
+/**
+ * Chat picker eligibility: any model that outputs text.
+ * Dedicated image/video/music models use media-only outputs (no text) —
+ * see hydrateLegacyMediaModels / AddModelModal media-only mode.
+ */
 export function isChatAiModel(model: AiModelConfig): boolean {
-  if (!model.outputModalities.includes('text')) return false
-  const generatesMedia =
-    model.outputModalities.includes('image') ||
-    model.outputModalities.includes('video') ||
-    model.outputModalities.includes('audio')
-  const seesMedia = model.inputModalities.includes('image') || model.inputModalities.includes('video')
-  if (generatesMedia && !seesMedia) return false
-  return true
+  return model.outputModalities.includes('text')
 }
 
 export function firstModelId(models: AiModelConfig[]): string {
   return models[0]?.id ?? ''
 }
 
-export function firstOutputModelId(models: AiModelConfig[], kind: Exclude<AiModelModality, 'text'>): string | undefined {
-  return models.find((m) => m.outputModalities.includes(kind))?.id
+export function firstChatModelId(models: AiModelConfig[]): string {
+  return models.find((m) => isChatAiModel(m))?.id ?? firstModelId(models)
 }
 
-function withOutput(model: AiModelConfig, kind: Exclude<AiModelModality, 'text'>): AiModelConfig {
-  if (model.outputModalities.includes(kind)) return model
-  return { ...model, outputModalities: uniqModalities([...model.outputModalities, kind], true) }
+export function firstOutputModelId(models: AiModelConfig[], kind: Exclude<AiModelModality, 'text'>): string | undefined {
+  return models.find((m) => m.outputModalities.includes(kind))?.id
 }
 
 function withInput(model: AiModelConfig, kind: Exclude<AiModelModality, 'text'>): AiModelConfig {
   if (model.inputModalities.includes(kind)) return model
   return { ...model, inputModalities: uniqModalities([...model.inputModalities, kind], true) }
+}
+
+/** Build / refresh a dedicated media model (no text output → hidden from chat picker). */
+function asDedicatedMediaModel(model: AiModelConfig, kind: Exclude<AiModelModality, 'text'>): AiModelConfig {
+  const outs = model.outputModalities.filter((m) => m !== 'text')
+  if (!outs.includes(kind)) outs.push(kind)
+  return {
+    ...model,
+    inputModalities: uniqModalities(model.inputModalities.length ? model.inputModalities : ['text'], true),
+    outputModalities: uniqModalities(outs, false),
+  }
+}
+
+/** Heuristic for ids that are almost always pure generators (legacy configs). */
+function looksLikeDedicatedMediaId(id: string): boolean {
+  const s = id.toLowerCase()
+  return (
+    s.includes('wanx') ||
+    s.includes('wan2.') ||
+    s.includes('dall-e') ||
+    s.includes('seedream') ||
+    s.includes('seedance') ||
+    s.includes('kling') ||
+    s.includes('flux') ||
+    s.includes('fun-music') ||
+    s.includes('music-01') ||
+    s.includes('cosyvoice') ||
+    s.includes('stable-diffusion') ||
+    s.includes('sdxl')
+  )
 }
 
 /** Apply legacy dedicated media model ids onto the model list (checkbox-equivalent). */
@@ -126,10 +167,25 @@ export function hydrateLegacyMediaModels(
     if (!modelId) return
     const idx = next.findIndex((m) => m.id === modelId)
     if (idx >= 0) {
-      next[idx] = withOutput(next[idx]!, kind)
+      const existing = next[idx]!
+      // Known media generators (or already media-only): force media-only so they
+      // leave the chat picker. Other text models only gain the extra output bit.
+      if (looksLikeDedicatedMediaId(modelId) || !existing.outputModalities.includes('text')) {
+        next[idx] = asDedicatedMediaModel(existing, kind)
+        return
+      }
+      next[idx] = {
+        ...existing,
+        outputModalities: uniqModalities([...existing.outputModalities, kind], true),
+      }
       return
     }
-    next.push(withOutput(defaultAiModelConfig(modelId), kind))
+    next.push(
+      asDedicatedMediaModel(
+        { id: modelId, inputModalities: ['text'], outputModalities: [] },
+        kind,
+      ),
+    )
   }
   apply(media?.imageModel, 'image')
   apply(media?.videoModel, 'video')
@@ -142,10 +198,19 @@ export function mediaIdsFromModels(models: AiModelConfig[]): {
   videoModel?: string
   musicModel?: string
 } {
+  const dedicated = (kind: Exclude<AiModelModality, 'text'>): string | undefined => {
+    // Prefer media-only entries so chat models with an extra image checkbox
+    // are not rewritten into dedicated media slots on the next save.
+    const mediaOnly = models.find(
+      (m) => m.outputModalities.includes(kind) && !m.outputModalities.includes('text'),
+    )
+    if (mediaOnly) return mediaOnly.id
+    return undefined
+  }
   return {
-    imageModel: firstOutputModelId(models, 'image'),
-    videoModel: firstOutputModelId(models, 'video'),
-    musicModel: firstOutputModelId(models, 'audio'),
+    imageModel: dedicated('image'),
+    videoModel: dedicated('video'),
+    musicModel: dedicated('audio'),
   }
 }
 
@@ -158,6 +223,9 @@ export function modelsFromProviderPreset(preset: AiProviderPreset): AiModelConfi
   }).map((model) => {
     const id = model.id.toLowerCase()
     if (id.includes('gpt-4o') || id.includes('vision') || id.includes('4.1') || id.includes('claude-3')) {
+      return withInput(model, 'image')
+    }
+    if (id.includes('qwen-vl') || id.includes('qwen2.5-vl') || id.includes('qwen2-vl')) {
       return withInput(model, 'image')
     }
     return model

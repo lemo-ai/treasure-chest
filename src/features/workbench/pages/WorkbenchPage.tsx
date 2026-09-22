@@ -701,8 +701,23 @@ export function WorkbenchPage(): React.JSX.Element {
 
     loadAi()
     const onFocus = (): void => loadAi()
+    const onVis = (): void => {
+      if (document.visibilityState === 'visible') loadAi()
+    }
+    const unsubFortune =
+      typeof window.treasureChest.onFortuneSettingsUpdated === 'function'
+        ? window.treasureChest.onFortuneSettingsUpdated((fortune) => {
+            applyAiSettings(fortune)
+            void window.treasureChest.getMediaCapabilities().then(setMediaCaps)
+          })
+        : (): void => undefined
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+      unsubFortune()
+    }
   }, [])
 
   useEffect(() => {

@@ -284,6 +284,13 @@ export function SchedulesPage(): React.JSX.Element {
 
   useEffect(() => {
     void reload().catch(() => setError(t('schedules.loadFailed')))
+    const unsub =
+      typeof window.treasureChest.onFortuneSettingsUpdated === 'function'
+        ? window.treasureChest.onFortuneSettingsUpdated((fortune) => {
+            setProviders(fortune.aiProviders ?? [])
+          })
+        : (): void => undefined
+    return () => unsub()
   }, [t])
 
   const openCreate = (): void => {

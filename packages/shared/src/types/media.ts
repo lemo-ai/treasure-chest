@@ -46,7 +46,9 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     baseUrl: 'https://api.openai.com/v1',
     apiFormat: 'openai',
     mediaProfile: 'openai_compat',
-    models: ['gpt-4o', 'dall-e-3'],
+    // Chat models only — dedicated media ids go in imageModel/videoModel/musicModel
+    // so hydrateLegacyMediaModels creates media-only slots (hidden from chat picker).
+    models: ['gpt-4o'],
     imageModel: 'dall-e-3',
   },
   {
@@ -55,7 +57,7 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
     apiFormat: 'openai',
     mediaProfile: 'volcengine_ark',
-    models: ['doubao-seedream-4-0-250828', 'doubao-seedance-1-0-pro-250528'],
+    models: ['doubao-1-5-pro-32k-250115'],
     imageModel: 'doubao-seedream-4-0-250828',
     videoModel: 'doubao-seedance-1-0-pro-250528',
   },
@@ -65,7 +67,7 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     apiFormat: 'openai',
     mediaProfile: 'dashscope',
-    models: ['qwen-plus', 'wanx2.1-t2i-turbo', 'wanx2.1-t2v-turbo'],
+    models: ['qwen-plus', 'qwen-turbo', 'qwen-max', 'qwen-vl-plus'],
     imageModel: 'wanx2.1-t2i-turbo',
     videoModel: 'wanx2.1-t2v-turbo',
   },
@@ -75,7 +77,7 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     baseUrl: 'https://api.klingai.com/v1',
     apiFormat: 'openai',
     mediaProfile: 'kling',
-    models: ['kling-v1'],
+    models: [],
     videoModel: 'kling-v1',
   },
   {
@@ -84,7 +86,7 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     baseUrl: 'https://api.minimax.chat/v1',
     apiFormat: 'openai',
     mediaProfile: 'minimax',
-    models: ['music-01'],
+    models: [],
     musicModel: 'music-01',
   },
 ]

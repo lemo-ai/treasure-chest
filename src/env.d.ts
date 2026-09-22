@@ -90,6 +90,7 @@ interface TreasureChestApi {
   testDingTalkNotify: () => Promise<{ ok: boolean; error?: string }>
   testEmailNotify: () => Promise<{ ok: boolean; error?: string }>
   setFortuneSettings: (partial: Partial<FortuneSettings>) => Promise<FortuneSettings>
+  onFortuneSettingsUpdated: (listener: (settings: FortuneSettings) => void) => () => void
   setStocksSettings: (partial: Partial<StocksSettings>) => Promise<StocksSettings>
   generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string) => Promise<FortuneAiResponse>
   testFortuneAiConnection: (payload: FortuneAiConnectionTestInput) => Promise<FortuneAiConnectionTestResponse>

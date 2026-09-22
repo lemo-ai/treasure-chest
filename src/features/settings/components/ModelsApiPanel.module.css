@@ -43,6 +43,16 @@
   color: var(--color-ink-secondary);
 }
 
+.advancedBox {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-ink) 3%, var(--color-bg));
+}
+
 .presetGrid {
   display: flex;
   flex-wrap: wrap;
@@ -237,6 +247,19 @@
   border-radius: var(--radius-md);
   background: var(--color-bg);
   min-width: 0;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.modelCard:hover {
+  border-color: color-mix(in srgb, var(--color-ink) 28%, var(--color-border));
+}
+
+.modelCard:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent, #3b82f6) 55%, transparent);
+  outline-offset: 2px;
 }
 
 .modelCardActive {
@@ -252,12 +275,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
-  border: none;
-  background: transparent;
-  padding: 0;
-  text-align: left;
-  font-family: inherit;
 }
 
 .caps {
@@ -273,6 +290,43 @@
   border-radius: 999px;
   border: 1px solid var(--color-border);
   color: var(--color-ink-secondary);
+}
+
+.capChat {
+  border-color: color-mix(in srgb, var(--color-accent, #3b82f6) 45%, var(--color-border));
+  color: var(--color-accent, #3b82f6);
+}
+
+.capMedia {
+  border-color: color-mix(in srgb, var(--color-ink-secondary) 35%, var(--color-border));
+  opacity: 0.92;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  margin: 0 0 0.55rem;
+  font-size: 0.75rem;
+  color: var(--color-ink-secondary);
+  line-height: 1.4;
+}
+
+.capNote {
+  font-size: 0.68rem;
+  font-weight: 560;
+  color: var(--color-ink-secondary);
+}
+
+.modelCardMedia {
+  cursor: default;
+  opacity: 0.88;
+  background: color-mix(in srgb, var(--color-ink) 2.5%, var(--color-bg));
+}
+
+.modelCardMedia:hover {
+  border-color: var(--color-border);
 }
 
 .modelActions {

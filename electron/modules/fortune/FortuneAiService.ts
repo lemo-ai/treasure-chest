@@ -8,7 +8,10 @@ import type {
 } from '@shared'
 import {
   aiModelIds,
+  firstChatModelId,
   firstModelId,
+  isChatAiModel,
+  parseAiModelList,
 } from '@shared'
 import { callLlmChat, isLocalLlmEndpoint } from '../llm/LlmClient'
 
@@ -128,7 +131,21 @@ export async function generateFortuneAiAnalysis(
 export async function testAiProviderConnection(
   input: FortuneAiConnectionTestInput,
 ): Promise<FortuneAiConnectionTestResponse> {
-  const settings = providerToSettings(input.provider, input.model)
+  const models = parseAiModelList(input.provider.models)
+  const requested = String(input.model || '').trim()
+  const requestedCfg = models.find((m) => m.id === requested)
+  const model =
+    (requestedCfg && isChatAiModel(requestedCfg) ? requested : '') ||
+    firstChatModelId(models) ||
+    requested
+  if (!model) {
+    return {
+      ok: false,
+      message:
+        'No chat model configured. Add a text chat model (e.g. qwen-plus). Image-only models like wanx are not supported on OpenAI-compatible chat endpoints.',
+    }
+  }
+  const settings = providerToSettings(input.provider, model)
   const baseUrl = settings.aiBaseUrl.trim() || 'https://api.openai.com/v1'
   const local = isLocalLlmEndpoint(baseUrl)
   if (!settings.aiApiKey.trim() && !local) {
@@ -161,8 +178,13 @@ export async function testAiProviderConnection(
   if (!result.ok) {
     return { ok: false, message: result.error ?? 'Connection failed.' }
   }
+  const latency = Math.max(1, Date.now() - startedAt)
+  const localTag = local ? ' · local' : ''
   return {
     ok: true,
-    message: `连接成功（${Date.now() - startedAt}ms）${local ? ' · 本地' : ''}`,
+    message:
+      requested && requested !== model
+        ? `OK via ${model} (${latency}ms; skipped media model ${requested})${localTag}`
+        : `OK (${latency}ms)${localTag}`,
   }
 }

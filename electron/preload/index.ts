@@ -146,6 +146,15 @@ const api = {
     ipcRenderer.invoke(IpcChannels.settings.testEmail),
   setFortuneSettings: (partial: Partial<FortuneSettings>): Promise<FortuneSettings> =>
     ipcRenderer.invoke(IpcChannels.settings.setFortuneSettings, partial),
+  onFortuneSettingsUpdated: (listener: (settings: FortuneSettings) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, settings: FortuneSettings): void => {
+      listener(settings)
+    }
+    ipcRenderer.on(IpcChannels.settings.fortuneUpdated, handler)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.settings.fortuneUpdated, handler)
+    }
+  },
   setStocksSettings: (partial: Partial<StocksSettings>): Promise<StocksSettings> =>
     ipcRenderer.invoke(IpcChannels.settings.setStocksSettings, partial),
   generateFortuneAiAnalysis: (fortune: DailyFortune, locale: string): Promise<FortuneAiResponse> =>

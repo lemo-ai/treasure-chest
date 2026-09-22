@@ -1,12 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AiModelConfig, AiModelModality } from '@shared'
-import { defaultAiModelConfig } from '@shared'
+import { defaultAiModelConfig, isChatAiModel } from '@shared'
 import { IconClose } from '@renderer/shared/ui/icons'
 import styles from './AddModelModal.module.css'
-
-const OPTIONAL_INPUT: AiModelModality[] = ['image', 'video']
-const OPTIONAL_OUTPUT: AiModelModality[] = ['image', 'video', 'audio']
 
 interface AddModelModalProps {
   initial?: AiModelConfig | null
@@ -14,22 +11,27 @@ interface AddModelModalProps {
   onSave: (model: AiModelConfig) => void
 }
 
-function toggle(list: AiModelModality[], item: AiModelModality, on: boolean): AiModelModality[] {
-  if (on) return list.includes(item) ? list : [...list, item]
-  return list.filter((m) => m !== item)
-}
-
 export function AddModelModal({ initial, onClose, onSave }: AddModelModalProps): React.JSX.Element {
   const { t } = useTranslation()
   const isEdit = Boolean(initial?.id)
   const [id, setId] = useState(initial?.id ?? '')
-  const [contextWindow, setContextWindow] = useState(String(initial?.contextWindow ?? 1_000_000))
-  const [maxOutputTokens, setMaxOutputTokens] = useState(String(initial?.maxOutputTokens ?? 128_000))
-  const [inputModalities, setInputModalities] = useState<AiModelModality[]>(
-    initial?.inputModalities ?? ['text'],
+  const [vision, setVision] = useState(
+    Boolean(initial?.inputModalities.includes('image')),
   )
-  const [outputModalities, setOutputModalities] = useState<AiModelModality[]>(
-    initial?.outputModalities ?? ['text'],
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [contextWindow, setContextWindow] = useState(
+    initial?.contextWindow ? String(initial.contextWindow) : '',
+  )
+  const [maxOutputTokens, setMaxOutputTokens] = useState(
+    initial?.maxOutputTokens ? String(initial.maxOutputTokens) : '',
+  )
+  const [mediaOnly, setMediaOnly] = useState(initial ? !isChatAiModel(initial) : false)
+  const [mediaKind, setMediaKind] = useState<Exclude<AiModelModality, 'text'>>(
+    initial?.outputModalities.includes('video')
+      ? 'video'
+      : initial?.outputModalities.includes('audio')
+        ? 'audio'
+        : 'image',
   )
   const [error, setError] = useState('')
 
@@ -41,6 +43,8 @@ export function AddModelModal({ initial, onClose, onSave }: AddModelModalProps):
     }
     const ctx = Number(contextWindow)
     const maxOut = Number(maxOutputTokens)
+    const inputModalities: AiModelModality[] = vision ? ['text', 'image'] : ['text']
+    const outputModalities: AiModelModality[] = mediaOnly ? [mediaKind] : ['text']
     onSave(
       defaultAiModelConfig(nextId, {
         contextWindow: Number.isFinite(ctx) && ctx > 0 ? Math.round(ctx) : undefined,
@@ -69,6 +73,8 @@ export function AddModelModal({ initial, onClose, onSave }: AddModelModalProps):
           </button>
         </div>
 
+        <p className={styles.hint}>{t('settings.modelModal.protocolNotice')}</p>
+
         <label className={styles.field}>
           <span>{t('settings.modelModal.id')}</span>
           <input
@@ -78,64 +84,73 @@ export function AddModelModal({ initial, onClose, onSave }: AddModelModalProps):
             autoFocus
           />
         </label>
-        <label className={styles.field}>
-          <span>{t('settings.modelModal.contextWindow')}</span>
-          <input
-            inputMode="numeric"
-            value={contextWindow}
-            onChange={(e) => setContextWindow(e.target.value)}
-          />
-        </label>
-        <label className={styles.field}>
-          <span>{t('settings.modelModal.maxOutput')}</span>
-          <input
-            inputMode="numeric"
-            value={maxOutputTokens}
-            onChange={(e) => setMaxOutputTokens(e.target.value)}
-          />
-        </label>
 
-        <fieldset className={styles.mods}>
-          <legend>{t('settings.modelModal.inputTypes')}</legend>
-          <label className={`${styles.check} ${styles.locked}`}>
-            <input type="checkbox" checked disabled />
-            <span>{t('settings.modelModal.modality.text')}</span>
-            <span className={styles.lock} aria-hidden>
-              🔒
-            </span>
-          </label>
-          {OPTIONAL_INPUT.map((kind) => (
-            <label key={kind} className={styles.check}>
+        <label className={styles.check}>
+          <input
+            type="checkbox"
+            checked={vision}
+            disabled={mediaOnly}
+            onChange={(e) => setVision(e.target.checked)}
+          />
+          <span>{t('settings.modelModal.vision')}</span>
+        </label>
+        <p className={styles.hint}>{t('settings.modelModal.visionHint')}</p>
+
+        <button
+          type="button"
+          className={styles.advancedToggle}
+          onClick={() => setAdvancedOpen((v) => !v)}
+        >
+          {advancedOpen ? t('settings.modelModal.hideAdvanced') : t('settings.modelModal.showAdvanced')}
+        </button>
+
+        {advancedOpen ? (
+          <div className={styles.advanced}>
+            <label className={styles.field}>
+              <span>{t('settings.modelModal.contextWindow')}</span>
+              <input
+                inputMode="numeric"
+                value={contextWindow}
+                onChange={(e) => setContextWindow(e.target.value)}
+                placeholder={t('settings.modelModal.tokenDefault')}
+              />
+            </label>
+            <label className={styles.field}>
+              <span>{t('settings.modelModal.maxOutput')}</span>
+              <input
+                inputMode="numeric"
+                value={maxOutputTokens}
+                onChange={(e) => setMaxOutputTokens(e.target.value)}
+                placeholder={t('settings.modelModal.tokenDefault')}
+              />
+            </label>
+            <label className={styles.check}>
               <input
                 type="checkbox"
-                checked={inputModalities.includes(kind)}
-                onChange={(e) => setInputModalities((prev) => toggle(prev, kind, e.target.checked))}
+                checked={mediaOnly}
+                onChange={(e) => {
+                  setMediaOnly(e.target.checked)
+                  if (e.target.checked) setVision(false)
+                }}
               />
-              <span>{t(`settings.modelModal.modality.${kind}`)}</span>
+              <span>{t('settings.modelModal.mediaOnly')}</span>
             </label>
-          ))}
-        </fieldset>
-
-        <fieldset className={styles.mods}>
-          <legend>{t('settings.modelModal.outputTypes')}</legend>
-          <label className={`${styles.check} ${styles.locked}`}>
-            <input type="checkbox" checked disabled />
-            <span>{t('settings.modelModal.modality.text')}</span>
-            <span className={styles.lock} aria-hidden>
-              🔒
-            </span>
-          </label>
-          {OPTIONAL_OUTPUT.map((kind) => (
-            <label key={kind} className={styles.check}>
-              <input
-                type="checkbox"
-                checked={outputModalities.includes(kind)}
-                onChange={(e) => setOutputModalities((prev) => toggle(prev, kind, e.target.checked))}
-              />
-              <span>{t(`settings.modelModal.modality.${kind}`)}</span>
-            </label>
-          ))}
-        </fieldset>
+            <p className={styles.hint}>{t('settings.modelModal.mediaOnlyHint')}</p>
+            {mediaOnly ? (
+              <label className={styles.field}>
+                <span>{t('settings.modelModal.mediaKind')}</span>
+                <select
+                  value={mediaKind}
+                  onChange={(e) => setMediaKind(e.target.value as Exclude<AiModelModality, 'text'>)}
+                >
+                  <option value="image">{t('settings.modelModal.modality.image')}</option>
+                  <option value="video">{t('settings.modelModal.modality.video')}</option>
+                  <option value="audio">{t('settings.modelModal.modality.audio')}</option>
+                </select>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
 
         {error ? <p className={styles.error}>{error}</p> : null}
 

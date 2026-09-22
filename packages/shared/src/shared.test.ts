@@ -40,8 +40,25 @@ describe('ai model configs', () => {
     expect(isChatAiModel(models[0]!)).toBe(true)
     const hydrated = hydrateLegacyMediaModels(models, { imageModel: 'dall-e-3' })
     const dalle = hydrated.find((m) => m.id === 'dall-e-3')
-    expect(dalle?.outputModalities).toContain('image')
+    expect(dalle?.outputModalities).toEqual(['image'])
     expect(isChatAiModel(dalle!)).toBe(false)
+  })
+
+  it('creates media-only slots for dedicated imageModel ids not in the list', () => {
+    const hydrated = hydrateLegacyMediaModels(parseAiModelList(['qwen-plus']), {
+      imageModel: 'wanx2.1-t2i-turbo',
+    })
+    const wanx = hydrated.find((m) => m.id === 'wanx2.1-t2i-turbo')
+    expect(wanx?.outputModalities).toEqual(['image'])
+    expect(isChatAiModel(wanx!)).toBe(false)
+    expect(isChatAiModel(hydrated.find((m) => m.id === 'qwen-plus')!)).toBe(true)
+  })
+
+  it('keeps chat models selectable when they also output image', () => {
+    const model = parseAiModelList([
+      { id: 'qwen-plus', inputModalities: ['text'], outputModalities: ['text', 'image'] },
+    ])[0]!
+    expect(isChatAiModel(model)).toBe(true)
   })
 })
 

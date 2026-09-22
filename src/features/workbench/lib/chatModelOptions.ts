@@ -74,15 +74,31 @@ export function resolveMediaRouteModel(
   return null
 }
 
-/** Chat-only groups for the workbench / agents / schedules model picker. */
+/** Chat-only groups for agents / schedules model pickers. */
 export function groupedChatModels(
   providers: FortuneAiProviderConfig[] | undefined,
 ): Array<{ id: string; name: string; models: string[] }> {
+  return groupedProviderModels(providers)
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      models: g.models.filter((m) => m.chat).map((m) => m.id),
+    }))
+    .filter((g) => g.models.length > 0)
+}
+
+/** All models for the workbench picker (media entries visible but not chat-selectable). */
+export function groupedProviderModels(
+  providers: FortuneAiProviderConfig[] | undefined,
+): Array<{ id: string; name: string; models: Array<{ id: string; chat: boolean }> }> {
   return (providers ?? [])
     .map((p) => ({
       id: p.id,
       name: p.name || p.id,
-      models: (p.models ?? []).filter(isChatAiModel).map((m) => m.id),
+      models: (p.models ?? []).map((m) => ({
+        id: m.id,
+        chat: isChatAiModel(m),
+      })),
     }))
     .filter((g) => g.models.length > 0)
 }

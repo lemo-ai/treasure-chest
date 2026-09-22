@@ -26,6 +26,7 @@ export const IpcChannels = {
     setLaunchBehavior: 'settings:setLaunchBehavior',
     setNotifications: 'settings:setNotifications',
     setFortuneSettings: 'settings:setFortuneSettings',
+    fortuneUpdated: 'settings:fortuneUpdated',
     setStocksSettings: 'settings:setStocksSettings',
     setDataSources: 'settings:setDataSources',
     upsertDataSource: 'settings:upsertDataSource',

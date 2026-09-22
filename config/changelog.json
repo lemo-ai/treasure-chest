@@ -1,6 +1,28 @@
 {
   "releases": [
     {
+      "version": "0.6.7",
+      "date": "2026-09-22",
+      "title": {
+        "zh-CN": "模型和 API 配置简化 · 会话模型选择更清晰",
+        "en-US": "Simpler Models & API settings · clearer chat model picker"
+      },
+      "items": {
+        "zh-CN": [
+          "设置 → 模型和 API：去掉厂商预设芯片；添加模型默认只填 ID，能力选项收进高级",
+          "会话下拉只列出对话模型（名称干净）；「对话 / 仅媒体」标签与图例仅在设置页展示",
+          "保存配置后工作台实时刷新；连接测试自动用对话模型，避免 wanx 等媒体模型 404",
+          "百炼 Fun-Music 403 给出更明确的开通/Key 说明"
+        ],
+        "en-US": [
+          "Settings → Models & API: remove vendor preset chips; add-model defaults to ID only, extras under Advanced",
+          "Session picker lists chat models only (clean names); Chat/Media badges & legend stay in Settings",
+          "Workbench refreshes live after save; connection test uses a chat model (avoids wanx 404s)",
+          "Clearer Fun-Music 403 guidance for Bailian invite / API key scope"
+        ]
+      }
+    },
+    {
       "version": "0.6.6",
       "date": "2026-09-22",
       "title": {
