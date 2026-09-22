@@ -2110,6 +2110,8 @@
   "settings.update.status.macZipMissing": "Update {{version}} is available, but the auto-update package is not ready yet. Use “Open releases” to download the .dmg.",
   "settings.update.status.notPackaged": "In-app update is not available in development builds. Use a release package.",
   "settings.update.status.noUpdateInfo": "Could not load update metadata. Retry later or download from the releases page.",
+  "settings.update.status.notDownloaded": "Download the update before installing.",
+  "settings.update.status.installFailed": "Automatic install failed. Open the releases page and install the .dmg manually.",
   "settings.notifications": "Notifications",
   "settings.channels.title": "Notification channels",
   "settings.channels.desc": "Configure workbench, desktop, DingTalk, and email channels. Manage fortune/stocks reminders under Schedules.",

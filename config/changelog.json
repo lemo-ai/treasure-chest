@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "0.6.5",
+      "date": "2026-09-22",
+      "title": {
+        "zh-CN": "检查更新显示下载进度",
+        "en-US": "Show in-app update download progress"
+      },
+      "items": {
+        "zh-CN": [
+          "下载更新时实时推送进度到设置页，并显示进度条",
+          "下载完成后正确出现「安装并重启」；安装失败时给出可读提示"
+        ],
+        "en-US": [
+          "Stream download progress to Settings with a progress bar",
+          "Show Install & restart when ready; clearer errors if install fails"
+        ]
+      }
+    },
+    {
       "version": "0.6.4",
       "date": "2026-09-22",
       "title": {

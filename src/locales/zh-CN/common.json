@@ -2113,6 +2113,8 @@
   "settings.update.status.macZipMissing": "发现新版本 {{version}}，但自动更新包尚未就绪。请点「打开发布页」下载 .dmg 手动安装。",
   "settings.update.status.notPackaged": "开发模式不支持应用内更新，请使用发布页安装包。",
   "settings.update.status.noUpdateInfo": "未获取到更新信息，请稍后重试或打开发布页手动下载。",
+  "settings.update.status.notDownloaded": "请先下载更新后再安装。",
+  "settings.update.status.installFailed": "自动安装失败，请打开发布页下载 .dmg 手动覆盖安装。",
   "settings.notifications": "通知",
   "settings.channels.title": "通知通道",
   "settings.channels.desc": "配置工作台、桌面、钉钉与邮件等通知通道。运势/荐股等定时提醒请在「定时任务」中管理。",

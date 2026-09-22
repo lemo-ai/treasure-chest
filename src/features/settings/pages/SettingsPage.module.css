@@ -243,6 +243,26 @@
   padding-top: 0;
 }
 
+.updateProgress {
+  margin-top: 0.55rem;
+  width: min(100%, 18rem);
+  height: 0.35rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-bg-muted) 88%, var(--color-border));
+  overflow: hidden;
+}
+
+.updateProgressBar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-brand) 75%, #fff),
+    var(--color-brand-strong)
+  );
+  transition: width 180ms linear;
+}
+
 .settingTitle {
   font-weight: 600;
   font-size: 0.92rem;

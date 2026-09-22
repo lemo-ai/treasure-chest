@@ -4,8 +4,9 @@
  * we still check GitHub Releases and open the download page. Packaged signed builds can
  * download + quitAndInstall when autoUpdater succeeds.
  */
-import { app, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { IpcChannels } from '@shared'
 import { logger } from '../../utils/logger'
 
 export const APP_RELEASES_URL = 'https://github.com/lemo-ai/treasure-chest/releases'
@@ -37,6 +38,15 @@ let lastStatus: AppUpdateStatus = {
 }
 
 let configured = false
+let lastProgressEmitAt = 0
+let lastProgressPct = -1
+
+function broadcastStatus(status: AppUpdateStatus): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue
+    win.webContents.send(IpcChannels.app.updateStatus, status)
+  }
+}
 
 function setStatus(partial: Partial<AppUpdateStatus>): AppUpdateStatus {
   lastStatus = {
@@ -45,6 +55,7 @@ function setStatus(partial: Partial<AppUpdateStatus>): AppUpdateStatus {
     releaseUrl: APP_RELEASES_URL,
     ...partial,
   }
+  broadcastStatus(lastStatus)
   return lastStatus
 }
 
@@ -81,6 +92,8 @@ function ensureUpdaterConfigured(): void {
   configured = true
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
+  // Allow checking GitHub feed even for ad-hoc / unsigned local builds.
+  autoUpdater.forceDevUpdateConfig = false
   try {
     autoUpdater.setFeedURL({
       provider: 'github',
@@ -95,18 +108,29 @@ function ensureUpdaterConfigured(): void {
     logger.warn('autoUpdater error', err)
     setStatus({
       state: 'error',
-      message: err instanceof Error ? err.message : String(err),
+      message: friendlyUpdateError(err instanceof Error ? err.message : String(err)),
       canInstall: false,
+      progress: undefined,
     })
   })
   autoUpdater.on('download-progress', (p) => {
+    const pct = Math.max(0, Math.min(100, Math.round(p.percent)))
+    const now = Date.now()
+    // Throttle UI pushes; always emit 0 / 100-ish milestones.
+    if (pct !== 100 && pct !== 0 && pct === lastProgressPct && now - lastProgressEmitAt < 250) {
+      return
+    }
+    lastProgressPct = pct
+    lastProgressEmitAt = now
     setStatus({
       state: 'downloading',
-      progress: Math.round(p.percent),
+      progress: pct,
       canInstall: false,
+      message: undefined,
     })
   })
   autoUpdater.on('update-downloaded', (info) => {
+    lastProgressPct = 100
     setStatus({
       state: 'downloaded',
       latestVersion: info.version,
@@ -179,7 +203,8 @@ export async function checkForAppUpdates(): Promise<AppUpdateStatus> {
         }
       }
     }
-    return getAppUpdateStatus().state === 'idle' ? available : getAppUpdateStatus()
+    const after = getAppUpdateStatus()
+    return after.state === 'idle' ? available : after
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     logger.warn('checkForAppUpdates failed', err)
@@ -196,7 +221,14 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
     })
   }
   ensureUpdaterConfigured()
-  setStatus({ state: 'downloading', progress: 0, canInstall: false, message: undefined })
+  lastProgressPct = -1
+  lastProgressEmitAt = 0
+  setStatus({
+    state: 'downloading',
+    progress: 0,
+    canInstall: false,
+    message: undefined,
+  })
   try {
     // Re-check so updater has UpdateInfo; then download zip (mac) / nsis (win).
     const result = await autoUpdater.checkForUpdates()
@@ -207,8 +239,24 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
         canInstall: false,
       })
     }
+    logger.info(
+      `app update download start version=${result.updateInfo.version} files=${JSON.stringify(
+        (result.updateInfo.files || []).map((f) => f.url),
+      )}`,
+    )
     await autoUpdater.downloadUpdate()
-    return getAppUpdateStatus()
+    const done = getAppUpdateStatus()
+    if (done.state !== 'downloaded') {
+      // update-downloaded should have fired; normalize if race.
+      return setStatus({
+        state: 'downloaded',
+        latestVersion: result.updateInfo.version,
+        progress: 100,
+        canInstall: true,
+        message: undefined,
+      })
+    }
+    return done
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err)
     logger.warn('downloadAppUpdate failed', err)
@@ -222,14 +270,32 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
         canInstall: false,
       })
     }
-    return setStatus({ state: 'error', message: code, canInstall: false })
+    return setStatus({ state: 'error', message: code, canInstall: false, progress: undefined })
   }
 }
 
 export function quitAndInstallAppUpdate(): { ok: boolean; error?: string } {
   try {
     ensureUpdaterConfigured()
-    autoUpdater.quitAndInstall(false, true)
+    const status = getAppUpdateStatus()
+    if (!status.canInstall && status.state !== 'downloaded') {
+      return { ok: false, error: 'not_downloaded' }
+    }
+    logger.info('app update quitAndInstall')
+    // Allow the IPC reply to flush before the process exits.
+    setTimeout(() => {
+      try {
+        autoUpdater.quitAndInstall(false, true)
+      } catch (err) {
+        logger.warn('quitAndInstall failed', err)
+        setStatus({
+          state: 'error',
+          message: err instanceof Error ? err.message : String(err),
+          canInstall: false,
+        })
+        void openAppReleasesPage()
+      }
+    }, 200)
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }

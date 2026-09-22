@@ -40,6 +40,20 @@ const api = {
     ipcRenderer.invoke(IpcChannels.app.quitAndInstall),
   openReleasesPage: (): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(IpcChannels.app.openReleasesPage),
+  onUpdateStatus: (
+    callback: (status: import('@shared').AppUpdateStatus) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: IpcRendererEvent,
+      status: import('@shared').AppUpdateStatus,
+    ): void => {
+      callback(status)
+    }
+    ipcRenderer.on(IpcChannels.app.updateStatus, handler)
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.app.updateStatus, handler)
+    }
+  },
   getTheme: (): Promise<ThemeMode> => ipcRenderer.invoke(IpcChannels.settings.getTheme),
   setTheme: (theme: ThemeMode): Promise<ThemeMode> =>
     ipcRenderer.invoke(IpcChannels.settings.setTheme, theme),

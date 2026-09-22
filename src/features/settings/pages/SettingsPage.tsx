@@ -273,6 +273,9 @@ export function SettingsPage(): React.JSX.Element {
 
   const updateStatusLabel = (status: AppUpdateStatus | null): string => {
     if (!status) return t('settings.update.status.idle')
+    if (status.state === 'downloading') {
+      return t('settings.update.status.downloading', { progress: status.progress ?? 0 })
+    }
     if (status.message === 'mac_zip_missing') {
       return t('settings.update.status.macZipMissing', {
         version: status.latestVersion || '—',
@@ -285,13 +288,13 @@ export function SettingsPage(): React.JSX.Element {
         return t('settings.update.status.available', { version: status.latestVersion || '—' })
       case 'not-available':
         return t('settings.update.status.latest', { version: status.currentVersion })
-      case 'downloading':
-        return t('settings.update.status.downloading', { progress: status.progress ?? 0 })
       case 'downloaded':
         return t('settings.update.status.downloaded', { version: status.latestVersion || '—' })
       case 'error':
         if (status.message === 'not_packaged') return t('settings.update.status.notPackaged')
         if (status.message === 'no_update_info') return t('settings.update.status.noUpdateInfo')
+        if (status.message === 'not_downloaded') return t('settings.update.status.notDownloaded')
+        if (status.message === 'install_failed') return t('settings.update.status.installFailed')
         return t('settings.update.status.error', { message: status.message || 'error' })
       default:
         return t('settings.update.status.idle')
@@ -300,6 +303,12 @@ export function SettingsPage(): React.JSX.Element {
 
   const onCheckUpdates = async (): Promise<void> => {
     setUpdateBusy(true)
+    setUpdateStatus((prev) => ({
+      state: 'checking',
+      currentVersion: prev?.currentVersion || appVersion || '',
+      progress: undefined,
+      canInstall: false,
+    }))
     try {
       const next = await window.treasureChest.checkForUpdates()
       setUpdateStatus(next)
@@ -310,6 +319,14 @@ export function SettingsPage(): React.JSX.Element {
 
   const onDownloadUpdate = async (): Promise<void> => {
     setUpdateBusy(true)
+    setUpdateStatus((prev) => ({
+      state: 'downloading',
+      currentVersion: prev?.currentVersion || appVersion || '',
+      latestVersion: prev?.latestVersion,
+      progress: 0,
+      canInstall: false,
+      releaseUrl: prev?.releaseUrl,
+    }))
     try {
       const next = await window.treasureChest.downloadUpdate()
       setUpdateStatus(next)
@@ -319,8 +336,28 @@ export function SettingsPage(): React.JSX.Element {
   }
 
   const onQuitAndInstall = async (): Promise<void> => {
-    await window.treasureChest.quitAndInstallUpdate()
+    const result = await window.treasureChest.quitAndInstallUpdate()
+    if (!result.ok) {
+      setUpdateStatus((prev) => ({
+        state: 'error',
+        currentVersion: prev?.currentVersion || appVersion || '',
+        latestVersion: prev?.latestVersion,
+        message: result.error || 'install_failed',
+        canInstall: prev?.canInstall,
+        releaseUrl: prev?.releaseUrl,
+      }))
+    }
   }
+
+  useEffect(() => {
+    return window.treasureChest.onUpdateStatus((status) => {
+      setUpdateStatus(status)
+      if (status.state === 'downloading') setUpdateBusy(true)
+      if (status.state === 'downloaded' || status.state === 'error' || status.state === 'available') {
+        setUpdateBusy(false)
+      }
+    })
+  }, [])
 
   const patchWidget = async (
     partial: Parameters<typeof window.treasureChest.setDesktopWidget>[0],
@@ -697,11 +734,19 @@ export function SettingsPage(): React.JSX.Element {
               <br />
               {updateStatusLabel(updateStatus)}
             </p>
+            {updateStatus?.state === 'downloading' ? (
+              <div className={styles.updateProgress} aria-valuemin={0} aria-valuemax={100} aria-valuenow={updateStatus.progress ?? 0}>
+                <div
+                  className={styles.updateProgressBar}
+                  style={{ width: `${Math.max(2, updateStatus.progress ?? 0)}%` }}
+                />
+              </div>
+            ) : null}
           </div>
           <div className={styles.choiceControl} style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
             <SettingActionButton
               icon={<IconSparkles />}
-              label={updateBusy ? t('settings.update.checking') : t('settings.update.check')}
+              label={updateBusy && updateStatus?.state === 'checking' ? t('settings.update.checking') : t('settings.update.check')}
               variant="primary"
               disabled={updateBusy}
               onClick={() => void onCheckUpdates()}
@@ -712,20 +757,35 @@ export function SettingsPage(): React.JSX.Element {
               variant="ghost"
               onClick={() => void window.treasureChest.openReleasesPage()}
             />
-            {updateStatus?.canInstall ? (
+            {updateStatus?.canInstall || updateStatus?.state === 'downloaded' ? (
               <SettingActionButton
                 icon={<IconDownload />}
                 label={t('settings.update.install')}
                 variant="primary"
                 onClick={() => void onQuitAndInstall()}
               />
-            ) : updateStatus?.state === 'available' ? (
+            ) : updateStatus?.state === 'available' || updateStatus?.message === 'mac_zip_missing' ? (
               <SettingActionButton
                 icon={<IconDownload />}
-                label={t('settings.update.download')}
+                label={
+                  updateBusy && updateStatus?.state === 'downloading'
+                    ? t('settings.update.status.downloading', {
+                        progress: updateStatus.progress ?? 0,
+                      })
+                    : t('settings.update.download')
+                }
                 variant="ghost"
                 disabled={updateBusy}
                 onClick={() => void onDownloadUpdate()}
+              />
+            ) : updateStatus?.state === 'downloading' ? (
+              <SettingActionButton
+                icon={<IconDownload />}
+                label={t('settings.update.status.downloading', {
+                  progress: updateStatus.progress ?? 0,
+                })}
+                variant="ghost"
+                disabled
               />
             ) : null}
           </div>

@@ -1,5 +1,6 @@
 export const IpcChannels = {
   app: {
+    updateStatus: 'app:updateStatus',
     getVersion: 'app:getVersion',
     getUpdateStatus: 'app:getUpdateStatus',
     checkForUpdates: 'app:checkForUpdates',

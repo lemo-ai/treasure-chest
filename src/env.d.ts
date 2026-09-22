@@ -41,6 +41,9 @@ interface TreasureChestApi {
   downloadUpdate: () => Promise<import('@shared').AppUpdateStatus>
   quitAndInstallUpdate: () => Promise<{ ok: boolean; error?: string }>
   openReleasesPage: () => Promise<{ ok: boolean }>
+  onUpdateStatus: (
+    callback: (status: import('@shared').AppUpdateStatus) => void,
+  ) => () => void
   getTheme: () => Promise<ThemeMode>
   setTheme: (theme: ThemeMode) => Promise<ThemeMode>
   getAccent: () => Promise<ThemeAccent>
