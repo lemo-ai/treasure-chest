@@ -33,7 +33,7 @@
       { "target": "zip", "arch": ["x64", "arm64"] }
     ],
     "category": "public.app-category.utilities",
-    "hardenedRuntime": true,
+    "hardenedRuntime": false,
     "gatekeeperAssess": false,
     "entitlements": "resources/entitlements.mac.plist",
     "entitlementsInherit": "resources/entitlements.mac.plist",

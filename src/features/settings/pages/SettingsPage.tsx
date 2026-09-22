@@ -774,24 +774,6 @@ export function SettingsPage(): React.JSX.Element {
                 variant="primary"
                 onClick={() => void onQuitAndInstall()}
               />
-            ) : updateStatus?.manualOnly ||
-              updateStatus?.message === 'mac_unsigned_manual' ||
-              updateStatus?.message === 'mac_signature_invalid' ||
-              updateStatus?.message === 'mac_zip_missing' ? null : updateStatus?.state ===
-              'available' ? (
-              <SettingActionButton
-                icon={<IconDownload />}
-                label={
-                  updateBusy && updateStatus?.state === 'downloading'
-                    ? t('settings.update.status.downloading', {
-                        progress: updateStatus.progress ?? 0,
-                      })
-                    : t('settings.update.download')
-                }
-                variant="ghost"
-                disabled={updateBusy}
-                onClick={() => void onDownloadUpdate()}
-              />
             ) : updateStatus?.state === 'downloading' ? (
               <SettingActionButton
                 icon={<IconDownload />}
@@ -800,6 +782,18 @@ export function SettingsPage(): React.JSX.Element {
                 })}
                 variant="ghost"
                 disabled
+              />
+            ) : updateStatus?.state === 'available' &&
+              !updateStatus.manualOnly &&
+              updateStatus.message !== 'mac_unsigned_manual' &&
+              updateStatus.message !== 'mac_signature_invalid' &&
+              updateStatus.message !== 'mac_zip_missing' ? (
+              <SettingActionButton
+                icon={<IconDownload />}
+                label={t('settings.update.download')}
+                variant="ghost"
+                disabled={updateBusy}
+                onClick={() => void onDownloadUpdate()}
               />
             ) : null}
           </div>
