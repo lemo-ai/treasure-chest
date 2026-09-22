@@ -13,6 +13,7 @@ import {
   toAnthropicTools,
 } from './AnthropicAdapter'
 import { logger } from '../../utils/logger'
+import { appendActivity } from '../debug/ActivityLog'
 
 function trimTrailingSlash(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url
@@ -47,10 +48,75 @@ async function safeJson(response: Response): Promise<unknown> {
   }
 }
 
+/** Prefer reading body as JSON; fall back to raw text for non-JSON error pages. */
+async function readErrorBody(response: Response): Promise<unknown> {
+  try {
+    const text = await response.text()
+    if (!text.trim()) return {}
+    try {
+      return JSON.parse(text) as unknown
+    } catch {
+      return { raw: text }
+    }
+  } catch {
+    return {}
+  }
+}
+
 function shortText(value: unknown, limit = 240): string {
   const raw = typeof value === 'string' ? value : JSON.stringify(value)
-  if (!raw) return ''
+  if (!raw || raw === '{}' || raw === 'null') return ''
   return raw.length > limit ? `${raw.slice(0, limit)}…` : raw
+}
+
+/** Build a user-visible error that keeps API detail when `error.message` is missing. */
+function formatHttpError(status: number, data: unknown): string {
+  const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : null
+  const nested = obj?.error
+  const nestedObj =
+    nested && typeof nested === 'object' ? (nested as Record<string, unknown>) : null
+  const msg =
+    (typeof nestedObj?.message === 'string' && nestedObj.message.trim()) ||
+    (typeof nested === 'string' && nested.trim()) ||
+    (typeof obj?.message === 'string' && obj.message.trim()) ||
+    (typeof obj?.msg === 'string' && obj.msg.trim()) ||
+    (typeof obj?.detail === 'string' && obj.detail.trim()) ||
+    (typeof obj?.raw === 'string' && obj.raw.trim()) ||
+    ''
+  const body = shortText(data, 320)
+  if (msg && body && !body.includes(msg)) return `HTTP ${status}: ${msg} (${body})`
+  if (msg) return `HTTP ${status}: ${msg}`
+  if (body) return `HTTP ${status}: ${body}`
+  return `HTTP ${status}`
+}
+
+/** File log + Settings → Debug activity stream. */
+function logLlmFailure(
+  tag: string,
+  kind: 'request' | 'stream',
+  status: number | null,
+  err: string,
+  data?: unknown,
+  meta?: { providerName?: string; model?: string; baseUrl?: string },
+): void {
+  const body = data !== undefined ? shortText(data, 500) : ''
+  appendActivity({
+    scope: 'llm',
+    level: 'error',
+    message:
+      status != null
+        ? `[${tag}] LLM ${kind} HTTP ${status}`
+        : `[${tag}] LLM ${kind} failed`,
+    detail: [
+      err,
+      meta?.providerName ? `provider=${meta.providerName}` : '',
+      meta?.model ? `model=${meta.model}` : '',
+      meta?.baseUrl ? `url=${meta.baseUrl}` : '',
+      body ? `body=${body}` : '',
+    ]
+      .filter(Boolean)
+      .join(' | '),
+  })
 }
 
 interface ChatCompletionResponse {
@@ -380,15 +446,23 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
         headers,
         body: JSON.stringify(body),
       })
-      const data = (await safeJson(response)) as AnthropicResponse
+      const data = (await readErrorBody(response)) as AnthropicResponse
       if (!response.ok) {
-        const err = data.error?.message ?? `HTTP ${response.status}`
-        logger.warn(`[${tag}] failed status=${response.status} body=${shortText(data)} err=${err}`)
+        const err = formatHttpError(response.status, data)
+        logLlmFailure(tag, 'request', response.status, err, data, {
+          providerName,
+          model,
+          baseUrl,
+        })
         return { ok: false, error: err, providerName, model }
       }
       const parsed = parseAnthropicResponse(data.content ?? [])
       if (!parsed.text && !parsed.toolCalls.length) {
-        logger.warn(`[${tag}] empty anthropic response body=${shortText(data)}`)
+        logLlmFailure(tag, 'request', null, 'Empty AI response.', data, {
+          providerName,
+          model,
+          baseUrl,
+        })
         return { ok: false, error: 'Empty AI response.', providerName, model }
       }
       logger.info(
@@ -427,10 +501,12 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
           : {}),
       }),
     })
-    const data = (await safeJson(response)) as ChatCompletionResponse
+    const data = (!response.ok
+      ? await readErrorBody(response)
+      : await safeJson(response)) as ChatCompletionResponse
     if (!response.ok) {
-      const err = data.error?.message ?? `HTTP ${response.status}`
-      logger.warn(`[${tag}] failed status=${response.status} body=${shortText(data)} err=${err}`)
+      const err = formatHttpError(response.status, data)
+      logLlmFailure(tag, 'request', response.status, err, data, { providerName, model, baseUrl })
       return { ok: false, error: err, providerName, model }
     }
     const message = data.choices?.[0]?.message
@@ -451,14 +527,18 @@ export async function callLlmChat(options: LlmCallOptions): Promise<LlmChatRespo
     }
     const text = message?.content?.trim() ?? ''
     if (!text) {
-      logger.warn(`[${tag}] empty openai response body=${shortText(data)}`)
+      logLlmFailure(tag, 'request', null, 'Empty AI response.', data, {
+        providerName,
+        model,
+        baseUrl,
+      })
       return { ok: false, error: 'Empty AI response.', providerName, model }
     }
     logger.info(`[${tag}] success format=openai text_len=${text.length}`)
     return { ok: true, text, providerName, model, usage }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    logger.warn(`[${tag}] request error: ${msg}`)
+    logLlmFailure(tag, 'request', null, msg, undefined, { providerName, model, baseUrl })
     return { ok: false, error: msg, providerName, model }
   } finally {
     clearTimeout(timer)
@@ -506,7 +586,11 @@ export async function callLlmChatStream(
   const finishOk = (text: string, toolCalls?: LlmToolCall[]): LlmChatResponse => {
     const calls = toolCalls?.length ? toolCalls : undefined
     if (!text && !calls?.length) {
-      logger.warn(`[${tag}] empty stream assembled`)
+      logLlmFailure(tag, 'stream', null, 'Empty AI response.', undefined, {
+        providerName,
+        model,
+        baseUrl,
+      })
       return { ok: false, error: 'Empty AI response.', providerName, model }
     }
     logger.info(
@@ -549,9 +633,13 @@ export async function callLlmChatStream(
       })
 
       if (!response.ok) {
-        const data = (await safeJson(response)) as AnthropicResponse
-        const err = data.error?.message ?? `HTTP ${response.status}`
-        logger.warn(`[${tag}] stream failed status=${response.status} err=${err}`)
+        const data = await readErrorBody(response)
+        const err = formatHttpError(response.status, data)
+        logLlmFailure(tag, 'stream', response.status, err, data, {
+          providerName,
+          model,
+          baseUrl,
+        })
         return { ok: false, error: err, providerName, model }
       }
       if (!response.body) {
@@ -599,9 +687,13 @@ export async function callLlmChatStream(
       })
 
       if (!response.ok) {
-        const data = (await safeJson(response)) as ChatCompletionResponse
-        const err = data.error?.message ?? `HTTP ${response.status}`
-        logger.warn(`[${tag}] stream failed status=${response.status} err=${err}`)
+        const data = await readErrorBody(response)
+        const err = formatHttpError(response.status, data)
+        logLlmFailure(tag, 'stream', response.status, err, data, {
+          providerName,
+          model,
+          baseUrl,
+        })
         return { ok: false, error: err, providerName, model }
       }
       if (!response.body) {
@@ -655,11 +747,18 @@ export async function callLlmChatStream(
     return finishOk(assembled.trim(), toolCalls)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    logger.warn(`[${tag}] stream error: ${msg}`)
     const toolCalls = finalizedToolCalls(openaiTools)
     if (assembled.trim() || toolCalls.length) {
-      return { ok: true, text: assembled.trim() || undefined, toolCalls: toolCalls.length ? toolCalls : undefined, providerName, model }
+      logger.warn(`[${tag}] stream interrupted err=${msg}; returning partial`)
+      return {
+        ok: true,
+        text: assembled.trim() || undefined,
+        toolCalls: toolCalls.length ? toolCalls : undefined,
+        providerName,
+        model,
+      }
     }
+    logLlmFailure(tag, 'stream', null, msg, undefined, { providerName, model, baseUrl })
     return { ok: false, error: msg, providerName, model }
   } finally {
     clearTimeout(timer)

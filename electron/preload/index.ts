@@ -520,6 +520,12 @@ const api = {
   openDebugMainLog: (): Promise<string> => ipcRenderer.invoke(IpcChannels.debug.openMainLog),
   readDebugMainLogTail: (maxBytes?: number): Promise<string> =>
     ipcRenderer.invoke(IpcChannels.debug.readMainLogTail, maxBytes),
+  getDebugLogSettings: (): Promise<import('@shared').DebugLogSettings> =>
+    ipcRenderer.invoke(IpcChannels.debug.getLogSettings),
+  setDebugLogSettings: (
+    partial: Partial<import('@shared').DebugLogSettings>,
+  ): Promise<import('@shared').DebugLogSettings> =>
+    ipcRenderer.invoke(IpcChannels.debug.setLogSettings, partial),
   onDebugActivityAppended: (
     callback: (entry: import('@shared').ActivityLogEntry) => void,
   ): (() => void) => {

@@ -315,6 +315,10 @@ interface TreasureChestApi {
   clearDebugActivity: () => Promise<import('@shared').ActivityLogSnapshot>
   openDebugMainLog: () => Promise<string>
   readDebugMainLogTail: (maxBytes?: number) => Promise<string>
+  getDebugLogSettings: () => Promise<import('@shared').DebugLogSettings>
+  setDebugLogSettings: (
+    partial: Partial<import('@shared').DebugLogSettings>,
+  ) => Promise<import('@shared').DebugLogSettings>
   onDebugActivityAppended: (
     callback: (entry: import('@shared').ActivityLogEntry) => void,
   ) => () => void

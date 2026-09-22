@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { DATA_SOURCE_DRIVER_INFO } from '@shared'
+import { ensureNodeRuntime } from '../mcp/NodeRuntime'
 import { logger } from '../../utils/logger'
 
 const execFileAsync = promisify(execFile)
@@ -99,10 +100,6 @@ export function listOnDemandDriverStatuses(): DriverInstallStatus[] {
   return (Object.keys(ON_DEMAND_DRIVERS) as OnDemandDriverId[]).map((id) => getDriverStatus(id))
 }
 
-function resolveNpmCommand(): string {
-  return process.platform === 'win32' ? 'npm.cmd' : 'npm'
-}
-
 /**
  * Install a driver into userData/data-source-drivers at a specific version.
  */
@@ -126,14 +123,18 @@ export async function ensureDriverInstalled(
   const target = `${spec.packageName}@${version}`
   logger.info(`data-source driver installing ${target} → ${root}`)
   try {
+    const runtime = await ensureNodeRuntime()
     await execFileAsync(
-      resolveNpmCommand(),
+      runtime.npmPath,
       ['install', '--omit=dev', '--no-fund', '--no-audit', target],
       {
         cwd: root,
         env: (() => {
           const { ELECTRON_RUN_AS_NODE: _drop, ...rest } = process.env
-          return rest
+          const pathKey = process.platform === 'win32' ? 'Path' : 'PATH'
+          const prev = rest[pathKey] || rest.PATH || ''
+          const nextPath = `${runtime.binDir}${process.platform === 'win32' ? ';' : ':'}${prev}`
+          return { ...rest, [pathKey]: nextPath, PATH: nextPath }
         })(),
         timeout: 180_000,
         maxBuffer: 8 * 1024 * 1024,

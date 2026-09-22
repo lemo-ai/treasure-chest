@@ -1389,7 +1389,7 @@
 
 .debugRow {
   display: grid;
-  grid-template-columns: 4.5rem 3.2rem minmax(5rem, 8rem) minmax(0, 1fr);
+  grid-template-columns: minmax(5.5rem, 7.5rem) 3.2rem minmax(5rem, 8rem) minmax(0, 1fr);
   gap: 0.45rem;
   align-items: start;
   padding: 0.4rem 0.5rem;

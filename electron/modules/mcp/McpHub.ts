@@ -11,6 +11,7 @@ import type {
 import { DEFAULT_MCP_SETTINGS } from '@shared'
 import { settingsStore } from '../settings/SettingsStore'
 import { logger } from '../../utils/logger'
+import { prepareMcpLaunch } from './NodeRuntime'
 
 interface JsonRpcRequest {
   jsonrpc: '2.0'
@@ -50,7 +51,7 @@ abstract class McpSession {
  * @see https://modelcontextprotocol.io/specification/2024-11-05/basic/transports
  */
 class McpStdioSession extends McpSession {
-  private proc: ChildProcessWithoutNullStreams
+  private proc: ChildProcessWithoutNullStreams | null = null
   private buf = ''
   private nextId = 1
   private pending = new Map<
@@ -63,15 +64,15 @@ class McpStdioSession extends McpSession {
     super()
     this.server = server
     this.meta.status = 'connecting'
-    this.proc = spawn(server.command, server.args ?? [], {
-      env: { ...process.env, ...(server.env ?? {}) },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
+  }
+
+  private attachProcess(proc: ChildProcessWithoutNullStreams): void {
+    this.proc = proc
     this.proc.stdout.setEncoding('utf8')
     this.proc.stdout.on('data', (chunk: string) => this.onData(chunk))
     this.proc.stderr.on('data', (chunk: Buffer | string) => {
       const line = String(chunk).trim()
-      if (line) logger.warn(`[mcp:${server.name}] ${line}`)
+      if (line) logger.warn(`[mcp:${this.server.name}] ${line}`)
     })
     this.proc.on('error', (err) => {
       this.meta.status = 'error'
@@ -132,13 +133,15 @@ class McpStdioSession extends McpSession {
   private replyToServer(id: number, result: unknown): void {
     const payload = JSON.stringify({ jsonrpc: '2.0', id, result })
     try {
-      this.proc.stdin.write(`${payload}\n`)
+      this.proc?.stdin.write(`${payload}\n`)
     } catch {
       /* ignore */
     }
   }
 
   request(method: string, params?: unknown): Promise<unknown> {
+    if (!this.proc) return Promise.reject(new Error('MCP process not started'))
+    const proc = this.proc
     const id = this.nextId++
     const payload: JsonRpcRequest = { jsonrpc: '2.0', id, method, params }
     return new Promise((resolve, reject) => {
@@ -149,7 +152,7 @@ class McpStdioSession extends McpSession {
         }
       }, 30_000)
       this.pending.set(id, { resolve, reject, timer })
-      this.proc.stdin.write(`${JSON.stringify(payload)}\n`, (err) => {
+      proc.stdin.write(`${JSON.stringify(payload)}\n`, (err) => {
         if (err) {
           this.pending.delete(id)
           clearTimeout(timer)
@@ -160,12 +163,28 @@ class McpStdioSession extends McpSession {
   }
 
   async initialize(): Promise<void> {
+    if (!this.proc) {
+      const launch = await prepareMcpLaunch(
+        this.server.command,
+        this.server.args ?? [],
+        this.server.env,
+      )
+      logger.info(
+        `mcp spawn ${this.server.name} cmd=${launch.command} runtime=${launch.runtime.source}:${launch.runtime.versionHint}`,
+      )
+      this.attachProcess(
+        spawn(launch.command, launch.args, {
+          env: launch.env,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }),
+      )
+    }
     await this.request('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       clientInfo: { name: 'qiankun', version: '0.2.0' },
     })
-    this.proc.stdin.write(
+    this.proc?.stdin.write(
       `${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`,
     )
     this.meta.status = 'connected'
@@ -200,10 +219,11 @@ class McpStdioSession extends McpSession {
   dispose(): void {
     this.rejectAll(new Error('MCP session disposed'))
     try {
-      this.proc.kill()
+      this.proc?.kill()
     } catch {
       /* ignore */
     }
+    this.proc = null
   }
 }
 

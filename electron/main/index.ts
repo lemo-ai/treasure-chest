@@ -11,12 +11,15 @@ import { syncLaunchAtLogin } from '../modules/system/LaunchService'
 import { destroyTray, ensureTray, syncTrayVisibility } from '../modules/tray/TrayService'
 import { applyAppDockIcon } from '../utils/appIcon'
 import { logger } from '../utils/logger'
+import { attachLoggerActivityTransport } from '../modules/debug/ActivityLog'
 import {
   attachVisionAssetProtocol,
   registerVisionAssetScheme,
   startVisionAssetHttpServer,
 } from '../modules/imageTools/ImageToolsStore'
 import { startGeneratedMediaHttpServer } from '../modules/llm/media/GeneratedMediaStore'
+
+attachLoggerActivityTransport()
 
 app.setName('袖里乾坤')
 registerVisionAssetScheme()
@@ -40,6 +43,7 @@ if (isHarnessHeadless) {
   // Re-apply after a tick; Dock sometimes ignores the first setIcon on cold start.
   setTimeout(() => applyAppDockIcon(), 300)
   initDatabase()
+  void import('../modules/mcp/NodeRuntime').then((m) => m.warmNodeRuntime())
   void import('../modules/debug/ActivityLog').then((m) => m.initActivityLog())
   void import('../modules/harness/SessionRepo').then((m) => {
     const recovered = m.recoverInterruptedTurns()

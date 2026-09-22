@@ -182,8 +182,10 @@ import {
   appendActivity,
   clearActivity,
   getActivitySnapshot,
+  getDebugLogSettings,
   openMainLogFile,
   readMainLogTail,
+  setDebugLogSettings,
 } from '../modules/debug/ActivityLog'
 import {
   extractDocumentFromBase64,
@@ -1380,6 +1382,11 @@ export function registerAllIpc(): void {
   ipcMain.handle(IpcChannels.debug.openMainLog, () => openMainLogFile())
   ipcMain.handle(IpcChannels.debug.readMainLogTail, (_e, maxBytes?: number) =>
     readMainLogTail(maxBytes),
+  )
+  ipcMain.handle(IpcChannels.debug.getLogSettings, () => getDebugLogSettings())
+  ipcMain.handle(
+    IpcChannels.debug.setLogSettings,
+    (_e, partial: Partial<import('@shared').DebugLogSettings>) => setDebugLogSettings(partial),
   )
 
   // —— Projects / Memory / Artifacts (0.6.0 P0) ——

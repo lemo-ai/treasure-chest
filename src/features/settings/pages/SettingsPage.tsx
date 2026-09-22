@@ -143,8 +143,6 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'models', labelKey: 'settings.nav.models', icon: <IconKey /> },
     { id: 'localLlm', labelKey: 'settings.nav.localLlm', icon: <IconDownload /> },
     { id: 'image', labelKey: 'settings.nav.image', icon: <IconImage /> },
-    { id: 'fortune', labelKey: 'settings.nav.fortune', icon: <IconSparkles /> },
-    { id: 'stocks', labelKey: 'settings.nav.stocks', icon: <IconStocks /> },
     { id: 'agents', labelKey: 'settings.nav.agents', icon: <IconWorkbench /> },
     { id: 'skills', labelKey: 'settings.nav.skills', icon: <IconSkill /> },
     { id: 'mcp', labelKey: 'settings.nav.mcp', icon: <IconLayers /> },
@@ -153,6 +151,8 @@ export function SettingsPage(): React.JSX.Element {
     { id: 'usage', labelKey: 'settings.nav.usage', icon: <IconResearch /> },
     { id: 'computerUse', labelKey: 'settings.nav.computerUse', icon: <IconGlobe /> },
     { id: 'data', labelKey: 'settings.nav.data', icon: <IconDownload /> },
+    { id: 'fortune', labelKey: 'settings.nav.fortune', icon: <IconSparkles /> },
+    { id: 'stocks', labelKey: 'settings.nav.stocks', icon: <IconStocks /> },
     { id: 'debug', labelKey: 'settings.nav.debug', icon: <IconBug /> },
   ]
 
@@ -249,8 +249,6 @@ export function SettingsPage(): React.JSX.Element {
       'models',
       'localLlm',
       'image',
-      'fortune',
-      'stocks',
       'agents',
       'skills',
       'mcp',
@@ -259,6 +257,8 @@ export function SettingsPage(): React.JSX.Element {
       'usage',
       'computerUse',
       'data',
+      'fortune',
+      'stocks',
       'debug',
     ]
     if (raw && (allowed as string[]).includes(raw)) {

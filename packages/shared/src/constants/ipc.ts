@@ -174,6 +174,8 @@ export const IpcChannels = {
     clearActivity: 'debug:clearActivity',
     openMainLog: 'debug:openMainLog',
     readMainLogTail: 'debug:readMainLogTail',
+    getLogSettings: 'debug:getLogSettings',
+    setLogSettings: 'debug:setLogSettings',
     activityAppended: 'debug:activityAppended',
   },
   media: {

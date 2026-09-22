@@ -1,6 +1,28 @@
 {
   "releases": [
     {
+      "version": "0.6.3",
+      "date": "2026-09-22",
+      "title": {
+        "zh-CN": "调试日志与 MCP 运行时 · 排障更顺手",
+        "en-US": "Debug logging & MCP Node runtime"
+      },
+      "items": {
+        "zh-CN": [
+          "设置 → 调试：实时 / 磁盘日志 / 写入与保留三页签；可配置写入等级、保留天数、单文件上限与实时缓存条数",
+          "主进程 electron-log 同步到实时日志；模型调用失败写入活动日志（含 HTTP 正文）",
+          "MCP 自动解析本机 npx（Homebrew/nvm 等）；找不到则下载便携 Node，修复 spawn npx ENOENT",
+          "设置侧栏：运势、股票移到「数据」下方"
+        ],
+        "en-US": [
+          "Settings → Debug: Live / Disk / Write & retention tabs; configure write level, retention days, file size limit, and live buffer size",
+          "Main-process electron-log mirrors into the live activity stream; LLM failures include HTTP response bodies",
+          "MCP resolves system npx (Homebrew/nvm, etc.) or downloads a portable Node when missing — fixes spawn npx ENOENT",
+          "Settings nav: Fortune and Stocks moved below Data"
+        ]
+      }
+    },
+    {
       "version": "0.6.2",
       "date": "2026-09-21",
       "title": {
