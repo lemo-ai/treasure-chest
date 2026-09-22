@@ -212,10 +212,12 @@ jobs:
           draft: false
           files: |
             release/treasure-chest*.dmg
+            release/treasure-chest*.zip
             release/treasure-chest*.exe
             release/treasure-chest*.AppImage
             release/treasure-chest*.deb
             release/*.dmg
+            release/*.zip
             release/*.exe
             release/*.AppImage
             release/*.deb

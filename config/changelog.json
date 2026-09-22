@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "0.6.4",
+      "date": "2026-09-22",
+      "title": {
+        "zh-CN": "修复 macOS 应用内更新缺少 ZIP",
+        "en-US": "Fix macOS in-app update missing ZIP"
+      },
+      "items": {
+        "zh-CN": [
+          "mac 打包同时产出 .dmg（手动安装）与 .zip（electron-updater 自动更新）",
+          "Release 上传 zip；缺少自动更新包时提示改从发布页下载，不再刷 ZIP file not provided 原文"
+        ],
+        "en-US": [
+          "mac builds now ship both .dmg (manual) and .zip (required by electron-updater)",
+          "Release uploads include zip; if the auto-update package is missing, guide users to the releases page instead of raw ZIP errors"
+        ]
+      }
+    },
+    {
       "version": "0.6.3",
       "date": "2026-09-22",
       "title": {

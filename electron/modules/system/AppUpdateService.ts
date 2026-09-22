@@ -117,6 +117,15 @@ function ensureUpdaterConfigured(): void {
   })
 }
 
+function isMacZipMissingError(message: string): boolean {
+  return /ZIP file not provided/i.test(message)
+}
+
+function friendlyUpdateError(message: string): string {
+  if (isMacZipMissingError(message)) return 'mac_zip_missing'
+  return message
+}
+
 export function getAppUpdateStatus(): AppUpdateStatus {
   return { ...lastStatus, currentVersion: app.getVersion(), releaseUrl: APP_RELEASES_URL }
 }
@@ -155,18 +164,26 @@ export async function checkForAppUpdates(): Promise<AppUpdateStatus> {
       try {
         await autoUpdater.checkForUpdates()
       } catch (err) {
+        const raw = err instanceof Error ? err.message : String(err)
         logger.info(
-          `autoUpdater.checkForUpdates skipped/failed (unsigned builds are expected): ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          `autoUpdater.checkForUpdates skipped/failed (unsigned builds are expected): ${raw}`,
         )
+        if (isMacZipMissingError(raw)) {
+          return setStatus({
+            state: 'available',
+            currentVersion: current,
+            latestVersion: latest,
+            message: 'mac_zip_missing',
+            canInstall: false,
+          })
+        }
       }
     }
     return getAppUpdateStatus().state === 'idle' ? available : getAppUpdateStatus()
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     logger.warn('checkForAppUpdates failed', err)
-    return setStatus({ state: 'error', message, canInstall: false })
+    return setStatus({ state: 'error', message: friendlyUpdateError(message), canInstall: false })
   }
 }
 
@@ -179,14 +196,33 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
     })
   }
   ensureUpdaterConfigured()
-  setStatus({ state: 'downloading', progress: 0, canInstall: false })
+  setStatus({ state: 'downloading', progress: 0, canInstall: false, message: undefined })
   try {
+    // Re-check so updater has UpdateInfo; then download zip (mac) / nsis (win).
+    const result = await autoUpdater.checkForUpdates()
+    if (!result?.updateInfo) {
+      return setStatus({
+        state: 'error',
+        message: 'no_update_info',
+        canInstall: false,
+      })
+    }
     await autoUpdater.downloadUpdate()
     return getAppUpdateStatus()
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const raw = err instanceof Error ? err.message : String(err)
     logger.warn('downloadAppUpdate failed', err)
-    return setStatus({ state: 'error', message, canInstall: false })
+    const code = friendlyUpdateError(raw)
+    // Keep "available" so UI still shows open-releases / retry, with a clear reason.
+    if (code === 'mac_zip_missing') {
+      return setStatus({
+        state: 'available',
+        message: code,
+        progress: undefined,
+        canInstall: false,
+      })
+    }
+    return setStatus({ state: 'error', message: code, canInstall: false })
   }
 }
 

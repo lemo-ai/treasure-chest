@@ -273,6 +273,11 @@ export function SettingsPage(): React.JSX.Element {
 
   const updateStatusLabel = (status: AppUpdateStatus | null): string => {
     if (!status) return t('settings.update.status.idle')
+    if (status.message === 'mac_zip_missing') {
+      return t('settings.update.status.macZipMissing', {
+        version: status.latestVersion || '—',
+      })
+    }
     switch (status.state) {
       case 'checking':
         return t('settings.update.status.checking')
@@ -285,6 +290,8 @@ export function SettingsPage(): React.JSX.Element {
       case 'downloaded':
         return t('settings.update.status.downloaded', { version: status.latestVersion || '—' })
       case 'error':
+        if (status.message === 'not_packaged') return t('settings.update.status.notPackaged')
+        if (status.message === 'no_update_info') return t('settings.update.status.noUpdateInfo')
         return t('settings.update.status.error', { message: status.message || 'error' })
       default:
         return t('settings.update.status.idle')
