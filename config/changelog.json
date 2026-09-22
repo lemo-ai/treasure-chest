@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "0.6.6",
+      "date": "2026-09-22",
+      "title": {
+        "zh-CN": "未签名 mac 包改为引导手动更新",
+        "en-US": "Guide manual update for unsigned mac builds"
+      },
+      "items": {
+        "zh-CN": [
+          "识别 ad-hoc / 未签名安装：不再尝试 ShipIt 自动覆盖（会报「代码未能满足指定的代码要求」）",
+          "有新版本时提示打开发布页下载 .dmg；签名校验失败也给出可读说明"
+        ],
+        "en-US": [
+          "Detect ad-hoc / unsigned installs and skip ShipIt auto-replace (avoids code-signature validation errors)",
+          "When an update is available, guide users to the releases .dmg; clearer copy for signature failures"
+        ]
+      }
+    },
+    {
       "version": "0.6.5",
       "date": "2026-09-22",
       "title": {

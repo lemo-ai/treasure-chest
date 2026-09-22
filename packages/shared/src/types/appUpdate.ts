@@ -15,4 +15,6 @@ export type AppUpdateStatus = {
   message?: string
   releaseUrl?: string
   canInstall?: boolean
+  /** Prefer opening the releases page; in-app download/install will not work. */
+  manualOnly?: boolean
 }

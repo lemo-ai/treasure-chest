@@ -1,9 +1,11 @@
 /**
  * App update helpers.
- * Unsigned / Gatekeeper-unfriendly builds cannot silently install via electron-updater;
- * we still check GitHub Releases and open the download page. Packaged signed builds can
- * download + quitAndInstall when autoUpdater succeeds.
+ * Unsigned / ad-hoc mac builds cannot be installed via ShipIt (electron-updater):
+ * code signature validation fails. We still check GitHub Releases and guide users
+ * to the .dmg. Developer ID–signed builds can download + quitAndInstall.
  */
+import { spawnSync } from 'node:child_process'
+import { dirname, resolve } from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { IpcChannels } from '@shared'
@@ -29,7 +31,11 @@ export type AppUpdateStatus = {
   releaseUrl?: string
   /** True when installer can quitAndInstall (updater download finished). */
   canInstall?: boolean
+  /** When true, UI should only offer opening the releases page (no in-app download). */
+  manualOnly?: boolean
 }
+
+type MacSignKind = 'developer-id' | 'adhoc' | 'none' | 'unknown' | 'n/a'
 
 let lastStatus: AppUpdateStatus = {
   state: 'idle',
@@ -40,6 +46,7 @@ let lastStatus: AppUpdateStatus = {
 let configured = false
 let lastProgressEmitAt = 0
 let lastProgressPct = -1
+let cachedMacSign: MacSignKind | null = null
 
 function broadcastStatus(status: AppUpdateStatus): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -72,6 +79,55 @@ function compareSemver(a: string, b: string): number {
   return 0
 }
 
+function resolveMacAppBundle(): string | null {
+  if (process.platform !== 'darwin') return null
+  try {
+    const exe = app.getPath('exe')
+    const bundle = resolve(dirname(exe), '..', '..')
+    return bundle.endsWith('.app') ? bundle : null
+  } catch {
+    return null
+  }
+}
+
+/** Detect whether this mac build can be applied via ShipIt / electron-updater. */
+export function getMacSignKind(): MacSignKind {
+  if (process.platform !== 'darwin') return 'n/a'
+  if (cachedMacSign) return cachedMacSign
+  const bundle = resolveMacAppBundle()
+  if (!bundle) {
+    cachedMacSign = 'unknown'
+    return cachedMacSign
+  }
+  try {
+    const result = spawnSync('codesign', ['-dv', '--verbose=4', bundle], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    const text = `${result.stdout || ''}\n${result.stderr || ''}`
+    if (/Authority=Developer ID Application/i.test(text)) {
+      cachedMacSign = 'developer-id'
+    } else if (/Signature=adhoc/i.test(text) || /flags=0x[0-9a-f]*\(adhoc\)/i.test(text)) {
+      cachedMacSign = 'adhoc'
+    } else if (/code object is not signed/i.test(text) || result.status !== 0) {
+      cachedMacSign = 'none'
+    } else {
+      cachedMacSign = 'unknown'
+    }
+  } catch {
+    cachedMacSign = 'unknown'
+  }
+  logger.info(`mac code sign kind=${cachedMacSign} bundle=${bundle}`)
+  return cachedMacSign
+}
+
+/** Ad-hoc / unsigned mac apps cannot pass ShipIt signature validation on update. */
+function macRequiresManualUpdate(): boolean {
+  if (process.platform !== 'darwin') return false
+  const kind = getMacSignKind()
+  return kind === 'adhoc' || kind === 'none' || kind === 'unknown'
+}
+
 async function fetchLatestGithubVersion(): Promise<string | null> {
   const res = await fetch('https://api.github.com/repos/lemo-ai/treasure-chest/releases/latest', {
     headers: {
@@ -92,7 +148,6 @@ function ensureUpdaterConfigured(): void {
   configured = true
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
-  // Allow checking GitHub feed even for ad-hoc / unsigned local builds.
   autoUpdater.forceDevUpdateConfig = false
   try {
     autoUpdater.setFeedURL({
@@ -106,17 +161,18 @@ function ensureUpdaterConfigured(): void {
 
   autoUpdater.on('error', (err) => {
     logger.warn('autoUpdater error', err)
+    const code = friendlyUpdateError(err instanceof Error ? err.message : String(err))
     setStatus({
-      state: 'error',
-      message: friendlyUpdateError(err instanceof Error ? err.message : String(err)),
+      state: code === 'mac_signature_invalid' || code === 'mac_unsigned_manual' ? 'available' : 'error',
+      message: code,
       canInstall: false,
       progress: undefined,
+      manualOnly: code === 'mac_signature_invalid' || code === 'mac_unsigned_manual',
     })
   })
   autoUpdater.on('download-progress', (p) => {
     const pct = Math.max(0, Math.min(100, Math.round(p.percent)))
     const now = Date.now()
-    // Throttle UI pushes; always emit 0 / 100-ish milestones.
     if (pct !== 100 && pct !== 0 && pct === lastProgressPct && now - lastProgressEmitAt < 250) {
       return
     }
@@ -127,6 +183,7 @@ function ensureUpdaterConfigured(): void {
       progress: pct,
       canInstall: false,
       message: undefined,
+      manualOnly: false,
     })
   })
   autoUpdater.on('update-downloaded', (info) => {
@@ -137,6 +194,7 @@ function ensureUpdaterConfigured(): void {
       progress: 100,
       canInstall: true,
       message: undefined,
+      manualOnly: false,
     })
   })
 }
@@ -145,8 +203,19 @@ function isMacZipMissingError(message: string): boolean {
   return /ZIP file not provided/i.test(message)
 }
 
+function isMacSignatureError(message: string): boolean {
+  return (
+    /did not pass validation/i.test(message) ||
+    /代码未能满足指定的代码要求/.test(message) ||
+    /code failed to satisfy/i.test(message) ||
+    /Code signature at URL/i.test(message) ||
+    /代码签名/.test(message)
+  )
+}
+
 function friendlyUpdateError(message: string): string {
   if (isMacZipMissingError(message)) return 'mac_zip_missing'
+  if (isMacSignatureError(message)) return 'mac_signature_invalid'
   return message
 }
 
@@ -156,7 +225,13 @@ export function getAppUpdateStatus(): AppUpdateStatus {
 
 /** Compare local version to GitHub latest; optionally try electron-updater when packaged. */
 export async function checkForAppUpdates(): Promise<AppUpdateStatus> {
-  setStatus({ state: 'checking', message: undefined, progress: undefined, canInstall: false })
+  setStatus({
+    state: 'checking',
+    message: undefined,
+    progress: undefined,
+    canInstall: false,
+    manualOnly: false,
+  })
   const current = app.getVersion()
   try {
     const latest = await fetchLatestGithubVersion()
@@ -175,30 +250,45 @@ export async function checkForAppUpdates(): Promise<AppUpdateStatus> {
       })
     }
 
+    // Ad-hoc / unsigned mac: ShipIt will reject the zip even if download succeeds.
+    if (app.isPackaged && macRequiresManualUpdate()) {
+      logger.info(
+        `app update available=${latest} but mac sign=${getMacSignKind()} → manual .dmg only`,
+      )
+      return setStatus({
+        state: 'available',
+        currentVersion: current,
+        latestVersion: latest,
+        message: 'mac_unsigned_manual',
+        canInstall: false,
+        manualOnly: true,
+      })
+    }
+
     const available = setStatus({
       state: 'available',
       currentVersion: current,
       latestVersion: latest,
       canInstall: false,
+      manualOnly: false,
     })
 
-    // Best-effort: packaged builds may also wire autoUpdater for download.
     if (app.isPackaged) {
       ensureUpdaterConfigured()
       try {
         await autoUpdater.checkForUpdates()
       } catch (err) {
         const raw = err instanceof Error ? err.message : String(err)
-        logger.info(
-          `autoUpdater.checkForUpdates skipped/failed (unsigned builds are expected): ${raw}`,
-        )
-        if (isMacZipMissingError(raw)) {
+        logger.info(`autoUpdater.checkForUpdates skipped/failed: ${raw}`)
+        const code = friendlyUpdateError(raw)
+        if (code === 'mac_zip_missing' || code === 'mac_signature_invalid') {
           return setStatus({
             state: 'available',
             currentVersion: current,
             latestVersion: latest,
-            message: 'mac_zip_missing',
+            message: code,
             canInstall: false,
+            manualOnly: true,
           })
         }
       }
@@ -208,7 +298,11 @@ export async function checkForAppUpdates(): Promise<AppUpdateStatus> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     logger.warn('checkForAppUpdates failed', err)
-    return setStatus({ state: 'error', message: friendlyUpdateError(message), canInstall: false })
+    return setStatus({
+      state: 'error',
+      message: friendlyUpdateError(message),
+      canInstall: false,
+    })
   }
 }
 
@@ -220,6 +314,19 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
       canInstall: false,
     })
   }
+
+  if (macRequiresManualUpdate()) {
+    const latest = lastStatus.latestVersion
+    return setStatus({
+      state: 'available',
+      latestVersion: latest,
+      message: 'mac_unsigned_manual',
+      canInstall: false,
+      progress: undefined,
+      manualOnly: true,
+    })
+  }
+
   ensureUpdaterConfigured()
   lastProgressPct = -1
   lastProgressEmitAt = 0
@@ -228,9 +335,9 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
     progress: 0,
     canInstall: false,
     message: undefined,
+    manualOnly: false,
   })
   try {
-    // Re-check so updater has UpdateInfo; then download zip (mac) / nsis (win).
     const result = await autoUpdater.checkForUpdates()
     if (!result?.updateInfo) {
       return setStatus({
@@ -247,13 +354,13 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
     await autoUpdater.downloadUpdate()
     const done = getAppUpdateStatus()
     if (done.state !== 'downloaded') {
-      // update-downloaded should have fired; normalize if race.
       return setStatus({
         state: 'downloaded',
         latestVersion: result.updateInfo.version,
         progress: 100,
         canInstall: true,
         message: undefined,
+        manualOnly: false,
       })
     }
     return done
@@ -261,13 +368,13 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
     const raw = err instanceof Error ? err.message : String(err)
     logger.warn('downloadAppUpdate failed', err)
     const code = friendlyUpdateError(raw)
-    // Keep "available" so UI still shows open-releases / retry, with a clear reason.
-    if (code === 'mac_zip_missing') {
+    if (code === 'mac_zip_missing' || code === 'mac_signature_invalid' || code === 'mac_unsigned_manual') {
       return setStatus({
         state: 'available',
         message: code,
         progress: undefined,
         canInstall: false,
+        manualOnly: true,
       })
     }
     return setStatus({ state: 'error', message: code, canInstall: false, progress: undefined })
@@ -276,22 +383,27 @@ export async function downloadAppUpdate(): Promise<AppUpdateStatus> {
 
 export function quitAndInstallAppUpdate(): { ok: boolean; error?: string } {
   try {
+    if (macRequiresManualUpdate()) {
+      void openAppReleasesPage()
+      return { ok: false, error: 'mac_unsigned_manual' }
+    }
     ensureUpdaterConfigured()
     const status = getAppUpdateStatus()
     if (!status.canInstall && status.state !== 'downloaded') {
       return { ok: false, error: 'not_downloaded' }
     }
     logger.info('app update quitAndInstall')
-    // Allow the IPC reply to flush before the process exits.
     setTimeout(() => {
       try {
         autoUpdater.quitAndInstall(false, true)
       } catch (err) {
         logger.warn('quitAndInstall failed', err)
+        const code = friendlyUpdateError(err instanceof Error ? err.message : String(err))
         setStatus({
-          state: 'error',
-          message: err instanceof Error ? err.message : String(err),
+          state: 'available',
+          message: code === 'mac_signature_invalid' ? code : 'install_failed',
           canInstall: false,
+          manualOnly: true,
         })
         void openAppReleasesPage()
       }

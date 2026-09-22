@@ -276,8 +276,18 @@ export function SettingsPage(): React.JSX.Element {
     if (status.state === 'downloading') {
       return t('settings.update.status.downloading', { progress: status.progress ?? 0 })
     }
+    if (status.message === 'mac_signature_invalid') {
+      return t('settings.update.status.macSignatureInvalid', {
+        version: status.latestVersion || '—',
+      })
+    }
     if (status.message === 'mac_zip_missing') {
       return t('settings.update.status.macZipMissing', {
+        version: status.latestVersion || '—',
+      })
+    }
+    if (status.message === 'mac_unsigned_manual' || status.manualOnly) {
+      return t('settings.update.status.macUnsignedManual', {
         version: status.latestVersion || '—',
       })
     }
@@ -764,7 +774,11 @@ export function SettingsPage(): React.JSX.Element {
                 variant="primary"
                 onClick={() => void onQuitAndInstall()}
               />
-            ) : updateStatus?.state === 'available' || updateStatus?.message === 'mac_zip_missing' ? (
+            ) : updateStatus?.manualOnly ||
+              updateStatus?.message === 'mac_unsigned_manual' ||
+              updateStatus?.message === 'mac_signature_invalid' ||
+              updateStatus?.message === 'mac_zip_missing' ? null : updateStatus?.state ===
+              'available' ? (
               <SettingActionButton
                 icon={<IconDownload />}
                 label={
